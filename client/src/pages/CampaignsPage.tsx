@@ -8,9 +8,11 @@ import { Search } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 
 type StatusFilter = "all" | "active" | "completed";
+type CategoryFilter = "all" | "moradia" | "educacao" | "saude" | "alimentacao" | "infraestrutura" | "outro";
 
 export default function CampaignsPage() {
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [category, setCategory] = useState<CategoryFilter>("all");
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query.trim());
   const input = useMemo(
@@ -22,7 +24,12 @@ export default function CampaignsPage() {
     [deferredQuery, status],
   );
   const campaignsQuery = trpc.campaigns.listPublished.useQuery(input);
-  const campaigns = campaignsQuery.data ?? [];
+  let campaigns = campaignsQuery.data ?? [];
+
+  // Filtrar por categoria no frontend
+  if (category !== "all") {
+    campaigns = campaigns.filter((c) => c.category === category);
+  }
 
   return (
     <div className="min-h-screen bg-[#f8faf7]">
@@ -68,6 +75,33 @@ export default function CampaignsPage() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* FILTRO DE CATEGORIAS */}
+        <div className="mb-8 flex flex-wrap gap-2">
+          {([
+            ["all", "📌 Todas as categorias"],
+            ["moradia", "🏠 Moradia"],
+            ["educacao", "📚 Educação"],
+            ["saude", "🏥 Saúde"],
+            ["alimentacao", "🍽️ Alimentação"],
+            ["infraestrutura", "🏗️ Infraestrutura"],
+            ["outro", "🔹 Outro"],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setCategory(value)}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition active:scale-[0.95] ${
+                category === value
+                  ? "bg-[#228B22] text-white shadow-md"
+                  : "border border-[#e7e7e7] text-[#5f5f5f] hover:border-[#228B22] hover:bg-[#f9f9f9]"
+              }`}
+              aria-pressed={category === value}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {campaignsQuery.isLoading && (
