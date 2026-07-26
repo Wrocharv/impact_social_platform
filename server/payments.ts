@@ -15,6 +15,8 @@ const createPaymentPreferenceSchema = z.object({
   donorWhatsapp: z.string().trim().min(8).max(20),
   donorCity: z.string().trim().min(2).max(255),
   donorChurch: z.string().trim().min(2).max(255),
+  numberOfInstallments: z.number().int().min(2).max(24).optional(),
+  installmentFrequency: z.enum(["weekly", "biweekly", "monthly"]).optional(),
 });
 
 function requestOrigin(req: {
@@ -63,6 +65,8 @@ export const paymentsRouter = router({
         donorWhatsapp: input.donorWhatsapp,
         donorCity: input.donorCity,
         donorChurch: input.donorChurch,
+        numberOfInstallments: input.numberOfInstallments,
+        installmentFrequency: input.installmentFrequency,
         status: "pending",
         externalReference,
         paymentStatusDetail: "preference_creating",

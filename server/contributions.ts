@@ -20,6 +20,8 @@ const offerSchema = z.object({
   campaignNeedId: z.number().int().positive().optional(),
   quantity: z.string().trim().max(255).optional(),
   deliveryMethod: z.enum(["pickup", "deliver", "mail", "other"]).optional(),
+  numberOfInstallments: z.number().int().min(2).max(24).optional(),
+  materialDeliveryFrequency: z.enum(["unique", "weekly", "biweekly", "monthly"]).optional(),
 });
 
 async function assertActiveCampaign(campaignId: number) {
@@ -82,6 +84,8 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
     donorCity: input.donorCity,
     donorChurch: input.donorChurch,
     deliveryMethod: type === "material" ? input.deliveryMethod : undefined,
+    numberOfInstallments: input.numberOfInstallments,
+    materialDeliveryFrequency: type === "material" ? input.materialDeliveryFrequency : undefined,
     status: "pending",
     paymentStatusDetail: "awaiting_triage",
   });

@@ -12,8 +12,10 @@ import { Link, useRoute } from "wouter";
 
 type ContributionType = "financial" | "material" | "volunteer";
 type PaymentMethod = "pix" | "card" | "boleto" | "cash";
-type RecurrenceType = "unique" | "monthly" | "annual";
+type RecurrenceType = "unique" | "installments";
+type InstallmentFrequency = "weekly" | "biweekly" | "monthly";
 type DeliveryMethod = "pickup" | "deliver" | "mail" | "other";
+type DeliveryFrequency = "unique" | "weekly" | "biweekly" | "monthly";
 type Step = "type" | "donor-info" | "details" | "payment" | "confirmation";
 
 interface WizardState {
@@ -26,10 +28,13 @@ interface WizardState {
   // Financeiro
   amount?: number;
   recurrence: RecurrenceType;
+  numberOfInstallments?: number;
+  installmentFrequency?: InstallmentFrequency;
   startDate: string;
   // Material
   materialDescription: string;
   materialQuantity: string;
+  materialDeliveryFrequency: DeliveryFrequency;
   deliveryMethod: DeliveryMethod | null;
   // Voluntário
   volunteerDescription: string;
@@ -59,6 +64,7 @@ export default function ContributionWizardPage() {
     startDate: new Date().toISOString().split("T")[0],
     materialDescription: "",
     materialQuantity: "",
+    materialDeliveryFrequency: "unique",
     deliveryMethod: null,
     volunteerDescription: "",
     paymentMethod: null,
@@ -77,9 +83,12 @@ export default function ContributionWizardPage() {
       state.donorChurch.trim().length >= 2,
     details:
       state.type === "financial"
-        ? (state.amount ?? 0) >= 1
+        ? (state.amount ?? 0) >= 1 &&
+          (state.recurrence === "unique" || (state.numberOfInstallments ?? 0) >= 2)
         : state.type === "material"
-          ? state.materialDescription.trim().length >= 10 && state.deliveryMethod !== null
+          ? state.materialDescription.trim().length >= 10 &&
+            state.deliveryMethod !== null &&
+            (state.materialDeliveryFrequency === "unique" || state.numberOfInstallments === undefined)
           : state.volunteerDescription.trim().length >= 10,
     payment: state.paymentMethod !== null,
   };
@@ -118,6 +127,8 @@ export default function ContributionWizardPage() {
           donorChurch: state.donorChurch,
           quantity: state.materialQuantity || undefined,
           deliveryMethod: state.deliveryMethod || undefined,
+          numberOfInstallments: state.materialDeliveryFrequency === "unique" ? undefined : state.numberOfInstallments,
+          materialDeliveryFrequency: state.materialDeliveryFrequency,
         });
         toast.success("Oferta de material recebida! Entraremos em contato.");
         setLocation(`/campaigns/${campaignId}`);
@@ -142,6 +153,8 @@ export default function ContributionWizardPage() {
           donorEmail: state.donorEmail,
           donorCity: state.donorCity,
           donorChurch: state.donorChurch,
+          numberOfInstallments: state.recurrence === "installments" ? state.numberOfInstallments : undefined,
+          installmentFrequency: state.recurrence === "installments" ? state.installmentFrequency : undefined,
         });
         if (result.checkoutUrl) {
           window.location.href = result.checkoutUrl;
@@ -311,25 +324,61 @@ export default function ContributionWizardPage() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Doação *</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Como você gostaria de pagar? *</label>
                         <Select
                           value={state.recurrence}
-                          onValueChange={(value) => setState({ ...state, recurrence: value as RecurrenceType })}
+                          onValueChange={(value) => setState({ ...state, recurrence: value as RecurrenceType, numberOfInstallments: undefined })}
                           disabled={loading}
                         >
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="unique">Única</SelectItem>
-                            <SelectItem value="monthly">Mensal (recorrente)</SelectItem>
-                            <SelectItem value="annual">Anual (recorrente)</SelectItem>
+                            <SelectItem value="unique">À vista (uma vez)</SelectItem>
+                            <SelectItem value="installments">Em parcelas</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
 
+                      {state.recurrence === "installments" && (
+                        <>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Número de Parcelas *</label>
+                              <Input
+                                type="number"
+                                placeholder="Ex: 10"
+                                min="2"
+                                max="24"
+                                value={state.numberOfInstallments || ""}
+                                onChange={(e) => setState({ ...state, numberOfInstallments: e.target.value ? parseInt(e.target.value) : undefined })}
+                                disabled={loading}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Frequência *</label>
+                              <Select
+                                value={state.installmentFrequency || ""}
+                                onValueChange={(value) => setState({ ...state, installmentFrequency: value as InstallmentFrequency })}
+                                disabled={loading}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Escolha..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="weekly">Semanal</SelectItem>
+                                  <SelectItem value="biweekly">Quinzenal</SelectItem>
+                                  <SelectItem value="monthly">Mensal</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Data da Doação *</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Data de Início *</label>
                         <Input
                           type="date"
                           value={state.startDate}
@@ -362,6 +411,25 @@ export default function ContributionWizardPage() {
                           onChange={(e) => setState({ ...state, materialQuantity: e.target.value })}
                           disabled={loading}
                         />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Como você gostaria de entregar? *</label>
+                        <Select
+                          value={state.materialDeliveryFrequency}
+                          onValueChange={(value) => setState({ ...state, materialDeliveryFrequency: value as DeliveryFrequency })}
+                          disabled={loading}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unique">Tudo de uma vez</SelectItem>
+                            <SelectItem value="weekly">Semanalmente</SelectItem>
+                            <SelectItem value="biweekly">Quinzenalmente</SelectItem>
+                            <SelectItem value="monthly">Mensalmente</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       <div>

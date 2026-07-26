@@ -64,6 +64,9 @@ export const contributions = mysqlTable("contributions", {
   donorCity: varchar("donorCity", { length: 255 }),
   donorChurch: varchar("donorChurch", { length: 255 }),
   deliveryMethod: varchar("deliveryMethod", { length: 50 }), // Para material: pickup, deliver, mail, other
+  numberOfInstallments: int("numberOfInstallments"), // Para financeiro/material em parcelas
+  installmentFrequency: varchar("installmentFrequency", { length: 50 }), // Para financeiro: weekly, biweekly, monthly
+  materialDeliveryFrequency: varchar("materialDeliveryFrequency", { length: 50 }), // Para material: unique, weekly, biweekly, monthly
   status: mysqlEnum("status", ["pending", "approved", "completed", "rejected", "cancelled", "refunded"])
     .default("pending")
     .notNull(),
