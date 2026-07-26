@@ -11,7 +11,10 @@ const createPaymentPreferenceSchema = z.object({
   campaignId: z.number().int().positive(),
   amount: z.number().int().min(100, "Valor mínimo: R$ 1,00"),
   donorEmail: z.string().trim().email(),
-  donorName: z.string().trim().min(2).max(255).optional(),
+  donorName: z.string().trim().min(2).max(255),
+  donorWhatsapp: z.string().trim().min(8).max(20),
+  donorCity: z.string().trim().min(2).max(255),
+  donorChurch: z.string().trim().min(2).max(255),
 });
 
 function requestOrigin(req: {
@@ -57,6 +60,9 @@ export const paymentsRouter = router({
         amount: input.amount,
         donorName: input.donorName,
         donorEmail: input.donorEmail,
+        donorWhatsapp: input.donorWhatsapp,
+        donorCity: input.donorCity,
+        donorChurch: input.donorChurch,
         status: "pending",
         externalReference,
         paymentStatusDetail: "preference_creating",

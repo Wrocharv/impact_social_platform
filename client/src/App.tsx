@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import CampaignDetail from "./pages/CampaignDetail";
 import ContributionPage from "./pages/ContributionPage";
+import ContributionWizardPage from "./pages/ContributionWizardPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import CheckoutPage from "./pages/CheckoutPage";
 import AccountabilityPage from "./pages/AccountabilityPage";
@@ -23,6 +24,7 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/campaigns"} component={CampaignsPage} />
       <Route path={"/campaign/:id"} component={CampaignDetail} />
+      <Route path={"/contribute/wizard/:id"} component={ContributionWizardPage} />
       <Route path={"/contribute/:id"} component={ContributionPage} />
       <Route path={"/checkout/:campaignId"} component={CheckoutPage} />
       <Route path={"/payment/success"}>{() => <PaymentReturnPage state="success" />}</Route>

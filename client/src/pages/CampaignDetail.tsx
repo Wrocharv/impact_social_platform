@@ -213,7 +213,7 @@ export default function CampaignDetail() {
                 <div><dt className="text-sm text-[#787878]">Contribuidores confirmados</dt><dd className="text-lg font-semibold text-[#228B22]">{campaign.contributorsCount}</dd></div>
               </dl>
               {campaign.status === "active" ? (
-                <Link href={`/contribute/${campaign.id}`} className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
+                <Link href={`/contribute/wizard/${campaign.id}`} className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
                   <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ajudar
                 </Link>
               ) : (

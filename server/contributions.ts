@@ -19,6 +19,7 @@ const offerSchema = z.object({
   ...donorInfoSchema.shape,
   campaignNeedId: z.number().int().positive().optional(),
   quantity: z.string().trim().max(255).optional(),
+  deliveryMethod: z.enum(["pickup", "deliver", "mail", "other"]).optional(),
 });
 
 async function assertActiveCampaign(campaignId: number) {
@@ -80,6 +81,7 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
     donorWhatsapp: input.donorWhatsapp,
     donorCity: input.donorCity,
     donorChurch: input.donorChurch,
+    deliveryMethod: type === "material" ? input.deliveryMethod : undefined,
     status: "pending",
     paymentStatusDetail: "awaiting_triage",
   });

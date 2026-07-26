@@ -63,6 +63,7 @@ export const contributions = mysqlTable("contributions", {
   donorWhatsapp: varchar("donorWhatsapp", { length: 20 }),
   donorCity: varchar("donorCity", { length: 255 }),
   donorChurch: varchar("donorChurch", { length: 255 }),
+  deliveryMethod: varchar("deliveryMethod", { length: 50 }), // Para material: pickup, deliver, mail, other
   status: mysqlEnum("status", ["pending", "approved", "completed", "rejected", "cancelled", "refunded"])
     .default("pending")
     .notNull(),
