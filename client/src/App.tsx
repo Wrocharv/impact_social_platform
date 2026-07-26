@@ -10,6 +10,7 @@ import ContributionPage from "./pages/ContributionPage";
 import ContributionWizardPage from "./pages/ContributionWizardPage";
 import ContributionConfirmationPage from "./pages/ContributionConfirmationPage";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminMobilePage from "./pages/AdminMobilePage";
 import CheckoutPage from "./pages/CheckoutPage";
 import AccountabilityPage from "./pages/AccountabilityPage";
 import AmbassadorsPage from "./pages/AmbassadorsPage";
@@ -39,6 +40,7 @@ function Router() {
       <Route path={"/ambassadors"} component={AmbassadorsPage} />
       <Route path={"/accountability-detail/:id"} component={AccountabilityDetailPage} />
       <Route path={"/admin"} component={AdminDashboard} />
+      <Route path={"/admin-mobile"} component={AdminMobilePage} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
