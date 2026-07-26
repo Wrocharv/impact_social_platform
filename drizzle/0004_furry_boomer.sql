@@ -1,0 +1,1 @@
+ALTER TABLE `notificationDeliveries` ADD `processingToken` varchar(64);

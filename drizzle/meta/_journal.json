@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1784971331194,
+      "tag": "0000_dusty_prodigy",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1784972376446,
+      "tag": "0001_same_skaar",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1784977652097,
+      "tag": "0002_black_miss_america",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1784980815708,
+      "tag": "0003_sticky_pixie",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1784980904162,
+      "tag": "0004_furry_boomer",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1784984457270,
+      "tag": "0005_parched_paladin",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1784985242729,
+      "tag": "0006_absurd_franklin_storm",
+      "breakpoints": true
+    }
+  ]
+}

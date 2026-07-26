@@ -1,0 +1,173 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  /* Parceiros do Bem - Design System */
+  /* Cores principais - Confiança e Seriedade */
+  --primary: 34 139 34; /* Verde profundo - esperança e crescimento */
+  --primary-foreground: 255 255 255;
+  
+  /* Cores secundárias - Acolhimento */
+  --secondary: 184 134 11; /* Ouro quente - reconhecimento e valor */
+  --secondary-foreground: 255 255 255;
+  
+  /* Cores de acento */
+  --accent: 220 53 69; /* Vermelho suave - urgência com compaixão */
+  --accent-foreground: 255 255 255;
+  
+  /* Cores neutras - Elegância */
+  --background: 250 250 250; /* Branco quente */
+  --foreground: 45 45 45; /* Cinza muito escuro */
+  --card: 255 255 255;
+  --card-foreground: 45 45 45;
+  --popover: 255 255 255;
+  --popover-foreground: 45 45 45;
+  --muted: 120 120 120; /* Cinza médio */
+  --muted-foreground: 255 255 255;
+  --border: 220 220 220; /* Cinza claro */
+  --input: 255 255 255;
+  --ring: 34 139 34; /* Verde profundo */
+  
+  /* Cores de feedback */
+  --destructive: 220 53 69;
+  --destructive-foreground: 255 255 255;
+  --success: 34 139 34;
+  --success-foreground: 255 255 255;
+  --warning: 255 193 7;
+  --warning-foreground: 45 45 45;
+  
+  /* Chart colors */
+  --chart-1: 34 139 34;
+  --chart-2: 184 134 11;
+  --chart-3: 220 53 69;
+  --chart-4: 70 130 180;
+  --chart-5: 100 149 237;
+  
+  /* Sidebar */
+  --sidebar: 34 139 34;
+  --sidebar-foreground: 255 255 255;
+  --sidebar-primary: 26 107 26;
+  --sidebar-primary-foreground: 255 255 255;
+  --sidebar-accent: 184 134 11;
+  --sidebar-accent-foreground: 45 45 45;
+  --sidebar-border: 220 220 220;
+  --sidebar-ring: 34 139 34;
+}
+
+.dark {
+  --background: 20 20 20;
+  --foreground: 245 245 245;
+  --card: 30 30 30;
+  --card-foreground: 245 245 245;
+  --popover: 30 30 30;
+  --popover-foreground: 245 245 245;
+  --muted: 150 150 150;
+  --muted-foreground: 30 30 30;
+  --border: 60 60 60;
+  --input: 40 40 40;
+  --sidebar: 26 107 26;
+  --sidebar-foreground: 255 255 255;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  /**
+   * Custom container utility that centers content and adds responsive padding.
+   *
+   * This overrides Tailwind's default container behavior to:
+   * - Automatically center content
+   * - Add responsive padding (px-4 on mobile, px-6+ on larger screens)
+   * - Avoid needing mx-auto and px-* on every page
+   *
+   * Usage: <div class="container">...</div>
+   */
+  .container {
+    @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  /**
+   * Flex utility with min-width/min-height reset.
+   *
+   * By default, flex items have min-width: auto, which prevents them from
+   * shrinking below content size. This is often unexpected. We reset it to 0
+   * so flex items can shrink properly.
+   *
+   * Usage: <div class="flex">...</div>
+   */
+  .flex {
+    @apply flex min-w-0 min-h-0;
+  }
+
+  /**
+   * Button outline variant override.
+   *
+   * The default shadcn outline uses bg-background, which can be hard to see
+   * on light backgrounds. We use transparent instead.
+   *
+   * Usage: <Button variant="outline">...</Button>
+   */
+  .btn-outline {
+    @apply bg-transparent;
+  }
+}
