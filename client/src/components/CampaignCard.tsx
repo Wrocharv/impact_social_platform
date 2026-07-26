@@ -13,6 +13,7 @@ type CampaignCardProps = {
     progress: number;
     imageUrl: string | null;
     status: "active" | "completed" | "paused" | "archived";
+    category?: "moradia" | "educacao" | "saude" | "alimentacao" | "infraestrutura" | "outro";
   };
 };
 
@@ -21,6 +22,15 @@ const formatCurrency = (value: number) =>
     style: "currency",
     currency: "BRL",
   });
+
+const categoryConfig = {
+  moradia: { label: "🏠 Moradia", color: "bg-blue-100 text-blue-800" },
+  educacao: { label: "📚 Educação", color: "bg-purple-100 text-purple-800" },
+  saude: { label: "🏥 Saúde", color: "bg-red-100 text-red-800" },
+  alimentacao: { label: "🍽️ Alimentação", color: "bg-orange-100 text-orange-800" },
+  infraestrutura: { label: "🏗️ Infraestrutura", color: "bg-yellow-100 text-yellow-800" },
+  outro: { label: "📌 Outro", color: "bg-gray-100 text-gray-800" },
+};
 
 export default function CampaignCard({ campaign }: CampaignCardProps) {
   const isCompleted = campaign.status === "completed";
@@ -40,6 +50,13 @@ export default function CampaignCard({ campaign }: CampaignCardProps) {
               <Heart className="h-14 w-14 text-[#228B22]/45" aria-hidden="true" />
             </div>
           )}
+          <div className="absolute left-4 top-4 flex flex-col gap-2">
+            {campaign.category && (
+              <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${categoryConfig[campaign.category]?.color || categoryConfig.outro.color}`}>
+                {categoryConfig[campaign.category]?.label || categoryConfig.outro.label}
+              </span>
+            )}
+          </div>
           <span className="absolute right-4 top-4 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-[#227a22] shadow-sm">
             {isCompleted ? "Concluída" : "Em andamento"}
           </span>

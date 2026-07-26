@@ -33,6 +33,7 @@ export const campaigns = mysqlTable("campaigns", {
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description").notNull(),
   longDescription: text("longDescription"),
+  category: mysqlEnum("category", ["moradia", "educacao", "saude", "alimentacao", "infraestrutura", "outro"]).default("outro"),
   goal: int("goal").notNull(), // Meta em centavos (ex: 100000 = R$ 1000)
   raised: int("raised").default(0).notNull(),
   status: mysqlEnum("status", ["active", "completed", "paused", "archived"]).default("active").notNull(),
