@@ -6,9 +6,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { AlertCircle, ChevronLeft, Heart, Package, Users, DollarSign, Zap } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Link, useRoute } from "wouter";
+import { useDonorStorage } from "@/hooks/useDonorStorage";
 
 type ContributionType = "financial" | "material" | "volunteer";
 type PaymentMethod = "pix" | "card" | "boleto" | "cash";
@@ -48,6 +49,9 @@ export default function ContributionWizardPage() {
   const campaignId = Number(params?.id ?? 0);
   const [location, setLocation] = useRoute();
 
+  // Carregar dados de doadores salvos
+  const { isLoaded, currentDonor, saveDonor } = useDonorStorage();
+
   const campaignQuery = trpc.campaigns.getById.useQuery(
     { id: campaignId },
     { enabled: Number.isInteger(campaignId) && campaignId > 0 },
@@ -61,7 +65,7 @@ export default function ContributionWizardPage() {
     donorEmail: "",
     donorCity: "",
     donorChurch: "",
-    allowPublicDisplay: null,
+    allowPublicDisplay: false,
     recurrence: "unique",
     startDate: new Date().toISOString().split("T")[0],
     materialDescription: "",
@@ -72,6 +76,20 @@ export default function ContributionWizardPage() {
     paymentMethod: null,
   });
 
+  // Autopreencer dados salvos do doador
+  useEffect(() => {
+    if (isLoaded && currentDonor) {
+      setState((prev) => ({
+        ...prev,
+        donorName: currentDonor.donorName,
+        donorWhatsapp: currentDonor.donorWhatsapp,
+        donorEmail: currentDonor.donorEmail,
+        donorCity: currentDonor.donorCity,
+        donorChurch: currentDonor.donorChurch,
+      }));
+    }
+  }, [isLoaded, currentDonor]);
+
   const createMaterial = trpc.contributions.createMaterialContribution.useMutation();
   const createVolunteer = trpc.contributions.createVolunteerContribution.useMutation();
   const createPayment = trpc.payments.createPaymentPreference.useMutation();
@@ -81,8 +99,7 @@ export default function ContributionWizardPage() {
     donorInfo:
       state.donorName.trim().length >= 2 &&
       state.donorWhatsapp.trim().length >= 8 &&
-      state.donorCity.trim().length >= 2 &&
-      state.allowPublicDisplay !== null,
+      state.donorCity.trim().length >= 2,
     details:
       state.type === "financial"
         ? (state.amount ?? 0) >= 1 &&
@@ -124,6 +141,15 @@ export default function ContributionWizardPage() {
 
   const handleSubmit = async () => {
     try {
+      // Salvar dados do doador para próximas doações
+      const donor = saveDonor({
+        donorName: state.donorName,
+        donorWhatsapp: state.donorWhatsapp,
+        donorEmail: state.donorEmail,
+        donorCity: state.donorCity,
+        donorChurch: state.donorChurch,
+      });
+
       if (state.type === "material") {
         await createMaterial.mutateAsync({
           campaignId,
@@ -289,10 +315,22 @@ export default function ContributionWizardPage() {
               {step === "donor-info" && (
                 <div className="space-y-4">
                   <p className="text-sm text-gray-600 mb-6">Preencha seus dados para que possamos entrar em contato:</p>
+                  
+                  {currentDonor && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                      <p className="text-sm text-blue-700">
+                        <span className="font-semibold">✓ Bem-vindo novamente!</span> Seus dados foram carregados automaticamente.
+                        <br />
+                        <span className="text-xs text-blue-600 mt-1 block">ID do doador: {currentDonor.donorId} • Doações anteriores: {currentDonor.donationsCount}</span>
+                      </p>
+                    </div>
+                  )}
+
                   <div className="space-y-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo *</label>
                       <Input
+                        autoComplete="off"
                         placeholder="Seu nome"
                         value={state.donorName}
                         onChange={(e) => setState({ ...state, donorName: e.target.value })}
@@ -305,6 +343,7 @@ export default function ContributionWizardPage() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp *</label>
                       <Input
+                        autoComplete="off"
                         placeholder="(11) 99999-9999"
                         value={state.donorWhatsapp}
                         onChange={(e) => setState({ ...state, donorWhatsapp: e.target.value })}
@@ -317,6 +356,7 @@ export default function ContributionWizardPage() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Email (opcional)</label>
                       <Input
+                        autoComplete="off"
                         type="email"
                         placeholder="seu@email.com"
                         value={state.donorEmail}
@@ -329,6 +369,7 @@ export default function ContributionWizardPage() {
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Cidade *</label>
                         <Input
+                          autoComplete="off"
                           placeholder="Sua cidade"
                           value={state.donorCity}
                           onChange={(e) => setState({ ...state, donorCity: e.target.value })}
@@ -341,6 +382,7 @@ export default function ContributionWizardPage() {
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Igreja (opcional)</label>
                         <Input
+                          autoComplete="off"
                           placeholder="Nome da sua igreja"
                           value={state.donorChurch}
                           onChange={(e) => setState({ ...state, donorChurch: e.target.value })}
@@ -352,7 +394,7 @@ export default function ContributionWizardPage() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Posso divulgar seu nome? *</label>
                       <Select
-                        value={state.allowPublicDisplay === null ? "" : state.allowPublicDisplay ? "sim" : "nao"}
+                        value={state.allowPublicDisplay ? "sim" : "nao"}
                         onValueChange={(value) => setState({ ...state, allowPublicDisplay: value === "sim" })}
                         disabled={loading}
                       >
