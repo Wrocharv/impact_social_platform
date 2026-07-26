@@ -63,6 +63,7 @@ export const contributions = mysqlTable("contributions", {
   donorWhatsapp: varchar("donorWhatsapp", { length: 20 }),
   donorCity: varchar("donorCity", { length: 255 }),
   donorChurch: varchar("donorChurch", { length: 255 }),
+  allowPublicDisplay: boolean("allowPublicDisplay").notNull().default(false), // Permite divulgar nome do doador
   deliveryMethod: varchar("deliveryMethod", { length: 50 }), // Para material: pickup, deliver, mail, other
   numberOfInstallments: int("numberOfInstallments"), // Para financeiro/material em parcelas
   installmentFrequency: varchar("installmentFrequency", { length: 50 }), // Para financeiro: weekly, biweekly, monthly

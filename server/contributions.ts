@@ -10,7 +10,8 @@ const donorInfoSchema = z.object({
   donorWhatsapp: z.string().trim().min(8).max(20),
   donorEmail: z.string().trim().email().optional(),
   donorCity: z.string().trim().min(2).max(255),
-  donorChurch: z.string().trim().min(2).max(255),
+  donorChurch: z.string().trim().min(2).max(255).optional(),
+  allowPublicDisplay: z.boolean(),
 });
 
 const offerSchema = z.object({
@@ -83,6 +84,7 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
     donorWhatsapp: input.donorWhatsapp,
     donorCity: input.donorCity,
     donorChurch: input.donorChurch,
+    allowPublicDisplay: input.allowPublicDisplay,
     deliveryMethod: type === "material" ? input.deliveryMethod : undefined,
     numberOfInstallments: input.numberOfInstallments,
     materialDeliveryFrequency: type === "material" ? input.materialDeliveryFrequency : undefined,
@@ -126,6 +128,7 @@ export const contributionsRouter = router({
         donorWhatsapp: input.donorWhatsapp,
         donorCity: input.donorCity,
         donorChurch: input.donorChurch,
+        allowPublicDisplay: input.allowPublicDisplay,
         status: "pending",
         paymentStatusDetail: "awaiting_payment",
       });

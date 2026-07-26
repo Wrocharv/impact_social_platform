@@ -25,6 +25,7 @@ interface WizardState {
   donorEmail: string;
   donorCity: string;
   donorChurch: string;
+  allowPublicDisplay: boolean | null;
   // Financeiro
   amount?: number;
   recurrence: RecurrenceType;
@@ -60,6 +61,7 @@ export default function ContributionWizardPage() {
     donorEmail: "",
     donorCity: "",
     donorChurch: "",
+    allowPublicDisplay: null,
     recurrence: "unique",
     startDate: new Date().toISOString().split("T")[0],
     materialDescription: "",
@@ -80,7 +82,7 @@ export default function ContributionWizardPage() {
       state.donorName.trim().length >= 2 &&
       state.donorWhatsapp.trim().length >= 8 &&
       state.donorCity.trim().length >= 2 &&
-      state.donorChurch.trim().length >= 2,
+      state.allowPublicDisplay !== null,
     details:
       state.type === "financial"
         ? (state.amount ?? 0) >= 1 &&
@@ -97,7 +99,6 @@ export default function ContributionWizardPage() {
     name: state.donorName.trim().length < 2 ? "Nome deve ter pelo menos 2 caracteres" : "",
     whatsapp: state.donorWhatsapp.trim().length < 8 ? "WhatsApp deve ter pelo menos 8 caracteres" : "",
     city: state.donorCity.trim().length < 2 ? "Cidade deve ter pelo menos 2 caracteres" : "",
-    church: state.donorChurch.trim().length < 2 ? "Igreja deve ter pelo menos 2 caracteres" : "",
   };
 
   const handleTypeSelect = (type: ContributionType) => {
@@ -132,6 +133,7 @@ export default function ContributionWizardPage() {
           donorEmail: state.donorEmail,
           donorCity: state.donorCity,
           donorChurch: state.donorChurch,
+          allowPublicDisplay: state.allowPublicDisplay ?? false,
           quantity: state.materialQuantity || undefined,
           deliveryMethod: state.deliveryMethod || undefined,
           numberOfInstallments: state.materialDeliveryFrequency === "unique" ? undefined : state.numberOfInstallments,
@@ -148,6 +150,7 @@ export default function ContributionWizardPage() {
           donorEmail: state.donorEmail,
           donorCity: state.donorCity,
           donorChurch: state.donorChurch,
+          allowPublicDisplay: state.allowPublicDisplay ?? false,
         });
         toast.success("Oferta de voluntariado recebida! Entraremos em contato.");
         setLocation(`/campaigns/${campaignId}`);
@@ -160,6 +163,7 @@ export default function ContributionWizardPage() {
           donorEmail: state.donorEmail,
           donorCity: state.donorCity,
           donorChurch: state.donorChurch,
+          allowPublicDisplay: state.allowPublicDisplay ?? false,
           numberOfInstallments: state.recurrence === "installments" ? state.numberOfInstallments : undefined,
           installmentFrequency: state.recurrence === "installments" ? state.installmentFrequency : undefined,
         });
@@ -286,16 +290,31 @@ export default function ContributionWizardPage() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Igreja *</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Igreja (opcional)</label>
                         <Input
                           placeholder="Nome da sua igreja"
                           value={state.donorChurch}
                           onChange={(e) => setState({ ...state, donorChurch: e.target.value })}
                           disabled={loading}
-                          className={donorInfoErrors.church ? "border-red-500" : ""}
                         />
-                        {donorInfoErrors.church && <p className="text-xs text-red-500 mt-1">{donorInfoErrors.church}</p>}
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Posso divulgar seu nome? *</label>
+                      <Select
+                        value={state.allowPublicDisplay === null ? "" : state.allowPublicDisplay ? "sim" : "nao"}
+                        onValueChange={(value) => setState({ ...state, allowPublicDisplay: value === "sim" })}
+                        disabled={loading}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Escolha uma opção..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sim">✓ Sim, pode divulgar meu nome</SelectItem>
+                          <SelectItem value="nao">✕ Não, prefiro manter anônimo</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 

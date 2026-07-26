@@ -14,7 +14,8 @@ const createPaymentPreferenceSchema = z.object({
   donorName: z.string().trim().min(2).max(255),
   donorWhatsapp: z.string().trim().min(8).max(20),
   donorCity: z.string().trim().min(2).max(255),
-  donorChurch: z.string().trim().min(2).max(255),
+  donorChurch: z.string().trim().min(2).max(255).optional(),
+  allowPublicDisplay: z.boolean(),
   numberOfInstallments: z.number().int().min(2).max(24).optional(),
   installmentFrequency: z.enum(["weekly", "biweekly", "monthly"]).optional(),
 });
@@ -65,6 +66,7 @@ export const paymentsRouter = router({
         donorWhatsapp: input.donorWhatsapp,
         donorCity: input.donorCity,
         donorChurch: input.donorChurch,
+        allowPublicDisplay: input.allowPublicDisplay,
         numberOfInstallments: input.numberOfInstallments,
         installmentFrequency: input.installmentFrequency,
         status: "pending",
