@@ -1,5 +1,6 @@
 import AnimatedProgressBar from "@/components/AnimatedProgressBar";
 import PublicHeader from "@/components/PublicHeader";
+import SocialShare from "@/components/SocialShare";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -111,6 +112,16 @@ export default function CampaignDetail() {
               Quero ser parceiro
             </a>
           </div>
+
+          {/* COMPARTILHAMENTO SOCIAL */}
+          <Card className="p-6">
+            <SocialShare
+              title={campaign.title}
+              description={campaign.description}
+              url={`${typeof window !== "undefined" ? window.location.origin : ""}/campaign/${campaign.id}`}
+              campaignId={campaign.id}
+            />
+          </Card>
 
           {/* SOBRE O PROJETO */}
           <div>
