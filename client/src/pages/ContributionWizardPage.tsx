@@ -93,6 +93,13 @@ export default function ContributionWizardPage() {
     payment: state.paymentMethod !== null,
   };
 
+  const donorInfoErrors = {
+    name: state.donorName.trim().length < 2 ? "Nome deve ter pelo menos 2 caracteres" : "",
+    whatsapp: state.donorWhatsapp.trim().length < 8 ? "WhatsApp deve ter pelo menos 8 caracteres" : "",
+    city: state.donorCity.trim().length < 2 ? "Cidade deve ter pelo menos 2 caracteres" : "",
+    church: state.donorChurch.trim().length < 2 ? "Igreja deve ter pelo menos 2 caracteres" : "",
+  };
+
   const handleTypeSelect = (type: ContributionType) => {
     setState({ ...state, type });
     setStep("donor-info");
@@ -237,7 +244,9 @@ export default function ContributionWizardPage() {
                         value={state.donorName}
                         onChange={(e) => setState({ ...state, donorName: e.target.value })}
                         disabled={loading}
+                        className={donorInfoErrors.name ? "border-red-500" : ""}
                       />
+                      {donorInfoErrors.name && <p className="text-xs text-red-500 mt-1">{donorInfoErrors.name}</p>}
                     </div>
 
                     <div>
@@ -247,7 +256,9 @@ export default function ContributionWizardPage() {
                         value={state.donorWhatsapp}
                         onChange={(e) => setState({ ...state, donorWhatsapp: e.target.value })}
                         disabled={loading}
+                        className={donorInfoErrors.whatsapp ? "border-red-500" : ""}
                       />
+                      {donorInfoErrors.whatsapp && <p className="text-xs text-red-500 mt-1">{donorInfoErrors.whatsapp}</p>}
                     </div>
 
                     <div>
@@ -269,7 +280,9 @@ export default function ContributionWizardPage() {
                           value={state.donorCity}
                           onChange={(e) => setState({ ...state, donorCity: e.target.value })}
                           disabled={loading}
+                          className={donorInfoErrors.city ? "border-red-500" : ""}
                         />
+                        {donorInfoErrors.city && <p className="text-xs text-red-500 mt-1">{donorInfoErrors.city}</p>}
                       </div>
 
                       <div>
@@ -279,7 +292,9 @@ export default function ContributionWizardPage() {
                           value={state.donorChurch}
                           onChange={(e) => setState({ ...state, donorChurch: e.target.value })}
                           disabled={loading}
+                          className={donorInfoErrors.church ? "border-red-500" : ""}
                         />
+                        {donorInfoErrors.church && <p className="text-xs text-red-500 mt-1">{donorInfoErrors.church}</p>}
                       </div>
                     </div>
                   </div>
