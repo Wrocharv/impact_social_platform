@@ -9,6 +9,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { registerMercadoPagoWebhook } from "../paymentWebhook";
+import { whatsappWebhook } from "../whatsapp.webhook";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -36,6 +37,7 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerMercadoPagoWebhook(app);
+  app.use("/api/whatsapp", whatsappWebhook);
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   // tRPC API
