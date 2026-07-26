@@ -73,6 +73,9 @@ export default function Home() {
           <Link href="/campaigns" className="transition hover:text-[#7adf8b]">
             Campanhas
           </Link>
+          <Link href="/donors" className="transition hover:text-[#7adf8b]">
+            Doadores
+          </Link>
           <Link href="/accountability" className="transition hover:text-[#7adf8b]">
             Prestação de contas
           </Link>

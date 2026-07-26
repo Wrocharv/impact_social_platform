@@ -193,6 +193,55 @@ export default function ContributionWizardPage() {
             <CardHeader>
               <CardTitle>Como você gostaria de contribuir?</CardTitle>
               {campaign && <CardDescription>Campanha: {campaign.title}</CardDescription>}
+              
+              {/* Progress Indicator */}
+              <div className="mt-6 flex items-center justify-between">
+                {state.type === "financial" ? (
+                  <>
+                    <div className="flex flex-1 items-center gap-2">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "type" || step === "donor-info" || step === "details" || step === "payment" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>1</div>
+                      <span className={`text-xs font-medium ${step === "type" ? "text-blue-600" : "text-gray-600"}`}>Tipo</span>
+                    </div>
+                    <div className={`flex-1 h-1 mx-2 ${step === "donor-info" || step === "details" || step === "payment" ? "bg-blue-600" : "bg-gray-200"}`} />
+                    
+                    <div className="flex flex-1 items-center gap-2">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "donor-info" || step === "details" || step === "payment" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>2</div>
+                      <span className={`text-xs font-medium ${step === "donor-info" ? "text-blue-600" : "text-gray-600"}`}>Doador</span>
+                    </div>
+                    <div className={`flex-1 h-1 mx-2 ${step === "details" || step === "payment" ? "bg-blue-600" : "bg-gray-200"}`} />
+                    
+                    <div className="flex flex-1 items-center gap-2">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "details" || step === "payment" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>3</div>
+                      <span className={`text-xs font-medium ${step === "details" ? "text-blue-600" : "text-gray-600"}`}>Detalhes</span>
+                    </div>
+                    <div className={`flex-1 h-1 mx-2 ${step === "payment" ? "bg-blue-600" : "bg-gray-200"}`} />
+                    
+                    <div className="flex flex-1 items-center gap-2">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "payment" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>4</div>
+                      <span className={`text-xs font-medium ${step === "payment" ? "text-blue-600" : "text-gray-600"}`}>Pagamento</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex flex-1 items-center gap-2">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "type" || step === "donor-info" || step === "details" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>1</div>
+                      <span className={`text-xs font-medium ${step === "type" ? "text-blue-600" : "text-gray-600"}`}>Tipo</span>
+                    </div>
+                    <div className={`flex-1 h-1 mx-2 ${step === "donor-info" || step === "details" ? "bg-blue-600" : "bg-gray-200"}`} />
+                    
+                    <div className="flex flex-1 items-center gap-2">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "donor-info" || step === "details" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>2</div>
+                      <span className={`text-xs font-medium ${step === "donor-info" ? "text-blue-600" : "text-gray-600"}`}>Doador</span>
+                    </div>
+                    <div className={`flex-1 h-1 mx-2 ${step === "details" ? "bg-blue-600" : "bg-gray-200"}`} />
+                    
+                    <div className="flex flex-1 items-center gap-2">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "details" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>3</div>
+                      <span className={`text-xs font-medium ${step === "details" ? "text-blue-600" : "text-gray-600"}`}>Detalhes</span>
+                    </div>
+                  </>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {/* STEP 1: Tipo de Contribuição */}

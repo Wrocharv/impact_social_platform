@@ -150,4 +150,25 @@ export const contributionsRouter = router({
       .from(contributions)
       .where(eq(contributions.userId, ctx.user.id));
   }),
+
+  getPublicDonors: publicProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
+    }
+
+    return db
+      .select({
+        id: contributions.id,
+        donorName: contributions.donorName,
+        donorCity: contributions.donorCity,
+        type: contributions.type,
+        amount: contributions.amount,
+        createdAt: contributions.createdAt,
+      })
+      .from(contributions)
+      .where(eq(contributions.allowPublicDisplay, true))
+      .orderBy(({ createdAt }) => ({ createdAt: "desc" }))
+      .limit(100);
+  }),
 });

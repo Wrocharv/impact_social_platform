@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import CampaignDetail from "./pages/CampaignDetail";
 import ContributionPage from "./pages/ContributionPage";
 import ContributionWizardPage from "./pages/ContributionWizardPage";
+import ContributionConfirmationPage from "./pages/ContributionConfirmationPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import CheckoutPage from "./pages/CheckoutPage";
 import AccountabilityPage from "./pages/AccountabilityPage";
@@ -16,6 +17,7 @@ import AccountabilityDetailPage from "./pages/AccountabilityDetailPage";
 import CampaignsPage from "./pages/CampaignsPage";
 import AccountabilityIndexPage from "./pages/AccountabilityIndexPage";
 import PaymentReturnPage from "./pages/PaymentReturnPage";
+import DonorsPage from "./pages/DonorsPage";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -24,7 +26,9 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/campaigns"} component={CampaignsPage} />
       <Route path={"/campaign/:id"} component={CampaignDetail} />
+      <Route path={"/donors"} component={DonorsPage} />
       <Route path={"/contribute/wizard/:id"} component={ContributionWizardPage} />
+      <Route path={"/contribute/confirmation"} component={ContributionConfirmationPage} />
       <Route path={"/contribute/:id"} component={ContributionPage} />
       <Route path={"/checkout/:campaignId"} component={CheckoutPage} />
       <Route path={"/payment/success"}>{() => <PaymentReturnPage state="success" />}</Route>
