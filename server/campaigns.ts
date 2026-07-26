@@ -18,19 +18,21 @@ const DEMO_CAMPAIGN = {
   longDescription:
     "A campanha apresenta uma obra real, com evolução de etapas, atualizações de fotos e necessidades concretas de materiais. Apoie a construção do Hotel Recanto de Paz em cada fase.",
   goal: 10_000_00,
-  imageUrl: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
+  imageUrl: "/obra-paredes.jpg",
   createdBy: 1,
   status: "active" as const,
   createdAt: new Date("2026-07-20T10:00:00.000Z"),
   updatedAt: new Date("2026-07-20T10:00:00.000Z"),
-  raised: 3_500_00,
-  remaining: 6_500_00,
-  progress: 35,
-  contributorsCount: 12,
+  raised: 0,
+  remaining: 10_000_00,
+  progress: 0,
+  contributorsCount: 0,
   galleryImages: [
-    "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
-    "https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?auto=format&fit=crop&w=1200&q=80",
-    "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80",
+    "/obra-paredes.jpg",
+    "/obra-lavanderia.jpg",
+    "/obra-drone.png",
+    "/render-hotel.jpg",
+    "/render-quarto.jpg",
   ],
   needs: [
     {
@@ -56,11 +58,11 @@ const DEMO_CAMPAIGN = {
       phase: "before" as const,
       createdAt: new Date("2026-07-20T10:00:00.000Z"),
       imageUrls: [
-        "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80",
+        "/obra-drone.png",
       ],
       videoUrls: [],
       images: [
-        "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80",
+        "/obra-drone.png",
       ],
     },
     {
@@ -72,11 +74,11 @@ const DEMO_CAMPAIGN = {
       phase: "during" as const,
       createdAt: new Date("2026-07-21T11:00:00.000Z"),
       imageUrls: [
-        "https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?auto=format&fit=crop&w=1200&q=80",
+        "/obra-lavanderia.jpg",
       ],
       videoUrls: [],
       images: [
-        "https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?auto=format&fit=crop&w=1200&q=80",
+        "/obra-lavanderia.jpg",
       ],
     },
     {
@@ -88,11 +90,11 @@ const DEMO_CAMPAIGN = {
       phase: "after" as const,
       createdAt: new Date("2026-07-22T12:00:00.000Z"),
       imageUrls: [
-        "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80",
+        "/obra-paredes.jpg",
       ],
       videoUrls: [],
       images: [
-        "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80",
+        "/obra-paredes.jpg",
       ],
     },
   ],
@@ -219,7 +221,7 @@ const createCampaignSchema = z.object({
   description: z.string().min(20, "Descrição deve ter pelo menos 20 caracteres"),
   longDescription: z.string().min(50, "Descrição longa deve ter pelo menos 50 caracteres"),
   goal: z.number().int().positive("Meta deve ser um valor positivo"),
-  imageUrl: z.string().url("URL da imagem inválida").optional(),
+  imageUrl: z.string().optional(),
 });
 
 const updateCampaignSchema = z.object({
@@ -229,7 +231,7 @@ const updateCampaignSchema = z.object({
   longDescription: z.string().min(50).optional(),
   goal: z.number().int().positive().optional(),
   status: z.enum(["active", "completed", "paused", "archived"]).optional(),
-  imageUrl: z.string().url().nullable().optional(),
+  imageUrl: z.string().nullable().optional(),
 }).refine(({ id: _id, ...changes }) => Object.values(changes).some((value) => value !== undefined), {
   message: "Informe ao menos um campo para atualizar",
 });
