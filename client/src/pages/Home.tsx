@@ -157,6 +157,20 @@ export default function Home() {
               </Card>
             ))}
           </div>
+          <div className="mt-12 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Link
+              href="/campaigns"
+              className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-7 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]"
+            >
+              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ajudar
+            </Link>
+            <a
+              href="#parceiros"
+              className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-7 font-semibold text-[#228B22] hover:bg-[#228B22]/5 active:scale-[0.97]"
+            >
+              <Handshake className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ser parceiro
+            </a>
+          </div>
         </div>
       </section>
 
@@ -181,6 +195,20 @@ export default function Home() {
               </p>
             </Card>
           )}
+          <div className="mt-12 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Link
+              href="/campaigns"
+              className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-7 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]"
+            >
+              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ajudar
+            </Link>
+            <a
+              href="#parceiros"
+              className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-7 font-semibold text-[#228B22] hover:bg-[#228B22]/5 active:scale-[0.97]"
+            >
+              <Handshake className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ser parceiro
+            </a>
+          </div>
         </div>
       </section>
 
@@ -239,6 +267,29 @@ export default function Home() {
             >
               Conhecer embaixadores
             </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-white/15 bg-[#173f20] py-12 md:py-16">
+        <div className="container max-w-7xl px-4">
+          <div className="mb-8 text-center">
+            <h2 className="text-3xl font-bold text-white">Pronto para fazer a diferença?</h2>
+            <p className="mt-3 text-white/75">Escolha como você quer contribuir e seja parte dessa transformação</p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Link
+              href="/campaigns"
+              className="inline-flex min-h-12 items-center justify-center rounded-md bg-white px-7 font-semibold text-[#173f20] transition hover:bg-[#f0f5f0] active:scale-[0.97]"
+            >
+              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ajudar
+            </Link>
+            <a
+              href="#parceiros"
+              className="inline-flex min-h-12 items-center justify-center rounded-md border border-white px-7 font-semibold text-white transition hover:bg-white/10 active:scale-[0.97]"
+            >
+              <Handshake className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ser parceiro
+            </a>
           </div>
         </div>
       </section>

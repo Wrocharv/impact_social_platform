@@ -84,7 +84,35 @@ export default function CampaignDetail() {
 
       <main className="container max-w-7xl px-4 py-8 md:py-12">
         <div className="space-y-8">
-          {/* SOBRE O PROJETO - Em Cima */}
+          {/* PROGRESSO CONFIRMADO - Em Cima */}
+          <Card className="p-6 lg:p-8">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#4f6550]">Progresso confirmado</h2>
+            <div className="mt-5">
+              <AnimatedProgressBar current={campaign.raised} goal={campaign.goal} animated showLabel />
+            </div>
+            <dl className="mt-6 grid gap-4 sm:grid-cols-4">
+              <div><dt className="text-sm text-[#787878]">Arrecadado</dt><dd className="text-2xl font-bold text-[#228B22]">{formatCurrency(campaign.raised)}</dd></div>
+              <div><dt className="text-sm text-[#787878]">Meta</dt><dd className="text-lg font-semibold text-[#2d2d2d]">{formatCurrency(campaign.goal)}</dd></div>
+              <div><dt className="text-sm text-[#787878]">Falta</dt><dd className="text-lg font-semibold text-[#2d2d2d]">{formatCurrency(campaign.remaining)}</dd></div>
+              <div><dt className="text-sm text-[#787878]">Contribuidores</dt><dd className="text-lg font-semibold text-[#228B22]">{campaign.contributorsCount}</dd></div>
+            </dl>
+          </Card>
+
+          {/* BOTÕES DE AÇÃO - Em Cima */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {campaign.status === "active" ? (
+              <Link href={`/contribute/wizard/${campaign.id}`} className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
+                <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ajudar
+              </Link>
+            ) : (
+              <div className="rounded-lg bg-[#228B22]/10 p-4 text-center font-semibold text-[#228B22]">Campanha concluída</div>
+            )}
+            <a href="#parceiros" className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-5 font-semibold text-[#228B22] hover:bg-[#228B22]/5">
+              Quero ser parceiro
+            </a>
+          </div>
+
+          {/* SOBRE O PROJETO */}
           <div>
             <Card className="mb-8 p-7 md:p-9">
               <p className="mb-2 text-sm font-semibold uppercase tracking-[0.16em] text-[#228B22]">Sobre o projeto</p>

@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { ChevronRight, Heart } from "lucide-react";
+import { ChevronRight, Heart, Handshake } from "lucide-react";
 import { Link } from "wouter";
 
 type CampaignCardProps = {
