@@ -5,11 +5,18 @@ import { campaignNeeds, campaigns, contributions } from "../drizzle/schema";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 
+const donorInfoSchema = z.object({
+  donorName: z.string().trim().min(2).max(255),
+  donorWhatsapp: z.string().trim().min(8).max(20),
+  donorEmail: z.string().trim().email().optional(),
+  donorCity: z.string().trim().min(2).max(255),
+  donorChurch: z.string().trim().min(2).max(255),
+});
+
 const offerSchema = z.object({
   campaignId: z.number().int().positive(),
   description: z.string().trim().min(10).max(3000),
-  donorName: z.string().trim().min(2).max(255).optional(),
-  donorEmail: z.string().trim().email().optional(),
+  ...donorInfoSchema.shape,
   campaignNeedId: z.number().int().positive().optional(),
   quantity: z.string().trim().max(255).optional(),
 });
@@ -37,13 +44,6 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
   user: { id: number; email: string | null; name: string | null } | null;
 }, type: "material" | "volunteer") {
   const db = await assertActiveCampaign(input.campaignId);
-  const donorEmail = input.donorEmail || ctx.user?.email;
-  if (!donorEmail) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Informe um e-mail para que a equipe possa entrar em contato.",
-    });
-  }
 
   let description = input.description;
   if (type === "material") {
@@ -75,8 +75,11 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
     userId: ctx.user?.id,
     type,
     description,
-    donorName: input.donorName || ctx.user?.name || undefined,
-    donorEmail,
+    donorName: input.donorName,
+    donorEmail: input.donorEmail,
+    donorWhatsapp: input.donorWhatsapp,
+    donorCity: input.donorCity,
+    donorChurch: input.donorChurch,
     status: "pending",
     paymentStatusDetail: "awaiting_triage",
   });
@@ -97,6 +100,35 @@ export const contributionsRouter = router({
   createVolunteerContribution: publicProcedure
     .input(offerSchema)
     .mutation(({ input, ctx }) => createOffer(input, ctx, "volunteer")),
+
+  createFinancialContribution: publicProcedure
+    .input(z.object({
+      campaignId: z.number().int().positive(),
+      amount: z.number().int().min(100),
+      ...donorInfoSchema.shape,
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await assertActiveCampaign(input.campaignId);
+
+      await db.insert(contributions).values({
+        campaignId: input.campaignId,
+        userId: ctx.user?.id,
+        type: "financial",
+        amount: input.amount,
+        donorName: input.donorName,
+        donorEmail: input.donorEmail,
+        donorWhatsapp: input.donorWhatsapp,
+        donorCity: input.donorCity,
+        donorChurch: input.donorChurch,
+        status: "pending",
+        paymentStatusDetail: "awaiting_payment",
+      });
+
+      return {
+        success: true,
+        message: "Doação financeira registrada. Você será redirecionado para o pagamento.",
+      };
+    }),
 
   getUserContributions: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();

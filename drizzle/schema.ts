@@ -60,6 +60,9 @@ export const contributions = mysqlTable("contributions", {
   description: text("description"), // Para material/voluntário: descrição
   donorName: varchar("donorName", { length: 255 }), // Para doadores anônimos
   donorEmail: varchar("donorEmail", { length: 320 }),
+  donorWhatsapp: varchar("donorWhatsapp", { length: 20 }),
+  donorCity: varchar("donorCity", { length: 255 }),
+  donorChurch: varchar("donorChurch", { length: 255 }),
   status: mysqlEnum("status", ["pending", "approved", "completed", "rejected", "cancelled", "refunded"])
     .default("pending")
     .notNull(),
