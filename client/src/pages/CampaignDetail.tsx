@@ -59,7 +59,7 @@ export default function CampaignDetail() {
         </div>
       </div>
 
-      <section className="relative min-h-[360px] overflow-hidden bg-[#dcebd9] md:min-h-[500px]">
+      <section className="relative min-h-[240px] overflow-hidden bg-[#dcebd9] md:min-h-[280px]">
         {campaign.galleryImages[0] ? (
           <img src={campaign.galleryImages[0]} alt={`Imagem principal de ${campaign.title}`} className="absolute inset-0 h-full w-full object-cover" />
         ) : (
@@ -68,22 +68,23 @@ export default function CampaignDetail() {
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
-        <div className="container relative flex min-h-[360px] max-w-7xl flex-col items-center justify-start px-4 pt-10 text-center md:min-h-[500px] md:pt-14">
+        <div className="container relative flex min-h-[240px] max-w-7xl flex-col items-center justify-start px-4 pt-6 text-center md:min-h-[280px] md:pt-8">
           <div className="mx-auto max-w-4xl text-white">
-            <span className="mb-4 inline-flex rounded-full bg-[#228B22] px-4 py-2 text-base font-semibold">
+            <span className="mb-2 inline-flex rounded-full bg-[#228B22] px-4 py-1 text-sm font-semibold">
               {campaign.status === "completed" ? "Campanha concluída" : "Campanha ativa"}
             </span>
-            <h1 className="text-5xl font-bold uppercase leading-tight md:text-7xl tracking-[0.06em]">{campaign.title}</h1>
-            <div className="mt-20 flex flex-wrap justify-center gap-6 text-base md:text-lg text-white/85">
-              <span className="flex items-center gap-2"><Users className="h-4 w-4" /> {campaign.contributorsCount} contribuidores confirmados</span>
-              <span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" /> Publicada em {formatDate(campaign.createdAt)}</span>
+            <h1 className="text-4xl font-bold uppercase leading-tight md:text-5xl tracking-[0.06em]">{campaign.title}</h1>
+            <div className="mt-4 flex flex-wrap justify-center gap-4 text-xs md:text-sm text-white/85">
+              <span className="flex items-center gap-2"><Users className="h-3 w-3 md:h-4 md:w-4" /> {campaign.contributorsCount} contribuidores</span>
+              <span className="flex items-center gap-2"><CalendarDays className="h-3 w-3 md:h-4 md:w-4" /> {formatDate(campaign.createdAt)}</span>
             </div>
           </div>
         </div>
       </section>
 
-      <main className="container max-w-7xl px-4 py-12 md:py-16">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+      <main className="container max-w-7xl px-4 py-8 md:py-12">
+        <div className="space-y-8">
+          {/* SOBRE O PROJETO - Em Cima */}
           <div>
             <Card className="mb-8 p-7 md:p-9">
               <p className="mb-2 text-sm font-semibold uppercase tracking-[0.16em] text-[#228B22]">Sobre o projeto</p>
@@ -200,30 +201,33 @@ export default function CampaignDetail() {
             </Tabs>
           </div>
 
-          <aside>
-            <Card className="p-6 lg:sticky lg:top-24">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#4f6550]">Progresso confirmado</h2>
-              <div className="mt-5">
-                <AnimatedProgressBar current={campaign.raised} goal={campaign.goal} animated showLabel />
-              </div>
-              <dl className="mt-6 space-y-4 border-y border-[#e1e6df] py-6">
-                <div><dt className="text-sm text-[#787878]">Arrecadado</dt><dd className="text-2xl font-bold text-[#228B22]">{formatCurrency(campaign.raised)}</dd></div>
-                <div><dt className="text-sm text-[#787878]">Meta</dt><dd className="text-lg font-semibold text-[#2d2d2d]">{formatCurrency(campaign.goal)}</dd></div>
-                <div><dt className="text-sm text-[#787878]">Falta</dt><dd className="text-lg font-semibold text-[#2d2d2d]">{formatCurrency(campaign.remaining)}</dd></div>
-                <div><dt className="text-sm text-[#787878]">Contribuidores confirmados</dt><dd className="text-lg font-semibold text-[#228B22]">{campaign.contributorsCount}</dd></div>
-              </dl>
-              {campaign.status === "active" ? (
-                <Link href={`/contribute/wizard/${campaign.id}`} className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
-                  <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ajudar
-                </Link>
-              ) : (
-                <div className="mt-6 rounded-lg bg-[#228B22]/10 p-4 text-center font-semibold text-[#228B22]">Campanha concluída</div>
-              )}
-              <a href="#transparencia" className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-md border border-[#228B22] px-5 font-semibold text-[#228B22] hover:bg-[#228B22]/5">
-                Ver prestação de contas
-              </a>
-            </Card>
-          </aside>
+          {/* PROGRESSO CONFIRMADO - Em Baixo */}
+          <Card className="p-6 lg:p-8">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#4f6550]">Progresso confirmado</h2>
+            <div className="mt-5">
+              <AnimatedProgressBar current={campaign.raised} goal={campaign.goal} animated showLabel />
+            </div>
+            <dl className="mt-6 grid gap-4 sm:grid-cols-4">
+              <div><dt className="text-sm text-[#787878]">Arrecadado</dt><dd className="text-2xl font-bold text-[#228B22]">{formatCurrency(campaign.raised)}</dd></div>
+              <div><dt className="text-sm text-[#787878]">Meta</dt><dd className="text-lg font-semibold text-[#2d2d2d]">{formatCurrency(campaign.goal)}</dd></div>
+              <div><dt className="text-sm text-[#787878]">Falta</dt><dd className="text-lg font-semibold text-[#2d2d2d]">{formatCurrency(campaign.remaining)}</dd></div>
+              <div><dt className="text-sm text-[#787878]">Contribuidores</dt><dd className="text-lg font-semibold text-[#228B22]">{campaign.contributorsCount}</dd></div>
+            </dl>
+          </Card>
+
+          {/* BOTÕES DE AÇÃO */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {campaign.status === "active" ? (
+              <Link href={`/contribute/wizard/${campaign.id}`} className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
+                <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ajudar
+              </Link>
+            ) : (
+              <div className="rounded-lg bg-[#228B22]/10 p-4 text-center font-semibold text-[#228B22]">Campanha concluída</div>
+            )}
+            <a href="#parceiros" className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-5 font-semibold text-[#228B22] hover:bg-[#228B22]/5">
+              Quero ser parceiro
+            </a>
+          </div>
         </div>
       </main>
 
