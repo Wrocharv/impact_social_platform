@@ -1,15 +1,23 @@
 import express, { Request, Response } from "express";
 import { whatsappService } from "./whatsapp.service";
-import { trpc } from "./_core/trpc";
 
 // Webhook para receber mensagens da Twilio/WhatsApp
 export const whatsappWebhook = express.Router();
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
 
 // Função auxiliar para enviar mensagem via Twilio
 async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.WHATSAPP_PHONE_NUMBER;
+  const from = process.env.TWILIO_WHATSAPP_FROM ?? process.env.WHATSAPP_PHONE_NUMBER;
 
   if (!accountSid || !authToken || !from) {
     console.error("[WhatsApp] Credenciais do Twilio não configuradas");
@@ -21,6 +29,7 @@ async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
     const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
     const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
 
+    const normalizedTo = to.startsWith("+") ? to : `+${to}`;
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -29,7 +38,7 @@ async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
       },
       body: new URLSearchParams({
         From: `whatsapp:${from}`,
-        To: `whatsapp:+${to}`,
+        To: `whatsapp:${normalizedTo}`,
         Body: body,
       }).toString(),
     });
@@ -51,7 +60,10 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
     const { From, Body } = req.body;
 
     if (!From || !Body) {
-      return res.status(400).json({ error: "Missing From or Body" });
+      return res
+        .status(400)
+        .type("text/xml")
+        .send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
     }
 
     // Extrair número de telefone (remover "whatsapp:" do Twilio)
@@ -59,13 +71,7 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
 
     console.log(`[WhatsApp] Mensagem recebida de +${phoneNumber}: ${Body}`);
 
-    // Responder imediatamente ao Twilio
-    res.status(200).json({
-      success: true,
-      message: "Mensagem recebida",
-    });
-
-    // Processar mensagem e enviar resposta de forma assíncrona
+    // Processar mensagem e responder via TwiML (formato esperado pelo Twilio)
     try {
       // Simular chamada ao router de WhatsApp
       // Em uma implementação real, você poderia usar o contexto do tRPC
@@ -97,7 +103,8 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
           "Qual é o *título* da sua campanha?\n" +
           "(Responda com o título e continuaremos)";
         whatsappService.updateConversation(phoneNumber, {
-          step: "creating_campaign_title",
+          step: "creating_campaign",
+          campaignData: {},
         });
       } else if (mensagem === "/ajuda") {
         resposta =
@@ -116,24 +123,24 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
         // Processar entrada do wizard de criação de campanha
         const state = whatsappService.getConversation(phoneNumber);
 
-        if (state?.step === "creating_campaign_title") {
+        if (!state.campaignData?.title) {
           resposta = `Ótimo! Campanha: "${Body}"\n\nAgora descreva a campanha em uma frase:`;
           whatsappService.updateConversation(phoneNumber, {
-            step: "creating_campaign_description",
+            step: "creating_campaign",
             campaignData: {
               title: Body,
             },
           });
-        } else if (state?.step === "creating_campaign_description") {
+        } else if (!state.campaignData?.description) {
           resposta = `Descrição: "${Body}"\n\nQual é a meta em reais?\n(Ex: 10000)`;
           whatsappService.updateConversation(phoneNumber, {
-            step: "creating_campaign_goal",
+            step: "creating_campaign",
             campaignData: {
               ...state.campaignData,
               description: Body,
             },
           });
-        } else if (state?.step === "creating_campaign_goal") {
+        } else if (!state.campaignData?.goal) {
           resposta =
             `Meta: R$ ${Body},00\n\n` +
             `Qual é a categoria?\n` +
@@ -144,13 +151,13 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
             `5️⃣ Infraestrutura\n` +
             `6️⃣ Outro`;
           whatsappService.updateConversation(phoneNumber, {
-            step: "creating_campaign_category",
+            step: "creating_campaign",
             campaignData: {
               ...state.campaignData,
-              goal: parseInt(Body) * 100, // Converter para centavos
+              goal: Body,
             },
           });
-        } else if (state?.step === "creating_campaign_category") {
+        } else if (!state.campaignData?.category) {
           const categories = [
             "moradia",
             "educacao",
@@ -165,7 +172,7 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
             `✅ *Campanha Criada com Sucesso!*\n\n` +
             `📋 *${state.campaignData?.title}*\n` +
             `📝 ${state.campaignData?.description}\n` +
-            `💰 Meta: R$ ${(state.campaignData?.goal || 0) / 100},00\n` +
+            `💰 Meta: R$ ${state.campaignData?.goal}\n` +
             `🏷️ Categoria: ${category}\n\n` +
             `/menu para voltar ao menu principal`;
 
@@ -181,20 +188,22 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
           `/ajuda - Ver ajuda`;
       }
 
-      // Enviar resposta
-      if (resposta) {
-        await sendWhatsAppMessage(phoneNumber, resposta);
-      }
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(
+        resposta || "Comando recebido. Use /menu para ver as opções."
+      )}</Message></Response>`;
+      return res.status(200).type("text/xml").send(twiml);
     } catch (error) {
       console.error("[WhatsApp] Erro ao processar mensagem:", error);
-      await sendWhatsAppMessage(
-        phoneNumber,
-        "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente."
-      );
+      const twiml =
+        '<?xml version="1.0" encoding="UTF-8"?><Response><Message>Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.</Message></Response>';
+      return res.status(200).type("text/xml").send(twiml);
     }
   } catch (error) {
     console.error("[WhatsApp] Webhook error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res
+      .status(500)
+      .type("text/xml")
+      .send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
   }
 });
 
