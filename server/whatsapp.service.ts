@@ -2,12 +2,34 @@
 
 type ConversationState = {
   phoneNumber: string;
-  step: "idle" | "creating_campaign" | "editing_campaign" | "adding_update" | "adding_need";
+  step: "idle" | "creating_campaign" | "editing_campaign" | "adding_update" | "adding_need" | "adding_contribution" | "viewing_campaign";
   campaignData?: {
     title?: string;
     description?: string;
     goal?: string;
     category?: string;
+  };
+  updateData?: {
+    title?: string;
+    description?: string;
+    phase?: "before" | "during" | "after";
+    imageUrl?: string;
+  };
+  needData?: {
+    name?: string;
+    description?: string;
+    quantity?: string;
+    priority?: "high" | "medium" | "low";
+    type?: "material" | "labor" | "equipment" | "other";
+  };
+  contributionData?: {
+    type?: "financial" | "material" | "volunteer";
+    amount?: number;
+    description?: string;
+    donorName?: string;
+    donorWhatsapp?: string;
+    donorEmail?: string;
+    donorCity?: string;
   };
   selectedCampaignId?: number;
   timestamp: Date;

@@ -46,10 +46,69 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
           "Escolha uma opção:\n\n" +
           "1️⃣ /campanhas - Ver campanhas ativas\n" +
           "2️⃣ /criar - Criar nova campanha\n" +
-          "3️⃣ /atualizar - Publicar atualização\n" +
-          "4️⃣ /necessidade - Registrar necessidade\n" +
-          "5️⃣ /ajuda - Ver ajuda\n" +
-          "6️⃣ /menu - Ver este menu novamente";
+          "3️⃣ /contribuir - Fazer uma doação/oferta\n" +
+          "4️⃣ /atualizar - Publicar atualização\n" +
+          "5️⃣ /necessidade - Registrar necessidade\n" +
+          "6️⃣ /detalhes - Ver detalhes de uma campanha\n" +
+          "7️⃣ /ajuda - Ver ajuda\n" +
+          "8️⃣ /menu - Ver este menu novamente";
+      } else if (mensagem === "/contribuir") {
+        resposta =
+          "*Fazer uma Contribuição* 💝\n\n" +
+          "Qual tipo de contribuição você gostaria de fazer?\n\n" +
+          "1️⃣ /contrib-financeira - Doação em dinheiro\n" +
+          "2️⃣ /contrib-material - Doação de materiais\n" +
+          "3️⃣ /contrib-voluntario - Oferecer mão de obra";
+      } else if (mensagem === "/contrib-financeira") {
+        resposta =
+          "*Doação Financeira* 💰\n\n" +
+          "Qual é o valor (em reais)?\n" +
+          "Ex: 100 (para R$ 100,00)";
+        whatsappService.updateConversation(phoneNumber, {
+          step: "adding_contribution",
+          contributionData: { type: "financial" },
+        });
+      } else if (mensagem === "/contrib-material") {
+        resposta =
+          "*Doação de Material* 📦\n\n" +
+          "Descreva o material que você gostaria de doar:\n" +
+          "Ex: Cimento, tijolos, tintas, etc.";
+        whatsappService.updateConversation(phoneNumber, {
+          step: "adding_contribution",
+          contributionData: { type: "material" },
+        });
+      } else if (mensagem === "/contrib-voluntario") {
+        resposta =
+          "*Oferta de Voluntariado* 🤝\n\n" +
+          "Descreva sua profissão ou tipo de trabalho:\n" +
+          "Ex: Pedreiro, eletricista, pintor, etc.";
+        whatsappService.updateConversation(phoneNumber, {
+          step: "adding_contribution",
+          contributionData: { type: "volunteer" },
+        });
+      } else if (mensagem === "/detalhes") {
+        const db = await getDb();
+        if (!db) {
+          resposta = "❌ Banco indisponível. Tente novamente em alguns minutos.";
+        } else {
+          const allCampaigns = await db.select().from(campaigns).limit(5);
+          if (allCampaigns.length === 0) {
+            resposta = "❌ Nenhuma campanha encontrada.";
+          } else {
+            const lista = allCampaigns
+              .map((c, i) => `${i + 1}. ${c.title}`)
+              .join("\n");
+            resposta =
+              "*Qual campanha?*\n\n" +
+              `${lista}\n\n` +
+              "Digite o número correspondente";
+            whatsappService.updateConversation(phoneNumber, {
+              step: "viewing_campaign",
+              selectedCampaignId: undefined,
+            });
+          }
+        }
+
       } else if (mensagem === "/campanhas") {
         const db = await getDb();
 
@@ -91,11 +150,56 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
         resposta =
           "*Ajuda* ❓\n\n" +
           "/start - Menu principal\n" +
-          "/campanhas - Ver campanhas\n" +
-          "/criar - Criar campanha\n" +
+          "/campanhas - Ver campanhas ativas\n" +
+          "/criar - Criar nova campanha\n" +
+          "/contribuir - Fazer uma doação/oferta\n" +
           "/atualizar - Publicar atualização\n" +
           "/necessidade - Registrar necessidade\n" +
-          "/ajuda - Ver ajuda";
+          "/detalhes - Ver detalhes de campanha\n" +
+          "/ajuda - Ver esta ajuda";
+      } else if (mensagem === "/atualizar") {
+        const db = await getDb();
+        if (!db) {
+          resposta = "❌ Banco indisponível.";
+        } else {
+          const allCampaigns = await db.select().from(campaigns).limit(5);
+          if (allCampaigns.length === 0) {
+            resposta = "❌ Nenhuma campanha encontrada.";
+          } else {
+            const lista = allCampaigns
+              .map((c, i) => `${i + 1}. ${c.title}`)
+              .join("\n");
+            resposta =
+              "*Qual campanha você quer atualizar?*\n\n" +
+              `${lista}\n\n` +
+              "Digite o número correspondente";
+            whatsappService.updateConversation(phoneNumber, {
+              step: "adding_update",
+            });
+          }
+        }
+      } else if (mensagem === "/necessidade") {
+        const db = await getDb();
+        if (!db) {
+          resposta = "❌ Banco indisponível.";
+        } else {
+          const allCampaigns = await db.select().from(campaigns).limit(5);
+          if (allCampaigns.length === 0) {
+            resposta = "❌ Nenhuma campanha encontrada.";
+          } else {
+            const lista = allCampaigns
+              .map((c, i) => `${i + 1}. ${c.title}`)
+              .join("\n");
+            resposta =
+              "*Qual campanha precisa da necessidade?*\n\n" +
+              `${lista}\n\n` +
+              "Digite o número correspondente";
+            whatsappService.updateConversation(phoneNumber, {
+              step: "adding_need",
+            });
+          }
+        }
+
       } else if (
         whatsappService
           .getConversation(phoneNumber)
@@ -183,6 +287,125 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
 
           whatsappService.resetConversation(phoneNumber);
         }
+      } else if (
+        whatsappService.getConversation(phoneNumber)?.step === "adding_contribution"
+      ) {
+        // Fluxo de contribuição
+        const state = whatsappService.getConversation(phoneNumber);
+        const contrib = state.contributionData || {};
+
+        if (!contrib.amount && contrib.type === "financial") {
+          const amount = Number(Body.trim());
+          if (!Number.isFinite(amount) || amount <= 0) {
+            resposta = "Valor inválido. Digite apenas números positivos. Ex: 100";
+          } else {
+            resposta = "Ótimo! Agora preciso de seus dados:\n\nQual é o seu *nome completo*?";
+            whatsappService.updateConversation(phoneNumber, {
+              step: "adding_contribution",
+              contributionData: { ...contrib, amount },
+            });
+          }
+        } else if (!contrib.donorName) {
+          resposta = `Nome registrado: "${Body}"\n\nQual é o seu *WhatsApp*?\n(Com DDD, ex: 11999999999)`;
+          whatsappService.updateConversation(phoneNumber, {
+            step: "adding_contribution",
+            contributionData: { ...contrib, donorName: Body },
+          });
+        } else if (!contrib.donorWhatsapp) {
+          resposta = `WhatsApp registrado: ${Body}\n\nQual é a sua *cidade*?`;
+          whatsappService.updateConversation(phoneNumber, {
+            step: "adding_contribution",
+            contributionData: { ...contrib, donorWhatsapp: Body },
+          });
+        } else if (!contrib.donorCity) {
+          resposta = `Cidade: ${Body}\n\n✅ *Contribuição Registrada!*\n\n`;
+          if (contrib.type === "financial") {
+            resposta += `💰 Doação: R$ ${contrib.amount?.toFixed(2)}\n`;
+          } else if (contrib.type === "material") {
+            resposta += `📦 Material: ${contrib.description}\n`;
+          } else {
+            resposta += `🤝 Voluntariado: ${contrib.description}\n`;
+          }
+          resposta += `👤 Doador: ${contrib.donorName}\n📍 Cidade: ${Body}\n\nA equipe entrará em contato em breve!\n\n/menu para voltar`;
+          whatsappService.resetConversation(phoneNumber);
+        } else if (contrib.type !== "financial" && !contrib.description) {
+          resposta = `Descreva sua ${contrib.type === "material" ? "doação de material" : "oferta de voluntariado"}:`;
+          whatsappService.updateConversation(phoneNumber, {
+            step: "adding_contribution",
+            contributionData: { ...contrib, donorCity: Body },
+          });
+        }
+      } else if (
+        whatsappService.getConversation(phoneNumber)?.step === "viewing_campaign"
+      ) {
+        const db = await getDb();
+        if (!db) {
+          resposta = "❌ Banco indisponível.";
+        } else {
+          const allCampaigns = await db.select().from(campaigns).limit(5);
+          const index = Number(Body.trim()) - 1;
+          if (index >= 0 && index < allCampaigns.length) {
+            const campaign = allCampaigns[index];
+            resposta =
+              `*${campaign.title}*\n\n` +
+              `📝 ${campaign.description}\n` +
+              `💰 Meta: R$ ${(campaign.goal / 100).toFixed(2)}\n` +
+              `📊 Arrecadado: R$ ${(campaign.raised / 100).toFixed(2)}\n` +
+              `🏷️ Categoria: ${campaign.category}\n` +
+              `📅 Criada em: ${new Date(campaign.createdAt).toLocaleDateString("pt-BR")}\n\n` +
+              `/contribuir para fazer uma doação\n` +
+              `/menu para voltar`;
+            whatsappService.resetConversation(phoneNumber);
+          } else {
+            resposta = "Número inválido. Tente novamente.";
+          }
+        }
+      } else if (
+        whatsappService.getConversation(phoneNumber)?.step === "adding_update"
+      ) {
+        // Fluxo de atualização
+        const state = whatsappService.getConversation(phoneNumber);
+        const update = state.updateData || {};
+
+        if (!update.title) {
+          resposta = `Qual é o *título* da atualização?\nEx: Estrutura pronta para cobertura`;
+          whatsappService.updateConversation(phoneNumber, {
+            step: "adding_update",
+            updateData: { ...update, title: Body },
+          });
+        } else if (!update.description) {
+          resposta = `Descrição: "${Body}"\n\nDescreva os detalhes da atualização:`;
+          whatsappService.updateConversation(phoneNumber, {
+            step: "adding_update",
+            updateData: { ...update, title: Body, description: Body },
+          });
+        } else {
+          resposta = `✅ *Atualização Registrada!*\n\nTítulo: ${update.title}\n\nA equipe aprovará em breve!\n\n/menu para voltar`;
+          whatsappService.resetConversation(phoneNumber);
+        }
+      } else if (
+        whatsappService.getConversation(phoneNumber)?.step === "adding_need"
+      ) {
+        // Fluxo de necessidade
+        const state = whatsappService.getConversation(phoneNumber);
+        const need = state.needData || {};
+
+        if (!need.name) {
+          resposta = `Qual é o *nome* da necessidade?\nEx: Cimento, blocos, tijolos`;
+          whatsappService.updateConversation(phoneNumber, {
+            step: "adding_need",
+            needData: { ...need, name: Body },
+          });
+        } else if (!need.quantity) {
+          resposta = `Qual é a quantidade necessária?\nEx: 200 sacos`;
+          whatsappService.updateConversation(phoneNumber, {
+            step: "adding_need",
+            needData: { ...need, name: Body, quantity: Body },
+          });
+        } else {
+          resposta = `✅ *Necessidade Registrada!*\n\n${need.name}\nQuantidade: ${need.quantity}\n\nA equipe revisará em breve!\n\n/menu para voltar`;
+          whatsappService.resetConversation(phoneNumber);
+        }
       } else {
         resposta =
           `Desculpe, não entendi. 🤔\n\n` +
@@ -190,6 +413,7 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
           `/start - Menu principal\n` +
           `/campanhas - Ver campanhas\n` +
           `/criar - Criar campanha\n` +
+          `/contribuir - Fazer doação\n` +
           `/ajuda - Ver ajuda`;
       }
 
