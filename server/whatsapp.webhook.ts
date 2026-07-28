@@ -1,5 +1,7 @@
 import express, { Request, Response } from "express";
 import { whatsappService } from "./whatsapp.service";
+import { getDb } from "./db";
+import { campaigns } from "../drizzle/schema";
 
 // Webhook para receber mensagens da Twilio/WhatsApp
 export const whatsappWebhook = express.Router();
@@ -11,47 +13,6 @@ function escapeXml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&apos;");
-}
-
-// Função auxiliar para enviar mensagem via Twilio
-async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_WHATSAPP_FROM ?? process.env.WHATSAPP_PHONE_NUMBER;
-
-  if (!accountSid || !authToken || !from) {
-    console.error("[WhatsApp] Credenciais do Twilio não configuradas");
-    return;
-  }
-
-  try {
-    // Fazer requisição direta à API do Twilio (sem SDK)
-    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
-
-    const normalizedTo = to.startsWith("+") ? to : `+${to}`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${auth}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        From: `whatsapp:${from}`,
-        To: `whatsapp:${normalizedTo}`,
-        Body: body,
-      }).toString(),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.error("[WhatsApp] Erro ao enviar:", error);
-    } else {
-      console.log(`[WhatsApp] Mensagem enviada para +${to}`);
-    }
-  } catch (error) {
-    console.error("[WhatsApp] Erro na requisição:", error);
-  }
 }
 
 // Rota para Twilio Webhook (POST)
@@ -90,13 +51,33 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
           "5️⃣ /ajuda - Ver ajuda\n" +
           "6️⃣ /menu - Ver este menu novamente";
       } else if (mensagem === "/campanhas") {
-        resposta =
-          "*Campanhas Ativas* 📋\n\n" +
-          "🏗️ *Construção Hotel Recanto de Paz*\n" +
-          "Arrecadado: R$ 0,00\n" +
-          "Meta: R$ 10.000,00\n\n" +
-          "Digite /criar para criar uma nova campanha\n" +
-          "ou /menu para voltar ao menu principal";
+        const db = await getDb();
+
+        if (!db) {
+          resposta =
+            "❌ Banco de dados indisponível no momento.\n\n" +
+            "Tente novamente em alguns minutos.";
+        } else {
+          const allCampaigns = await db.select().from(campaigns).limit(5);
+          if (allCampaigns.length === 0) {
+            resposta = "❌ Nenhuma campanha criada ainda.\n\nDigite /criar para criar a primeira.";
+          } else {
+            const lista = allCampaigns
+              .map(
+                (c, i) =>
+                  `${i + 1}. ${c.title}\n💰 R$ ${(c.raised / 100).toFixed(2)} / R$ ${(
+                    c.goal / 100
+                  ).toFixed(2)}`
+              )
+              .join("\n\n");
+
+            resposta =
+              "*Campanhas Ativas* 📋\n\n" +
+              `${lista}\n\n` +
+              "Digite /criar para criar uma nova campanha\n" +
+              "ou /menu para voltar ao menu principal";
+          }
+        }
       } else if (mensagem === "/criar") {
         resposta =
           "*Criar Nova Campanha* 📝\n\n" +
@@ -141,8 +122,12 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
             },
           });
         } else if (!state.campaignData?.goal) {
+          const goalNumber = Number(Body.replace(/\./g, "").replace(",", "."));
+          if (!Number.isFinite(goalNumber) || goalNumber <= 0) {
+            resposta = "Valor inválido. Informe apenas números para a meta. Ex: 10000";
+          } else {
           resposta =
-            `Meta: R$ ${Body},00\n\n` +
+            `Meta: R$ ${goalNumber.toFixed(2)}\n\n` +
             `Qual é a categoria?\n` +
             `1️⃣ Moradia\n` +
             `2️⃣ Educação\n` +
@@ -154,9 +139,10 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
             step: "creating_campaign",
             campaignData: {
               ...state.campaignData,
-              goal: Body,
+              goal: String(goalNumber),
             },
           });
+          }
         } else if (!state.campaignData?.category) {
           const categories = [
             "moradia",
@@ -168,13 +154,32 @@ whatsappWebhook.post("/webhook", async (req: Request, res: Response) => {
           ];
           const category = categories[parseInt(Body) - 1] || "outro";
 
-          resposta =
-            `✅ *Campanha Criada com Sucesso!*\n\n` +
-            `📋 *${state.campaignData?.title}*\n` +
-            `📝 ${state.campaignData?.description}\n` +
-            `💰 Meta: R$ ${state.campaignData?.goal}\n` +
-            `🏷️ Categoria: ${category}\n\n` +
-            `/menu para voltar ao menu principal`;
+          const db = await getDb();
+          if (!db) {
+            resposta =
+              "❌ Banco de dados indisponível no momento.\n\n" +
+              "Não consegui salvar a campanha agora. Tente novamente em alguns minutos.";
+          } else {
+            const goalInCents = Math.round(Number(state.campaignData?.goal || "0") * 100);
+            await db.insert(campaigns).values({
+              title: state.campaignData?.title || "Campanha sem título",
+              description: state.campaignData?.description || "",
+              longDescription: state.campaignData?.description || "",
+              category: category as "moradia" | "educacao" | "saude" | "alimentacao" | "infraestrutura" | "outro",
+              goal: goalInCents,
+              imageUrl: "/obra-paredes.jpg",
+              createdBy: 1,
+              status: "active",
+            });
+
+            resposta =
+              `✅ *Campanha Criada com Sucesso!*\n\n` +
+              `📋 *${state.campaignData?.title}*\n` +
+              `📝 ${state.campaignData?.description}\n` +
+              `💰 Meta: R$ ${Number(state.campaignData?.goal || "0").toFixed(2)}\n` +
+              `🏷️ Categoria: ${category}\n\n` +
+              `/menu para voltar ao menu principal`;
+          }
 
           whatsappService.resetConversation(phoneNumber);
         }
