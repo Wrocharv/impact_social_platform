@@ -60,39 +60,43 @@ export function useDonorStorage() {
    * Salvar ou atualizar doador
    */
   function saveDonor(donorData: Omit<DonorData, "donorId" | "createdAt" | "donationsCount">) {
-    const existing = findDonorByWhatsapp(donorData.donorWhatsapp);
+    const normalizedWhatsapp = donorData.donorWhatsapp.trim();
+    const existing = donors.find((d) => d.donorWhatsapp === normalizedWhatsapp);
 
     let donor: DonorData;
 
     if (existing) {
-      // Atualizar doador existente
       donor = {
         ...existing,
-        donorName: donorData.donorName,
-        donorEmail: donorData.donorEmail,
-        donorCity: donorData.donorCity,
-        donorChurch: donorData.donorChurch,
+        donorName: donorData.donorName.trim() || existing.donorName,
+        donorEmail: donorData.donorEmail.trim() || existing.donorEmail,
+        donorCity: donorData.donorCity.trim() || existing.donorCity,
+        donorChurch: donorData.donorChurch.trim() || existing.donorChurch,
         donationsCount: existing.donationsCount + 1,
       };
 
-      setDonors((prev) =>
-        prev.map((d) => (d.donorId === donor.donorId ? donor : d)),
-      );
+      const nextDonors = donors.map((d) => (d.donorId === donor.donorId ? donor : d));
+      setDonors(nextDonors);
+      localStorage.setItem(DONORS_STORAGE_KEY, JSON.stringify(nextDonors));
     } else {
-      // Criar novo doador
       donor = {
         ...donorData,
+        donorWhatsapp: normalizedWhatsapp,
+        donorName: donorData.donorName.trim(),
+        donorEmail: donorData.donorEmail.trim(),
+        donorCity: donorData.donorCity.trim(),
+        donorChurch: donorData.donorChurch.trim(),
         donorId: generateDonorId(),
         createdAt: new Date().toISOString(),
         donationsCount: 1,
       };
 
-      setDonors((prev) => [...prev, donor]);
+      const nextDonors = [...donors, donor];
+      setDonors(nextDonors);
+      localStorage.setItem(DONORS_STORAGE_KEY, JSON.stringify(nextDonors));
     }
 
-    // Salvar no localStorage
     setCurrentDonor(donor);
-    localStorage.setItem(DONORS_STORAGE_KEY, JSON.stringify(donors));
     localStorage.setItem(CURRENT_DONOR_KEY, JSON.stringify(donor));
 
     return donor;

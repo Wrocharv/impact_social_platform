@@ -8,7 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { AlertCircle, ChevronLeft, Heart, Package, Users, DollarSign, Zap } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Link, useRoute } from "wouter";
+import { Link, useLocation, useRoute } from "wouter";
 import { useDonorStorage } from "@/hooks/useDonorStorage";
 
 type ContributionType = "financial" | "material" | "volunteer";
@@ -47,15 +47,7 @@ interface WizardState {
 export default function ContributionWizardPage() {
   const [, params] = useRoute("/contribute/wizard/:id");
   const campaignId = Number(params?.id ?? 0);
-  const [location, setLocation] = useRoute();
-
-  // Carregar dados de doadores salvos
-  const { isLoaded, currentDonor, saveDonor } = useDonorStorage();
-
-  const campaignQuery = trpc.campaigns.getById.useQuery(
-    { id: campaignId },
-    { enabled: Number.isInteger(campaignId) && campaignId > 0 },
-  );
+  const [, setLocation] = useLocation();
 
   const [step, setStep] = useState<Step>("type");
   const [state, setState] = useState<WizardState>({
@@ -76,9 +68,25 @@ export default function ContributionWizardPage() {
     paymentMethod: null,
   });
 
+  // Carregar dados de doadores salvos
+  const { isLoaded, currentDonor, saveDonor } = useDonorStorage();
+  const donorLookup = trpc.contributions.getDonorProfileByWhatsapp.useQuery(
+    { donorWhatsapp: state.donorWhatsapp.trim() },
+    { enabled: state.donorWhatsapp.trim().replace(/\D/g, "").length >= 8, retry: false },
+  );
+
+  const campaignQuery = trpc.campaigns.getById.useQuery(
+    { id: campaignId },
+    { enabled: Number.isInteger(campaignId) && campaignId > 0 },
+  );
+
   // Autopreencer dados salvos do doador
   useEffect(() => {
-    if (isLoaded && currentDonor) {
+    if (!isLoaded) {
+      return;
+    }
+
+    if (currentDonor) {
       setState((prev) => ({
         ...prev,
         donorName: currentDonor.donorName,
@@ -87,8 +95,28 @@ export default function ContributionWizardPage() {
         donorCity: currentDonor.donorCity,
         donorChurch: currentDonor.donorChurch,
       }));
+      return;
     }
-  }, [isLoaded, currentDonor]);
+
+    const hasAnyDonorInfo = Boolean(
+      state.donorName.trim() ||
+        state.donorEmail.trim() ||
+        state.donorCity.trim() ||
+        state.donorChurch.trim(),
+    );
+
+    if (donorLookup.data && !hasAnyDonorInfo) {
+      setState((prev) => ({
+        ...prev,
+        donorName: donorLookup.data.donorName || prev.donorName,
+        donorWhatsapp: donorLookup.data.donorWhatsapp || prev.donorWhatsapp,
+        donorEmail: donorLookup.data.donorEmail || prev.donorEmail,
+        donorCity: donorLookup.data.donorCity || prev.donorCity,
+        donorChurch: donorLookup.data.donorChurch || prev.donorChurch,
+        allowPublicDisplay: donorLookup.data.allowPublicDisplay ?? prev.allowPublicDisplay,
+      }));
+    }
+  }, [isLoaded, currentDonor, donorLookup.data]);
 
   const createMaterial = trpc.contributions.createMaterialContribution.useMutation();
   const createVolunteer = trpc.contributions.createVolunteerContribution.useMutation();
@@ -166,7 +194,7 @@ export default function ContributionWizardPage() {
           materialDeliveryFrequency: state.materialDeliveryFrequency,
         });
         toast.success("Oferta de material recebida! Entraremos em contato.");
-        setLocation(`/campaigns/${campaignId}`);
+        setLocation(`/campaign/${campaignId}`);
       } else if (state.type === "volunteer") {
         await createVolunteer.mutateAsync({
           campaignId,
@@ -179,7 +207,7 @@ export default function ContributionWizardPage() {
           allowPublicDisplay: state.allowPublicDisplay ?? false,
         });
         toast.success("Oferta de voluntariado recebida! Entraremos em contato.");
-        setLocation(`/campaigns/${campaignId}`);
+        setLocation(`/campaign/${campaignId}`);
       } else if (state.type === "financial" && state.amount && state.paymentMethod) {
         const result = await createPayment.mutateAsync({
           campaignId,
@@ -210,7 +238,7 @@ export default function ContributionWizardPage() {
       <PublicHeader />
       <main className="min-h-screen bg-gradient-to-b from-[#f8faf6] to-white">
         <div className="mx-auto max-w-2xl px-4 py-8 md:py-12">
-          <Link href={`/campaigns/${campaignId}`} className="mb-6 flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700">
+          <Link href={`/campaign/${campaignId}`} className="mb-6 flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700">
             <ChevronLeft className="h-4 w-4" />
             Voltar
           </Link>
@@ -327,6 +355,12 @@ export default function ContributionWizardPage() {
                   )}
 
                   <div className="space-y-3">
+                    {donorLookup.data && !currentDonor && (
+                      <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+                        Encontramos um cadastro anterior para este WhatsApp. Seus dados foram preenchidos automaticamente.
+                      </div>
+                    )}
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo *</label>
                       <Input
@@ -391,14 +425,15 @@ export default function ContributionWizardPage() {
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Posso divulgar seu nome? *</label>
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                      <label className="block text-sm font-semibold text-gray-800 mb-2">Posso divulgar seu nome? *</label>
+                      <p className="mb-3 text-xs text-gray-500">Escolha se seu nome pode aparecer na lista de apoiadores.</p>
                       <Select
                         value={state.allowPublicDisplay ? "sim" : "nao"}
                         onValueChange={(value) => setState({ ...state, allowPublicDisplay: value === "sim" })}
                         disabled={loading}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full border-gray-300 bg-white">
                           <SelectValue placeholder="Escolha uma opção..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -448,15 +483,16 @@ export default function ContributionWizardPage() {
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Como você gostaria de pagar? *</label>
+                      <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                        <label className="block text-sm font-semibold text-gray-800 mb-2">Como você gostaria de pagar? *</label>
+                        <p className="mb-3 text-xs text-gray-500">Escolha o formato da contribuição financeira.</p>
                         <Select
                           value={state.recurrence}
                           onValueChange={(value) => setState({ ...state, recurrence: value as RecurrenceType, numberOfInstallments: undefined })}
                           disabled={loading}
                         >
-                          <SelectTrigger>
-                            <SelectValue />
+                          <SelectTrigger className="w-full border-gray-300 bg-white">
+                            <SelectValue placeholder="Escolha uma opção..." />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="unique">À vista (uma vez)</SelectItem>
@@ -538,15 +574,16 @@ export default function ContributionWizardPage() {
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Como você gostaria de entregar? *</label>
+                      <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                        <label className="block text-sm font-semibold text-gray-800 mb-2">Como você gostaria de entregar? *</label>
+                        <p className="mb-3 text-xs text-gray-500">Defina a frequência da entrega do material.</p>
                         <Select
                           value={state.materialDeliveryFrequency}
                           onValueChange={(value) => setState({ ...state, materialDeliveryFrequency: value as DeliveryFrequency })}
                           disabled={loading}
                         >
-                          <SelectTrigger>
-                            <SelectValue />
+                          <SelectTrigger className="w-full border-gray-300 bg-white">
+                            <SelectValue placeholder="Escolha uma opção..." />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="unique">Tudo de uma vez</SelectItem>
@@ -557,14 +594,15 @@ export default function ContributionWizardPage() {
                         </Select>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Como fazer a doação? *</label>
+                      <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                        <label className="block text-sm font-semibold text-gray-800 mb-2">Como fazer a doação? *</label>
+                        <p className="mb-3 text-xs text-gray-500">Escolha a forma de entrega ou recebimento do material.</p>
                         <Select
                           value={state.deliveryMethod || ""}
                           onValueChange={(value) => setState({ ...state, deliveryMethod: value as DeliveryMethod })}
                           disabled={loading}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="w-full border-gray-300 bg-white">
                             <SelectValue placeholder="Escolha uma opção..." />
                           </SelectTrigger>
                           <SelectContent>

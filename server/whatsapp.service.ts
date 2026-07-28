@@ -1,5 +1,4 @@
 // Serviço para gerenciar conversas e estado do chatbot WhatsApp
-import { ElevenLabsClient } from "@11labs/client";
 
 type ConversationState = {
   phoneNumber: string;

@@ -103,7 +103,7 @@ export default function CampaignDetail() {
           <div className="grid gap-3 sm:grid-cols-2">
             {campaign.status === "active" ? (
               <Link href={`/contribute/wizard/${campaign.id}`} className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
-                <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ajudar
+                <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
               </Link>
             ) : (
               <div className="rounded-lg bg-[#228B22]/10 p-4 text-center font-semibold text-[#228B22]">Campanha concluída</div>
@@ -258,7 +258,7 @@ export default function CampaignDetail() {
           <div className="grid gap-3 sm:grid-cols-2">
             {campaign.status === "active" ? (
               <Link href={`/contribute/wizard/${campaign.id}`} className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
-                <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ajudar
+              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
               </Link>
             ) : (
               <div className="rounded-lg bg-[#228B22]/10 p-4 text-center font-semibold text-[#228B22]">Campanha concluída</div>

@@ -55,7 +55,7 @@ export default function Home() {
                 href="/campaigns"
                 className="inline-flex min-h-12 items-center justify-center rounded-md bg-white px-7 font-semibold text-[#18751f] transition hover:bg-[#f2f7f1] active:scale-[0.97]"
               >
-                Quero ajudar
+                Eu quero ajudar
               </Link>
               <a
                 href="#parceiros"
@@ -165,7 +165,7 @@ export default function Home() {
               href="/campaigns"
               className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-7 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]"
             >
-              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ajudar
+              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
             </Link>
             <a
               href="#parceiros"
@@ -203,7 +203,7 @@ export default function Home() {
               href="/campaigns"
               className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-7 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]"
             >
-              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ajudar
+              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
             </Link>
             <a
               href="#parceiros"
@@ -285,7 +285,7 @@ export default function Home() {
               href="/campaigns"
               className="inline-flex min-h-12 items-center justify-center rounded-md bg-white px-7 font-semibold text-[#173f20] transition hover:bg-[#f0f5f0] active:scale-[0.97]"
             >
-              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ajudar
+              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
             </Link>
             <a
               href="#parceiros"

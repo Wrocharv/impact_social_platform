@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { campaignNeeds, campaigns, contributions } from "../drizzle/schema";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
@@ -84,7 +84,7 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
     donorWhatsapp: input.donorWhatsapp,
     donorCity: input.donorCity,
     donorChurch: input.donorChurch,
-    allowPublicDisplay: input.allowPublicDisplay,
+    allowPublicDisplay: Number(input.allowPublicDisplay),
     deliveryMethod: type === "material" ? input.deliveryMethod : undefined,
     numberOfInstallments: input.numberOfInstallments,
     materialDeliveryFrequency: type === "material" ? input.materialDeliveryFrequency : undefined,
@@ -128,7 +128,7 @@ export const contributionsRouter = router({
         donorWhatsapp: input.donorWhatsapp,
         donorCity: input.donorCity,
         donorChurch: input.donorChurch,
-        allowPublicDisplay: input.allowPublicDisplay,
+        allowPublicDisplay: Number(input.allowPublicDisplay),
         status: "pending",
         paymentStatusDetail: "awaiting_payment",
       });
@@ -136,6 +136,50 @@ export const contributionsRouter = router({
       return {
         success: true,
         message: "Doação financeira registrada. Você será redirecionado para o pagamento.",
+      };
+    }),
+
+  getDonorProfileByWhatsapp: publicProcedure
+    .input(z.object({ donorWhatsapp: z.string().trim().min(8).max(20) }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
+      }
+
+      const normalizedInput = input.donorWhatsapp.replace(/\D/g, "");
+      if (!normalizedInput) {
+        return null;
+      }
+
+      const rows = await db
+        .select({
+          donorName: contributions.donorName,
+          donorWhatsapp: contributions.donorWhatsapp,
+          donorEmail: contributions.donorEmail,
+          donorCity: contributions.donorCity,
+          donorChurch: contributions.donorChurch,
+          allowPublicDisplay: contributions.allowPublicDisplay,
+        })
+        .from(contributions)
+        .limit(50);
+
+      const match = rows.find((row) => {
+        const normalizedStored = (row.donorWhatsapp || "").replace(/\D/g, "");
+        return normalizedStored === normalizedInput;
+      });
+
+      if (!match) {
+        return null;
+      }
+
+      return {
+        donorName: match.donorName,
+        donorWhatsapp: match.donorWhatsapp,
+        donorEmail: match.donorEmail,
+        donorCity: match.donorCity,
+        donorChurch: match.donorChurch,
+        allowPublicDisplay: match.allowPublicDisplay ?? false,
       };
     }),
 
@@ -167,8 +211,8 @@ export const contributionsRouter = router({
         createdAt: contributions.createdAt,
       })
       .from(contributions)
-      .where(eq(contributions.allowPublicDisplay, true))
-      .orderBy(({ createdAt }) => ({ createdAt: "desc" }))
+      .where(eq(contributions.allowPublicDisplay, 1))
+      .orderBy(desc(contributions.createdAt))
       .limit(100);
   }),
 });
