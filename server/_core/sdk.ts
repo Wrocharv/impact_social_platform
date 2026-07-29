@@ -285,10 +285,12 @@ class SDKServer {
     const signedInAt = new Date();
     let user = await db.getUserByOpenId(sessionUserId);
 
-    // Local-dev sessions (openId = "local:<email>") have no DB or OAuth server.
-    // Reconstruct the user from the session claims so the admin area is usable
-    // without any external dependencies.
-    if (!user && sessionUserId.startsWith("local:") && !ENV.isProduction) {
+    // Local sessions (openId = "local:<email>") are created by /api/oauth/callback
+    // when VITE_OAUTH_PORTAL_URL / VITE_APP_ID are not set (i.e. no external OAuth
+    // configured). This is the legitimate auth mechanism when running without a
+    // full OAuth provider — dev or production. Reconstruct the user from the JWT
+    // claims when the DB is unavailable or the user record hasn't been persisted yet.
+    if (!user && sessionUserId.startsWith("local:")) {
       const email = sessionUserId.slice("local:".length).trim().toLowerCase();
       const isAdmin = ENV.adminEmails.includes(email) || sessionUserId === ENV.ownerOpenId;
       user = {
