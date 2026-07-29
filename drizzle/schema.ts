@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, tinyint, varchar } from "drizzle-orm/mysql-core";
+import { boolean, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -64,7 +64,7 @@ export const contributions = mysqlTable("contributions", {
   donorWhatsapp: varchar("donorWhatsapp", { length: 20 }),
   donorCity: varchar("donorCity", { length: 255 }),
   donorChurch: varchar("donorChurch", { length: 255 }),
-  allowPublicDisplay: tinyint("allowPublicDisplay", { mode: "boolean" }).notNull().default(false), // Permite divulgar nome do doador
+  allowPublicDisplay: boolean("allowPublicDisplay").notNull().default(false), // Permite divulgar nome do doador
   deliveryMethod: varchar("deliveryMethod", { length: 50 }), // Para material: pickup, deliver, mail, other
   numberOfInstallments: int("numberOfInstallments"), // Para financeiro/material em parcelas
   installmentFrequency: varchar("installmentFrequency", { length: 50 }), // Para financeiro: weekly, biweekly, monthly
@@ -187,6 +187,23 @@ export const campaignUpdates = mysqlTable("campaignUpdates", {
 
 export type CampaignUpdate = typeof campaignUpdates.$inferSelect;
 export type InsertCampaignUpdate = typeof campaignUpdates.$inferInsert;
+
+/**
+ * Comentários públicos de campanha com moderação simples.
+ */
+export const campaignComments = mysqlTable("campaignComments", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: int("campaignId").notNull(),
+  userId: int("userId"),
+  authorName: varchar("authorName", { length: 255 }),
+  content: text("content").notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CampaignComment = typeof campaignComments.$inferSelect;
+export type InsertCampaignComment = typeof campaignComments.$inferInsert;
 
 /**
  * Necessidades por campanha (cimento, tijolos, mão de obra, etc.)

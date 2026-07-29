@@ -8,11 +8,11 @@ import { getDb } from "./db";
 const donorInfoSchema = z.object({
   donorName: z.preprocess(
     (value) => (typeof value === "string" ? value.trim() : ""),
-    z.string().max(255),
+    z.string().max(255).optional().default(""),
   ),
   donorWhatsapp: z.preprocess(
     (value) => (typeof value === "string" ? value.trim() : ""),
-    z.string().max(20),
+    z.string().max(20).optional().default(""),
   ),
   donorEmail: z.preprocess(
     (value) => {
@@ -24,15 +24,15 @@ const donorInfoSchema = z.object({
   ),
   donorCity: z.preprocess(
     (value) => (typeof value === "string" ? value.trim() : ""),
-    z.string().max(255),
+    z.string().max(255).optional().default(""),
   ),
   donorChurch: z.preprocess(
     (value) => (typeof value === "string" ? value.trim() : ""),
-    z.string().max(255).optional(),
+    z.string().max(255).optional().default(""),
   ),
   allowPublicDisplay: z.preprocess(
     (value) => (value === undefined ? false : value),
-    z.boolean(),
+    z.boolean().optional().default(false),
   ),
 });
 
@@ -106,7 +106,7 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
     donorWhatsapp: input.donorWhatsapp,
     donorCity: input.donorCity,
     donorChurch: input.donorChurch,
-    allowPublicDisplay: Number(input.allowPublicDisplay),
+    allowPublicDisplay: Boolean(input.allowPublicDisplay),
     deliveryMethod: type === "material" ? input.deliveryMethod : undefined,
     numberOfInstallments: input.numberOfInstallments,
     materialDeliveryFrequency: type === "material" ? input.materialDeliveryFrequency : undefined,
@@ -150,7 +150,7 @@ export const contributionsRouter = router({
         donorWhatsapp: input.donorWhatsapp,
         donorCity: input.donorCity,
         donorChurch: input.donorChurch,
-        allowPublicDisplay: Number(input.allowPublicDisplay),
+        allowPublicDisplay: Boolean(input.allowPublicDisplay),
         status: "pending",
         paymentStatusDetail: "awaiting_payment",
       });
@@ -233,7 +233,7 @@ export const contributionsRouter = router({
         createdAt: contributions.createdAt,
       })
       .from(contributions)
-      .where(eq(contributions.allowPublicDisplay, 1))
+      .where(eq(contributions.allowPublicDisplay, true))
       .orderBy(desc(contributions.createdAt))
       .limit(100);
   }),

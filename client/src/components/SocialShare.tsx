@@ -9,6 +9,8 @@ type SocialShareProps = {
 };
 
 export default function SocialShare({ title, description, url, campaignId }: SocialShareProps) {
+  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+
   const shareLinks = {
     whatsapp: () => {
       const text = `Olá! Conheça essa campanha incrível: "${title}"\n\n${description}\n\nSaiba mais em: ${url}`;
@@ -59,7 +61,7 @@ export default function SocialShare({ title, description, url, campaignId }: Soc
       <h3 className="text-sm font-semibold text-[#2d2d2d]">Compartilhe esta campanha</h3>
       
       <div className="flex flex-wrap gap-2">
-        {navigator.share && (
+        {canShare && (
           <Button
             onClick={handleNativeShare}
             size="sm"

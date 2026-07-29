@@ -13,7 +13,7 @@ type CampaignCardProps = {
     progress: number;
     imageUrl: string | null;
     status: "active" | "completed" | "paused" | "archived";
-    category?: "moradia" | "educacao" | "saude" | "alimentacao" | "infraestrutura" | "outro";
+    category?: string | null;
   };
 };
 
@@ -35,6 +35,9 @@ const categoryConfig = {
 export default function CampaignCard({ campaign }: CampaignCardProps) {
   const isCompleted = campaign.status === "completed";
   const showWorkInProgressTagline = campaign.title.trim().toUpperCase() !== "LEGENDARIO SOLIDARIO";
+  const categoryKey = typeof campaign.category === "string" && campaign.category in categoryConfig
+    ? (campaign.category as keyof typeof categoryConfig)
+    : "outro";
 
   return (
     <Link href={`/campaign/${campaign.id}`} className="block h-full">
@@ -53,8 +56,8 @@ export default function CampaignCard({ campaign }: CampaignCardProps) {
           )}
           <div className="absolute left-4 top-4 flex flex-col gap-2">
             {campaign.category && (
-              <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${categoryConfig[campaign.category]?.color || categoryConfig.outro.color}`}>
-                {categoryConfig[campaign.category]?.label || categoryConfig.outro.label}
+              <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${categoryConfig[categoryKey]?.color || categoryConfig.outro.color}`}>
+                {categoryConfig[categoryKey]?.label || categoryConfig.outro.label}
               </span>
             )}
           </div>

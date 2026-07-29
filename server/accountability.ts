@@ -144,6 +144,9 @@ export const accountabilityRouter = router({
     .mutation(async ({ input, ctx }) => {
       const bytes = decodeTransparencyUpload(input.file);
       const db = await requireDatabase();
+      if (!ctx.user?.id) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Autenticação necessária." });
+      }
       await requireCampaign(db, input.campaignId);
 
       const extension = storageExtension(input.file.mimeType);
@@ -165,7 +168,7 @@ export const accountabilityRouter = router({
         fileName,
         mimeType: input.file.mimeType,
         fileSize: bytes.length,
-        createdBy: ctx.user.id,
+        createdBy: ctx.user?.id ?? 0,
       });
 
       return { success: true as const, url: uploaded.url, key: uploaded.key };
@@ -212,7 +215,7 @@ export const accountabilityRouter = router({
         amount: input.amount,
         expenseDate,
         documentId: input.documentId,
-        createdBy: ctx.user.id,
+        createdBy: ctx.user?.id ?? 0,
       });
 
       return { success: true as const };

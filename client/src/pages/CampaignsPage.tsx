@@ -10,6 +10,28 @@ import { useDeferredValue, useMemo, useState } from "react";
 type StatusFilter = "all" | "active" | "completed";
 type CategoryFilter = "all" | "moradia" | "educacao" | "saude" | "alimentacao" | "infraestrutura" | "outro";
 
+type PublishedCampaign = {
+  id: number;
+  title: string;
+  description: string;
+  longDescription?: string | null;
+  category?: string | null;
+  goal: number;
+  imageUrl: string | null;
+  createdBy: number;
+  status: "active" | "completed" | "paused" | "archived";
+  createdAt: Date;
+  updatedAt: Date;
+  raised: number;
+  remaining: number;
+  progress: number;
+  contributorsCount: number;
+  galleryImages: string[];
+  needs: unknown[];
+  updates: unknown[];
+  documents: unknown[];
+};
+
 export default function CampaignsPage() {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [category, setCategory] = useState<CategoryFilter>("all");
@@ -24,7 +46,7 @@ export default function CampaignsPage() {
     [deferredQuery, status],
   );
   const campaignsQuery = trpc.campaigns.listPublished.useQuery(input);
-  let campaigns = campaignsQuery.data ?? [];
+  let campaigns = (campaignsQuery.data ?? []) as PublishedCampaign[];
 
   // Filtrar por categoria no frontend
   if (category !== "all") {

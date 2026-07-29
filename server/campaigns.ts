@@ -3,6 +3,7 @@ import { z } from "zod";
 import { and, desc, eq, inArray, like } from "drizzle-orm";
 import {
   campaigns,
+  campaignComments,
   campaignNeeds,
   campaignUpdates,
   contributions,
@@ -263,6 +264,7 @@ const createCampaignSchema = z.object({
   title: z.string().min(5, "Título deve ter pelo menos 5 caracteres"),
   description: z.string().min(20, "Descrição deve ter pelo menos 20 caracteres"),
   longDescription: z.string().min(50, "Descrição longa deve ter pelo menos 50 caracteres"),
+  category: z.enum(["moradia", "educacao", "saude", "alimentacao", "infraestrutura", "outro"]).optional().default("outro"),
   goal: z.number().int().positive("Meta deve ser um valor positivo"),
   imageUrl: z.string().optional(),
 });
@@ -300,6 +302,16 @@ const createCampaignNeedSchema = z.object({
   description: z.string().optional(),
   quantity: z.string().min(1),
   priority: z.enum(["high", "medium", "low"]).default("medium"),
+});
+
+const createCommentSchema = z.object({
+  campaignId: z.number().int().positive(),
+  content: z.string().trim().min(3, "O comentário deve ter pelo menos 3 caracteres").max(2_000),
+});
+
+const reviewCommentSchema = z.object({
+  id: z.number().int().positive(),
+  status: z.enum(["approved", "rejected", "pending"]),
 });
 
 async function requireCampaign(
@@ -502,13 +514,19 @@ export const campaignsRouter = router({
         return { success: true, message: "Campanha criada com sucesso!" };
       }
 
+      const userId = ctx.user?.id;
+      if (!userId) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Autenticação necessária." });
+      }
+
       await db.insert(campaigns).values({
         title: input.title,
         description: input.description,
         longDescription: input.longDescription,
+        category: input.category,
         goal: input.goal,
         imageUrl: input.imageUrl,
-        createdBy: ctx.user.id,
+        createdBy: userId,
         status: "active",
       });
 
@@ -595,5 +613,57 @@ export const campaignsRouter = router({
         .select()
         .from(campaignNeeds)
         .where(eq(campaignNeeds.campaignId, input.campaignId));
+    }),
+
+  getComments: publicProcedure
+    .input(z.object({ campaignId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+
+      return db
+        .select()
+        .from(campaignComments)
+        .where(and(eq(campaignComments.campaignId, input.campaignId), eq(campaignComments.status, "approved")))
+        .orderBy(desc(campaignComments.createdAt));
+    }),
+
+  createComment: publicProcedure
+    .input(createCommentSchema)
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) {
+        return { success: true, message: "Comentário registrado com sucesso!" };
+      }
+
+      await requireCampaign(db, input.campaignId);
+      await db.insert(campaignComments).values({
+        campaignId: input.campaignId,
+        userId: ctx.user?.id,
+        authorName: ctx.user?.name ?? ctx.user?.email ?? "Anônimo",
+        content: input.content,
+        status: ctx.user?.role === "admin" ? "approved" : "pending",
+      });
+
+      return {
+        success: true,
+        message: ctx.user?.role === "admin" ? "Comentário publicado com sucesso!" : "Comentário enviado para aprovação.",
+      };
+    }),
+
+  reviewComment: adminProcedure
+    .input(reviewCommentSchema)
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) {
+        return { success: true, message: "Status do comentário atualizado." };
+      }
+
+      await db
+        .update(campaignComments)
+        .set({ status: input.status, updatedAt: new Date() })
+        .where(eq(campaignComments.id, input.id));
+
+      return { success: true, message: "Status do comentário atualizado." };
     }),
 });

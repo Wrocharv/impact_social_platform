@@ -189,6 +189,66 @@ describe("campaigns.listPublished", () => {
   });
 });
 
+describe("campaigns comments", () => {
+  beforeEach(() => {
+    getDbMock.mockReset();
+  });
+
+  it("lista apenas comentários aprovados para a campanha pública", async () => {
+    getDbMock.mockResolvedValue({
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            orderBy: vi.fn().mockResolvedValue([
+              {
+                id: 2,
+                campaignId: 10,
+                userId: 7,
+                authorName: "Apoiador",
+                content: "Que obra linda!",
+                status: "approved",
+                createdAt: new Date("2026-01-02T00:00:00.000Z"),
+                updatedAt: new Date("2026-01-02T00:00:00.000Z"),
+              },
+            ]),
+          }),
+        }),
+      })),
+    });
+    const caller = appRouter.createCaller(createPublicContext());
+
+    const result = await caller.campaigns.getComments({ campaignId: 10 });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      campaignId: 10,
+      content: "Que obra linda!",
+      status: "approved",
+    });
+  });
+
+  it("cria comentário com status pendente para usuários comuns", async () => {
+    const values = vi.fn().mockResolvedValue({});
+    getDbMock.mockResolvedValue({
+      select: vi.fn(() => existingCampaignQuery()),
+      insert: vi.fn(() => ({ values })),
+    });
+    const caller = appRouter.createCaller(createPublicContext());
+
+    await caller.campaigns.createComment({
+      campaignId: 10,
+      content: "Vou apoiar essa obra com carinho.",
+    });
+
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({
+      campaignId: 10,
+      userId: undefined,
+      content: "Vou apoiar essa obra com carinho.",
+      status: "pending",
+    }));
+  });
+});
+
 describe("campaigns admin", () => {
   beforeEach(() => {
     getDbMock.mockReset();

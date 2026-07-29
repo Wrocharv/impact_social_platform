@@ -26,6 +26,30 @@ export default function ContributionPage() {
   const createMaterial = trpc.contributions.createMaterialContribution.useMutation();
   const createVolunteer = trpc.contributions.createVolunteerContribution.useMutation();
 
+  const materialInput = {
+    campaignId,
+    description: materialDescription,
+    donorName,
+    donorEmail,
+    donorWhatsapp: "",
+    donorCity: "",
+    donorChurch: "",
+    allowPublicDisplay: false,
+    campaignNeedId: selectedNeedId ? Number(selectedNeedId) : undefined,
+    quantity: materialQuantity.trim() || undefined,
+  };
+
+  const volunteerInput = {
+    campaignId,
+    description: volunteerDescription,
+    donorName,
+    donorEmail,
+    donorWhatsapp: "",
+    donorCity: "",
+    donorChurch: "",
+    allowPublicDisplay: false,
+  };
+
   const resetContact = () => {
     setDonorName("");
     setDonorEmail("");
@@ -36,14 +60,7 @@ export default function ContributionPage() {
   const handleMaterialSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     createMaterial.mutate(
-      {
-        campaignId,
-        description: materialDescription,
-        donorName,
-        donorEmail,
-        campaignNeedId: selectedNeedId ? Number(selectedNeedId) : undefined,
-        quantity: materialQuantity.trim() || undefined,
-      },
+      materialInput,
       {
         onSuccess: () => {
           toast.success("Oferta de material recebida para análise.");
@@ -60,7 +77,7 @@ export default function ContributionPage() {
   const handleVolunteerSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     createVolunteer.mutate(
-      { campaignId, description: volunteerDescription, donorName, donorEmail },
+      volunteerInput,
       {
         onSuccess: () => {
           toast.success("Oferta de voluntariado recebida para análise.");

@@ -1,4 +1,5 @@
 import AnimatedProgressBar from "@/components/AnimatedProgressBar";
+import CampaignComments from "@/components/CampaignComments";
 import PublicHeader from "@/components/PublicHeader";
 import SocialShare from "@/components/SocialShare";
 import { Card } from "@/components/ui/card";
@@ -231,11 +232,7 @@ export default function CampaignDetail() {
               </TabsContent>
 
               <TabsContent value="comments" className="mt-6">
-                <EmptySection
-                  icon={MessageCircle}
-                  title="Mural temporariamente indisponível"
-                  description="As mensagens de apoio voltarão quando a moderação e a persistência estiverem habilitadas. Nenhum comentário demonstrativo é exibido."
-                />
+                <CampaignComments campaignId={campaign.id} />
               </TabsContent>
             </Tabs>
           </div>

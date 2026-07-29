@@ -14,6 +14,28 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   });
 
+type PublishedCampaign = {
+  id: number;
+  title: string;
+  description: string;
+  longDescription?: string | null;
+  category?: string | null;
+  goal: number;
+  imageUrl: string | null;
+  createdBy: number;
+  status: "active" | "completed" | "paused" | "archived";
+  createdAt: Date;
+  updatedAt: Date;
+  raised: number;
+  remaining: number;
+  progress: number;
+  contributorsCount: number;
+  galleryImages: string[];
+  needs: unknown[];
+  updates: unknown[];
+  documents: unknown[];
+};
+
 export default function Home() {
   const featuredInput = useMemo(() => ({ status: "active" as const, limit: 3 }), []);
   const completedInput = useMemo(() => ({ status: "completed" as const, limit: 3 }), []);
@@ -21,9 +43,9 @@ export default function Home() {
   const completedQuery = trpc.campaigns.listPublished.useQuery(completedInput);
   const statsQuery = trpc.campaigns.getPublicStats.useQuery();
   const partnersQuery = trpc.partners.listPublished.useQuery();
-  const campaigns = campaignsQuery.data ?? [];
-  const completedCampaigns = completedQuery.data ?? [];
-  const partners = partnersQuery.data ?? [];
+  const campaigns = (campaignsQuery.data ?? []) as PublishedCampaign[];
+  const completedCampaigns = (completedQuery.data ?? []) as PublishedCampaign[];
+  const partners = (partnersQuery.data ?? []) as PartnerItem[];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white">

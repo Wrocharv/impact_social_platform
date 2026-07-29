@@ -107,7 +107,7 @@ export const whatsappService = {
   // Limpar conversas antigas (mais de 30 min)
   cleanupOldConversations() {
     const now = new Date();
-    for (const [key, value] of conversations.entries()) {
+    for (const [key, value] of Array.from(conversations.entries())) {
       const diff = now.getTime() - value.timestamp.getTime();
       if (diff > 30 * 60 * 1000) {
         conversations.delete(key);
