@@ -8,7 +8,14 @@ import { getDb } from "./db";
 const donorInfoSchema = z.object({
   donorName: z.string().trim().min(2).max(255),
   donorWhatsapp: z.string().trim().min(8).max(20),
-  donorEmail: z.string().trim().email().optional(),
+  donorEmail: z.preprocess(
+    (value) => {
+      if (typeof value !== "string") return value;
+      const normalized = value.trim();
+      return normalized.length === 0 ? undefined : normalized;
+    },
+    z.string().email().optional(),
+  ),
   donorCity: z.string().trim().min(2).max(255),
   donorChurch: z.string().trim().min(2).max(255).optional(),
   allowPublicDisplay: z.boolean(),

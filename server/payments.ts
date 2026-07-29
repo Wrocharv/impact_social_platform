@@ -10,14 +10,22 @@ import { createMercadoPagoPreference } from "./mercadopago";
 const createPaymentPreferenceSchema = z.object({
   campaignId: z.number().int().positive(),
   amount: z.number().int().min(100, "Valor mínimo: R$ 1,00"),
-  donorEmail: z.string().trim().email(),
-  donorName: z.string().trim().min(2).max(255),
-  donorWhatsapp: z.string().trim().min(8).max(20),
-  donorCity: z.string().trim().min(2).max(255),
-  donorChurch: z.string().trim().min(2).max(255).optional(),
-  allowPublicDisplay: z.boolean(),
+  donorEmail: z.preprocess(
+    (value) => {
+      if (typeof value !== "string") return value;
+      const normalized = value.trim();
+      return normalized.length === 0 ? undefined : normalized;
+    },
+    z.string().email().optional(),
+  ),
+  donorName: z.string().trim().max(255).optional().default(""),
+  donorWhatsapp: z.string().trim().max(20).optional().default(""),
+  donorCity: z.string().trim().max(255).optional().default(""),
+  donorChurch: z.string().trim().max(255).optional().default(""),
+  allowPublicDisplay: z.boolean().optional().default(false),
   numberOfInstallments: z.number().int().min(2).max(24).optional(),
   installmentFrequency: z.enum(["weekly", "biweekly", "monthly"]).optional(),
+  paymentMethod: z.enum(["pix", "card", "boleto", "cash"]).optional(),
 });
 
 function requestOrigin(req: {
@@ -36,13 +44,69 @@ function requestOrigin(req: {
   return `${protocol}://${host}`;
 }
 
+function getReadableErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object") {
+    const maybeMessage = (error as { message?: unknown }).message;
+    if (typeof maybeMessage === "string" && maybeMessage.trim().length > 0) {
+      if (maybeMessage.includes("UNAUTHORIZED")) {
+        return "Credencial do Mercado Pago inválida ou sem permissão para criar PIX.";
+      }
+      return maybeMessage;
+    }
+  }
+
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error;
+  }
+
+  return "Não foi possível iniciar o checkout. Tente novamente.";
+}
+
 export const paymentsRouter = router({
   createPaymentPreference: publicProcedure
     .input(createPaymentPreferenceSchema)
     .mutation(async ({ input, ctx }) => {
+      if (!process.env.MERCADO_PAGO_ACCESS_TOKEN) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "PIX indisponível no momento: configure MERCADO_PAGO_ACCESS_TOKEN.",
+        });
+      }
+
       const db = await getDb();
+      const donorEmail = input.donorEmail?.trim() || `doador+${randomUUID().slice(0, 8)}@parceriadobem.com`;
+
       if (!db) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
+        try {
+          const externalReference = `pdb-${input.campaignId}-${randomUUID()}`;
+          const preference = await createMercadoPagoPreference({
+            campaignId: input.campaignId,
+            campaignTitle: `Campanha #${input.campaignId}`,
+            amountCents: input.amount,
+            donorEmail,
+            donorName: input.donorName?.trim() || "Doador",
+            externalReference,
+            baseUrl: requestOrigin(ctx.req),
+          });
+
+          return {
+            checkoutUrl: preference.checkoutUrl,
+            contributionId: undefined,
+            preferenceId: preference.id,
+            environment: preference.environment,
+          };
+        } catch (error) {
+          const message = getReadableErrorMessage(error);
+          console.error("[MercadoPago] Falha ao criar preferência sem banco", error);
+          throw new TRPCError({
+            code: "BAD_GATEWAY",
+            message,
+          });
+        }
       }
 
       const [campaign] = await db
@@ -56,19 +120,26 @@ export const paymentsRouter = router({
       }
 
       const externalReference = `pdb-${input.campaignId}-${randomUUID()}`;
+      const donorName = input.donorName?.trim() ?? "";
+      const donorWhatsapp = input.donorWhatsapp?.trim() ?? "";
+      const donorCity = input.donorCity?.trim() ?? "";
+      const donorChurch = input.donorChurch?.trim() ?? "";
+      const allowPublicDisplay = input.allowPublicDisplay ?? false;
+
       await db.insert(contributions).values({
         campaignId: campaign.id,
         userId: ctx.user?.id,
         type: "financial",
         amount: input.amount,
-        donorName: input.donorName,
-        donorEmail: input.donorEmail,
-        donorWhatsapp: input.donorWhatsapp,
-        donorCity: input.donorCity,
-        donorChurch: input.donorChurch,
-        allowPublicDisplay: input.allowPublicDisplay,
+        donorName,
+        donorEmail,
+        donorWhatsapp,
+        donorCity,
+        donorChurch,
+        allowPublicDisplay,
         numberOfInstallments: input.numberOfInstallments,
         installmentFrequency: input.installmentFrequency,
+        paymentMethod: input.paymentMethod,
         status: "pending",
         externalReference,
         paymentStatusDetail: "preference_creating",
@@ -79,8 +150,8 @@ export const paymentsRouter = router({
           campaignId: campaign.id,
           campaignTitle: campaign.title,
           amountCents: input.amount,
-          donorEmail: input.donorEmail,
-          donorName: input.donorName,
+          donorEmail,
+          donorName,
           externalReference,
           baseUrl: requestOrigin(ctx.req),
         });
@@ -116,10 +187,11 @@ export const paymentsRouter = router({
           })
           .where(eq(contributions.externalReference, externalReference));
 
+        const message = getReadableErrorMessage(error);
         console.error("[MercadoPago] Falha ao criar preferência", error);
         throw new TRPCError({
           code: "BAD_GATEWAY",
-          message: "Não foi possível iniciar o checkout. Tente novamente.",
+          message,
         });
       }
     }),
