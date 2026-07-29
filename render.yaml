@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: parceria-do-bem
+    env: node
+    plan: free
+    buildCommand: pnpm install && pnpm build
+    startCommand: pnpm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: PUBLIC_APP_URL
+        value: https://parceria-do-bem.onrender.com
