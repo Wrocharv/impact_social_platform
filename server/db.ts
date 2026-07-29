@@ -52,10 +52,13 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.lastSignedIn = user.lastSignedIn;
       updateSet.lastSignedIn = user.lastSignedIn;
     }
+    const normalizedEmail = user.email?.trim().toLowerCase();
+    const isAdminByEmail = Boolean(normalizedEmail && ENV.adminEmails.includes(normalizedEmail));
+
     if (user.role !== undefined) {
       values.role = user.role;
       updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
+    } else if (user.openId === ENV.ownerOpenId || isAdminByEmail) {
       values.role = 'admin';
       updateSet.role = 'admin';
     }

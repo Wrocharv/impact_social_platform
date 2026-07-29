@@ -15,9 +15,9 @@ const content: Record<ReturnState, {
   iconClass: string;
 }> = {
   success: {
-    eyebrow: "Retorno do Mercado Pago",
+    eyebrow: "Retorno da conta do Mercado Pago",
     title: "Pagamento enviado para confirmação",
-    description: "O Mercado Pago recebeu a operação. A contribuição aparecerá no total da campanha somente depois da confirmação segura enviada ao nosso servidor.",
+    description: "A conta do Mercado Pago recebeu a operação. A contribuição aparecerá no total da campanha somente depois da confirmação segura enviada ao nosso servidor.",
     note: "Não feche esta etapa esperando uma confirmação imediata: pagamentos podem permanecer pendentes por alguns minutos.",
     icon: CheckCircle2,
     iconClass: "text-[#228B22]",

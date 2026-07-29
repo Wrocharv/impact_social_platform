@@ -6,8 +6,14 @@ import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 
 const donorInfoSchema = z.object({
-  donorName: z.string().trim().min(2).max(255),
-  donorWhatsapp: z.string().trim().min(8).max(20),
+  donorName: z.preprocess(
+    (value) => (typeof value === "string" ? value.trim() : ""),
+    z.string().max(255),
+  ),
+  donorWhatsapp: z.preprocess(
+    (value) => (typeof value === "string" ? value.trim() : ""),
+    z.string().max(20),
+  ),
   donorEmail: z.preprocess(
     (value) => {
       if (typeof value !== "string") return value;
@@ -16,9 +22,18 @@ const donorInfoSchema = z.object({
     },
     z.string().email().optional(),
   ),
-  donorCity: z.string().trim().min(2).max(255),
-  donorChurch: z.string().trim().min(2).max(255).optional(),
-  allowPublicDisplay: z.boolean(),
+  donorCity: z.preprocess(
+    (value) => (typeof value === "string" ? value.trim() : ""),
+    z.string().max(255),
+  ),
+  donorChurch: z.preprocess(
+    (value) => (typeof value === "string" ? value.trim() : ""),
+    z.string().max(255).optional(),
+  ),
+  allowPublicDisplay: z.preprocess(
+    (value) => (value === undefined ? false : value),
+    z.boolean(),
+  ),
 });
 
 const offerSchema = z.object({

@@ -10,6 +10,7 @@ import {
 } from "../drizzle/schema";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
+import { whatsappService } from "./whatsapp.service";
 
 const DEMO_CAMPAIGN = {
   id: 1,
@@ -119,6 +120,47 @@ function getDemoPublicStats() {
     raised: DEMO_CAMPAIGN.raised,
     contributorsCount: DEMO_CAMPAIGN.contributorsCount,
   };
+}
+
+function mapFallbackCampaignToPublicShape(campaign: ReturnType<typeof whatsappService.getFallbackCampaigns>[number]) {
+  const goal = Number(campaign.goal ?? 0);
+  const raised = Number(campaign.raised ?? 0);
+  const progress = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
+
+  return {
+    id: campaign.id,
+    title: campaign.title,
+    description: campaign.description,
+    longDescription: campaign.longDescription ?? campaign.description,
+    category: campaign.category ?? "outro",
+    goal,
+    imageUrl: campaign.imageUrl ?? "/obra-paredes.jpg",
+    createdBy: campaign.createdBy ?? 1,
+    status: campaign.status ?? "active",
+    createdAt: campaign.createdAt,
+    updatedAt: campaign.updatedAt ?? campaign.createdAt,
+    raised,
+    remaining: Math.max(0, goal - raised),
+    progress,
+    contributorsCount: 0,
+    galleryImages: [campaign.imageUrl ?? "/obra-paredes.jpg"],
+    needs: [],
+    updates: [],
+    documents: [],
+  };
+}
+
+function getMappedFallbackCampaigns(input?: { status?: "active" | "completed"; query?: string }) {
+  const query = input?.query?.trim().toLowerCase();
+
+  return whatsappService
+    .getFallbackCampaigns()
+    .map(mapFallbackCampaignToPublicShape)
+    .filter((campaign) => {
+      if (input?.status && campaign.status !== input.status) return false;
+      if (query && !campaign.title.toLowerCase().includes(query)) return false;
+      return true;
+    });
 }
 
 const PUBLIC_STATUSES = ["active", "completed"] as const;
@@ -303,7 +345,12 @@ export const campaignsRouter = router({
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) {
-        return getDemoCampaigns(input?.status);
+        const demoCampaigns = getDemoCampaigns(input?.status);
+        const mappedFallback = getMappedFallbackCampaigns({
+          status: input?.status,
+          query: input?.query,
+        });
+        return [...demoCampaigns, ...mappedFallback].slice(0, input?.limit ?? 12);
       }
 
       const statusCondition = input?.status
@@ -332,7 +379,18 @@ export const campaignsRouter = router({
 
   getPublicStats: publicProcedure.query(async () => {
     const db = await getDb();
-    if (!db) return getDemoPublicStats();
+    if (!db) {
+      const fallbackCampaigns = getMappedFallbackCampaigns({ status: "active" });
+      const demoStats = getDemoPublicStats();
+
+      return {
+        activeCampaigns: demoStats.activeCampaigns + fallbackCampaigns.length,
+        raised: demoStats.raised + fallbackCampaigns.reduce((sum, campaign) => sum + campaign.raised, 0),
+        contributorsCount:
+          demoStats.contributorsCount
+          + fallbackCampaigns.reduce((sum, campaign) => sum + campaign.contributorsCount, 0),
+      };
+    }
 
     const activeCampaigns = await db
       .select({ id: campaigns.id, goal: campaigns.goal })
@@ -363,7 +421,13 @@ export const campaignsRouter = router({
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return getDemoCampaignById(input.id);
+      if (!db) {
+        const demoCampaign = getDemoCampaignById(input.id);
+        if (demoCampaign) return demoCampaign;
+
+        const fallbackCampaign = getMappedFallbackCampaigns().find((campaign) => campaign.id === input.id);
+        return fallbackCampaign ?? null;
+      }
 
       const result = await db
         .select()
@@ -425,7 +489,18 @@ export const campaignsRouter = router({
     .input(createCampaignSchema)
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database not available");
+
+      if (!db) {
+        whatsappService.createFallbackCampaign({
+          title: input.title,
+          description: input.description,
+          category: "outro",
+          goal: input.goal,
+          longDescription: input.longDescription,
+          imageUrl: input.imageUrl,
+        });
+        return { success: true, message: "Campanha criada com sucesso!" };
+      }
 
       await db.insert(campaigns).values({
         title: input.title,

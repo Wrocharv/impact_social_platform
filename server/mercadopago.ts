@@ -65,7 +65,8 @@ export async function createMercadoPagoPreference(input: CreatePreferenceInput) 
       },
       auto_return: "approved",
       notification_url: `${origin}/api/webhooks/mercadopago`,
-      statement_descriptor: "PARCEIROS DO BEM",
+      // Keep descriptor short and plain to satisfy provider restrictions.
+      statement_descriptor: "PARCERIABEM",
     },
     requestOptions: {
       idempotencyKey: input.externalReference,

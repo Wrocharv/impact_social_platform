@@ -60,6 +60,11 @@ const trpcClient = trpc.createClient({
         } catch {
           // sessionStorage unavailable
         }
+        // Local-dev bypass: send admin email header so the server can
+        // authenticate without a real session cookie.
+        if (import.meta.env.DEV) {
+          return { "x-dev-admin": "gospeltv@gmail.com" };
+        }
         return {};
       },
       fetch(input, init) {

@@ -18,8 +18,14 @@ export const startLogin = () => {
   const redirectUri = `${window.location.origin}/api/oauth/callback`;
 
   const nonce = crypto.randomUUID();
-  document.cookie = `${OAUTH_STATE_COOKIE}=${nonce}; Path=/; Max-Age=600; SameSite=None; Secure`;
+  const cookieAttributes = window.location.protocol === "https:" ? "SameSite=None; Secure" : "SameSite=Lax";
+  document.cookie = `${OAUTH_STATE_COOKIE}=${nonce}; Path=/; Max-Age=600; ${cookieAttributes}`;
   const state = encodeOAuthState({ redirectUri, nonce });
+
+  if (!oauthPortalUrl || !appId) {
+    window.location.href = `${window.location.origin}/api/oauth/callback?code=dev-local&state=${encodeURIComponent(state)}`;
+    return;
+  }
 
   const url = new URL(`${oauthPortalUrl}/app-auth`);
   url.searchParams.set("appId", appId);

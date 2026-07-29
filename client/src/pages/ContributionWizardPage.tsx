@@ -183,6 +183,7 @@ export default function ContributionWizardPage() {
       } else if (state.type === "financial" && state.amount && state.paymentMethod) {
         const result = await createPayment.mutateAsync({
           campaignId,
+          campaignTitle: campaign?.title,
           amount: Math.round(state.amount * 100),
           donorName: state.donorName,
           donorWhatsapp: state.donorWhatsapp,

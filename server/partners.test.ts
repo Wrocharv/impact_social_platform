@@ -65,6 +65,23 @@ describe("partners router", () => {
     await expect(caller.partners.listPublished()).resolves.toEqual(rows);
   });
 
+  it("permite o cadastro para o usuário local autorizado", async () => {
+    const values = vi.fn().mockResolvedValue({});
+    getDbMock.mockResolvedValue({ insert: vi.fn(() => ({ values })) });
+    const caller = appRouter.createCaller({
+      ...createContext("user"),
+      user: {
+        ...(createContext("user").user as NonNullable<ReturnType<typeof createContext>['user']>),
+        email: "gospeltv@gmail.com",
+      },
+    });
+
+    await expect(caller.partners.create({
+      name: "Construtora Solidária",
+      type: "company",
+    })).resolves.toMatchObject({ success: true });
+  });
+
   it("bloqueia o cadastro para usuários sem papel administrativo", async () => {
     const caller = appRouter.createCaller(createContext("user"));
 
@@ -116,6 +133,24 @@ describe("partners router", () => {
       updatedAt: expect.any(Date),
     }));
     expect(where).toHaveBeenCalled();
+  });
+
+  it("usa armazenamento local quando o banco não está configurado", async () => {
+    getDbMock.mockResolvedValue(null);
+    const caller = appRouter.createCaller(createContext("admin"));
+
+    await expect(caller.partners.create({
+      name: "Parceria local",
+      type: "company",
+      description: "Teste local",
+    })).resolves.toMatchObject({ success: true });
+
+    const partners = await caller.partners.getAll();
+    // The fallback store may contain entries from other tests or prior runs;
+    // verify the newly created partner is present in the list.
+    expect(partners).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "Parceria local", type: "company" }),
+    ]));
   });
 
   it("remove um parceiro como administrador", async () => {

@@ -1,12 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
-const { getDbMock } = vi.hoisted(() => ({
+const { getDbMock, whatsappServiceMock } = vi.hoisted(() => ({
   getDbMock: vi.fn(),
+  whatsappServiceMock: {
+    getFallbackCampaigns: vi.fn(() => []),
+    createFallbackCampaign: vi.fn(),
+  },
 }));
 
 vi.mock("./db", () => ({
   getDb: getDbMock,
+}));
+
+vi.mock("./whatsapp.service", () => ({
+  whatsappService: whatsappServiceMock,
 }));
 
 import { appRouter } from "./routers";
@@ -127,6 +135,8 @@ describe("deriveCampaignMetrics", () => {
 describe("campaigns.listPublished", () => {
   beforeEach(() => {
     getDbMock.mockReset();
+    whatsappServiceMock.getFallbackCampaigns.mockReset();
+    whatsappServiceMock.getFallbackCampaigns.mockReturnValue([]);
   });
 
   it("permite leitura pública e agrega contribuições persistidas", async () => {
@@ -142,6 +152,39 @@ describe("campaigns.listPublished", () => {
       remaining: 6_500,
       progress: 35,
       contributorsCount: 2,
+    });
+  });
+
+  it("expõe campanhas de fallback no detalhe e nas estatísticas públicas", async () => {
+    getDbMock.mockResolvedValue(null);
+    whatsappServiceMock.getFallbackCampaigns.mockReturnValue([{
+      id: 99,
+      title: "LEGENDARIO SOLIDARIO",
+      description: "Campanha para arrecadar recursos para a inscrição e itens do kit.",
+      longDescription: "Campanha para arrecadar recursos para a inscrição e itens do kit.",
+      category: "outro",
+      goal: 500_000,
+      raised: 0,
+      status: "active" as const,
+      imageUrl: "/IMG_3283.JPG",
+      createdBy: 1,
+      createdAt: new Date("2026-07-28T00:00:00.000Z"),
+      updatedAt: new Date("2026-07-28T00:00:00.000Z"),
+    }]);
+    const caller = appRouter.createCaller(createPublicContext());
+
+    const detail = await caller.campaigns.getById({ id: 99 });
+    const stats = await caller.campaigns.getPublicStats();
+
+    expect(detail).toMatchObject({
+      id: 99,
+      title: "LEGENDARIO SOLIDARIO",
+      status: "active",
+    });
+    expect(stats).toMatchObject({
+      activeCampaigns: 2,
+      raised: 0,
+      contributorsCount: 0,
     });
   });
 });

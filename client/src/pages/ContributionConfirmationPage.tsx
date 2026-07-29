@@ -1,6 +1,6 @@
 import PublicHeader from "@/components/PublicHeader";
 import { Card } from "@/components/ui/card";
-import { CheckCircle, Heart, Package, Users, ArrowRight } from "lucide-react";
+import { CheckCircle, Heart, ArrowRight, Printer, Download } from "lucide-react";
 import { Link } from "wouter";
 
 interface ContributionData {
@@ -25,13 +25,73 @@ export default function ContributionConfirmationPage() {
     timestamp: new Date().toLocaleString("pt-BR"),
   };
 
+  const firstName = data.donorName.trim().split(" ")[0] || "Doador";
+  const receiptNumber = `RCB-${Date.now().toString(36).toUpperCase()}`;
+
   const typeConfig = {
     financial: { icon: "💰", label: "Doação Financeira", color: "blue" },
     material: { icon: "📦", label: "Doação de Material", color: "green" },
     volunteer: { icon: "🤝", label: "Voluntariado", color: "purple" },
   };
 
-  const config = typeConfig[data.type];
+  const isLegendarioCampaign = data.campaignTitle.trim().toUpperCase() === "LEGENDARIO SOLIDARIO";
+  const config = data.type === "material" && isLegendarioCampaign
+    ? { ...typeConfig.material, label: "Kit completo ou itens do kit" }
+    : typeConfig[data.type];
+
+  const receiptHtml = `
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <title>Recibo de Contribuição - ${receiptNumber}</title>
+        <style>
+          body { font-family: Arial, sans-serif; color: #111827; margin: 32px; }
+          .box { border: 1px solid #d1d5db; border-radius: 12px; padding: 24px; max-width: 720px; margin: 0 auto; }
+          h1 { margin: 0 0 8px; color: #166534; }
+          .muted { color: #6b7280; font-size: 14px; }
+          .row { margin-top: 14px; }
+          .label { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
+          .value { font-size: 16px; font-weight: 600; margin-top: 2px; }
+          .footer { margin-top: 24px; font-size: 12px; color: #4b5563; }
+        </style>
+      </head>
+      <body>
+        <div class="box">
+          <h1>Recibo de Contribuição</h1>
+          <p class="muted">Comprovante emitido pelo site Parceiros do Bem</p>
+          <div class="row"><div class="label">Recibo</div><div class="value">${receiptNumber}</div></div>
+          <div class="row"><div class="label">Data e hora</div><div class="value">${data.timestamp}</div></div>
+          <div class="row"><div class="label">Doador</div><div class="value">${data.donorName}</div></div>
+          <div class="row"><div class="label">Campanha</div><div class="value">${data.campaignTitle}</div></div>
+          <div class="row"><div class="label">Tipo</div><div class="value">${config.label}</div></div>
+          <div class="row"><div class="label">Valor</div><div class="value">${data.amount ? `R$ ${(data.amount / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "Não financeiro"}</div></div>
+          ${data.description ? `<div class="row"><div class="label">Descrição</div><div class="value">${data.description}</div></div>` : ""}
+          <p class="footer">Obrigado por contribuir com transformação social.</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const handlePrintReceipt = () => {
+    const printWindow = window.open("", "_blank", "width=900,height=700");
+    if (!printWindow) return;
+    printWindow.document.write(receiptHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  const handleDownloadReceipt = () => {
+    const blob = new Blob([receiptHtml], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${receiptNumber}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <>
@@ -51,6 +111,11 @@ export default function ContributionConfirmationPage() {
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold text-green-600 mb-2">Contribuição Registrada!</h1>
               <p className="text-gray-600">Sua {config.label.toLowerCase()} foi recebida com sucesso</p>
+            </div>
+
+            <div className="mb-8 rounded-lg border border-green-200 bg-green-100/60 p-4 text-center">
+              <p className="text-green-800 font-semibold">Obrigado, {firstName}! Sua generosidade impacta vidas.</p>
+              <p className="text-sm text-green-700 mt-1">Guarde este recibo digital caso deseje registrar sua contribuição.</p>
             </div>
 
             {/* Contribution Details */}
@@ -90,6 +155,21 @@ export default function ContributionConfirmationPage() {
               <div className="text-right">
                 <p className="text-xs text-gray-500">{data.timestamp}</p>
               </div>
+            </div>
+
+            <div className="mb-8 grid gap-3 sm:grid-cols-2">
+              <button
+                onClick={handlePrintReceipt}
+                className="inline-flex items-center justify-center gap-2 min-h-12 rounded-md border-2 border-gray-300 px-4 py-3 font-semibold text-gray-700 hover:bg-gray-50 transition active:scale-95"
+              >
+                <Printer className="h-4 w-4" /> Imprimir Recibo
+              </button>
+              <button
+                onClick={handleDownloadReceipt}
+                className="inline-flex items-center justify-center gap-2 min-h-12 rounded-md border-2 border-green-600 px-4 py-3 font-semibold text-green-700 hover:bg-green-50 transition active:scale-95"
+              >
+                <Download className="h-4 w-4" /> Baixar Recibo
+              </button>
             </div>
 
             {/* Next Steps */}

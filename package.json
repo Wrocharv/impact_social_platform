@@ -7,6 +7,7 @@
     "dev": "PORT=3004 NODE_ENV=development tsx watch server/_core/index.ts",
     "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
+    "admin:grant": "tsx server/grant-admin.ts",
     "seed:manaim": "tsx server/seed-manaim-campaign.ts",
     "check": "tsc --noEmit",
     "format": "prettier --write .",

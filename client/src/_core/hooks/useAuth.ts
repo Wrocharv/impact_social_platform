@@ -55,11 +55,26 @@ export function useAuth(options?: UseAuthOptions) {
       "manus-runtime-user-info",
       JSON.stringify(meQuery.data)
     );
+
+    const localDevUser = import.meta.env.DEV
+      ? {
+          id: 1,
+          openId: "local:gospeltv@gmail.com",
+          name: "Administrador local",
+          email: "gospeltv@gmail.com",
+          loginMethod: "local-dev",
+          role: "admin",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lastSignedIn: new Date().toISOString(),
+        }
+      : null;
+
     return {
-      user: meQuery.data ?? null,
+      user: meQuery.data ?? localDevUser ?? null,
       loading: meQuery.isLoading || logoutMutation.isPending,
       error: meQuery.error ?? logoutMutation.error ?? null,
-      isAuthenticated: Boolean(meQuery.data),
+      isAuthenticated: Boolean(meQuery.data || localDevUser),
     };
   }, [
     meQuery.data,

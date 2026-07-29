@@ -33,6 +33,25 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  const publicAppUrl = process.env.PUBLIC_APP_URL?.trim() || "https://www.parceriadobem.com.br";
+
+  if (process.env.NODE_ENV !== "development") {
+    app.use((req, res, next) => {
+      const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+      const host = (forwardedHost || req.get("host") || "").toLowerCase();
+      const hostname = host.split(":")[0];
+
+      if (hostname === "app.parceriadobem.com.br") {
+        const target = new URL(publicAppUrl);
+        const location = `${target.origin}${req.originalUrl}`;
+        res.redirect(301, location);
+        return;
+      }
+
+      next();
+    });
+  }
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));

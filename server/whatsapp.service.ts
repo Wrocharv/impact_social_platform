@@ -1,12 +1,41 @@
 // Serviço para gerenciar conversas e estado do chatbot WhatsApp
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import path from "path";
+
+type FallbackCampaign = {
+  id: number;
+  title: string;
+  description: string;
+  longDescription?: string;
+  category: string;
+  goal: number;
+  raised: number;
+  status: "active" | "completed";
+  imageUrl?: string;
+  createdBy?: number;
+  createdAt: Date;
+  updatedAt?: Date;
+};
+
 type ConversationState = {
   phoneNumber: string;
-  step: "idle" | "creating_campaign" | "editing_campaign" | "adding_update" | "adding_need" | "adding_contribution" | "viewing_campaign";
+  step:
+    | "idle"
+    | "creating_campaign"
+    | "creating_campaign_title"
+    | "creating_campaign_description"
+    | "creating_campaign_goal"
+    | "creating_campaign_category"
+    | "editing_campaign"
+    | "adding_update"
+    | "adding_need"
+    | "adding_contribution"
+    | "viewing_campaign";
   campaignData?: {
     title?: string;
     description?: string;
-    goal?: string;
+    goal?: string | number;
     category?: string;
   };
   updateData?: {
@@ -36,6 +65,43 @@ type ConversationState = {
 };
 
 const conversations = new Map<string, ConversationState>();
+const fallbackCampaignsFile = path.resolve(process.cwd(), "server", ".whatsapp-fallback-campaigns.json");
+
+function loadFallbackCampaignsFromDisk(): FallbackCampaign[] {
+  try {
+    if (!existsSync(fallbackCampaignsFile)) return [];
+
+    const raw = readFileSync(fallbackCampaignsFile, "utf8");
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.map((item) => ({
+      ...item,
+      createdAt: new Date(item.createdAt),
+      updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined,
+    })) as FallbackCampaign[];
+  } catch (error) {
+    console.warn("[WhatsApp] Unable to load fallback campaigns from disk:", error);
+    return [];
+  }
+}
+
+function persistFallbackCampaignsToDisk() {
+  try {
+    mkdirSync(path.dirname(fallbackCampaignsFile), { recursive: true });
+    writeFileSync(fallbackCampaignsFile, JSON.stringify(fallbackCampaigns, null, 2));
+  } catch (error) {
+    console.warn("[WhatsApp] Unable to persist fallback campaigns:", error);
+  }
+}
+
+const fallbackCampaigns: FallbackCampaign[] = loadFallbackCampaignsFromDisk();
+
+function refreshFallbackCampaignsFromDisk() {
+  const loaded = loadFallbackCampaignsFromDisk();
+  fallbackCampaigns.length = 0;
+  fallbackCampaigns.push(...loaded);
+}
 
 export const whatsappService = {
   // Limpar conversas antigas (mais de 30 min)
@@ -76,11 +142,53 @@ export const whatsappService = {
 
   formatCampaignList(campaigns: any[]): string {
     if (campaigns.length === 0) return "❌ Nenhuma campanha encontrada";
-    
+
     return campaigns
       .slice(0, 5)
       .map((c, i) => `${i + 1}. ${c.title}\n   R$ ${(c.raised / 100).toFixed(2)} / R$ ${(c.goal / 100).toFixed(2)}`)
       .join("\n");
+  },
+
+  getFallbackCampaigns() {
+    refreshFallbackCampaignsFromDisk();
+    return fallbackCampaigns.slice();
+  },
+
+  createFallbackCampaign(data: {
+    title: string;
+    description: string;
+    category: string;
+    goal: number;
+    longDescription?: string;
+    imageUrl?: string;
+  }) {
+    const nextId = fallbackCampaigns.length > 0
+      ? Math.max(...fallbackCampaigns.map((campaign) => campaign.id)) + 1
+      : 1;
+
+    const campaign: FallbackCampaign = {
+      id: nextId,
+      title: data.title,
+      description: data.description,
+      longDescription: data.longDescription ?? data.description,
+      category: data.category,
+      goal: data.goal,
+      raised: 0,
+      status: "active",
+      imageUrl: data.imageUrl ?? "/obra-paredes.jpg",
+      createdBy: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    fallbackCampaigns.push(campaign);
+    persistFallbackCampaignsToDisk();
+    return campaign;
+  },
+
+  resetFallbackCampaigns() {
+    fallbackCampaigns.length = 0;
+    persistFallbackCampaignsToDisk();
   },
 
   parseMessage(text: string): { command: string; args: string[] } {

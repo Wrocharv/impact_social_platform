@@ -217,7 +217,7 @@ export default function CheckoutPage() {
                   <div className="bg-[#228B22]/5 border border-[#228B22]/20 rounded-lg p-4 flex gap-3">
                     <AlertCircle className="w-5 h-5 text-[#228B22] flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-[#2d2d2d]">
-                      Você será redirecionado para o Mercado Pago para completar o pagamento com segurança.
+                      Você será redirecionado para a conta do Mercado Pago para completar o pagamento com segurança.
                       Aceitamos PIX, cartão de crédito e débito.
                     </div>
                   </div>

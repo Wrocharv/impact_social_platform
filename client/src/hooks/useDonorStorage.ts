@@ -14,6 +14,10 @@ export interface DonorData {
 const DONORS_STORAGE_KEY = "impact_donors";
 const CURRENT_DONOR_KEY = "impact_current_donor";
 
+function normalizeWhatsapp(value: string) {
+  return value.replace(/\D/g, "");
+}
+
 /**
  * Gera ID único para doador (baseado em timestamp + random)
  */
@@ -36,12 +40,24 @@ export function useDonorStorage() {
     try {
       const stored = localStorage.getItem(DONORS_STORAGE_KEY);
       const storedCurrent = localStorage.getItem(CURRENT_DONOR_KEY);
+      let parsedDonors: DonorData[] = [];
 
       if (stored) {
-        setDonors(JSON.parse(stored));
+        parsedDonors = JSON.parse(stored);
+        setDonors(parsedDonors);
       }
       if (storedCurrent) {
         setCurrentDonor(JSON.parse(storedCurrent));
+      } else if (parsedDonors.length > 0) {
+        // Recover the most recently created donor when current donor key is missing.
+        const fallbackCurrent = [...parsedDonors]
+          .filter((donor) => normalizeWhatsapp(donor.donorWhatsapp).length >= 8)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+        if (fallbackCurrent) {
+          setCurrentDonor(fallbackCurrent);
+          localStorage.setItem(CURRENT_DONOR_KEY, JSON.stringify(fallbackCurrent));
+        }
       }
     } catch (error) {
       console.error("Erro ao carregar doadores:", error);
@@ -53,15 +69,16 @@ export function useDonorStorage() {
    * Buscar doador existente por WhatsApp
    */
   function findDonorByWhatsapp(whatsapp: string): DonorData | undefined {
-    return donors.find((d) => d.donorWhatsapp === whatsapp);
+    const normalized = normalizeWhatsapp(whatsapp);
+    return donors.find((d) => normalizeWhatsapp(d.donorWhatsapp) === normalized);
   }
 
   /**
    * Salvar ou atualizar doador
    */
   function saveDonor(donorData: Omit<DonorData, "donorId" | "createdAt" | "donationsCount">) {
-    const normalizedWhatsapp = donorData.donorWhatsapp.trim();
-    const existing = donors.find((d) => d.donorWhatsapp === normalizedWhatsapp);
+    const normalizedWhatsapp = normalizeWhatsapp(donorData.donorWhatsapp.trim());
+    const existing = donors.find((d) => normalizeWhatsapp(d.donorWhatsapp) === normalizedWhatsapp);
 
     let donor: DonorData;
 

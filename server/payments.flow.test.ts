@@ -67,6 +67,10 @@ describe("payments.createPaymentPreference", () => {
       amount: 5_000,
       donorEmail: "doador@example.com",
       donorName: "Maria",
+      donorWhatsapp: "11999999999",
+      donorCity: "São Paulo",
+      allowPublicDisplay: false,
+      paymentMethod: "pix",
     });
 
     expect(values).toHaveBeenCalledTimes(1);
@@ -77,6 +81,7 @@ describe("payments.createPaymentPreference", () => {
       amount: 5_000,
       status: "pending",
       paymentStatusDetail: "preference_creating",
+      paymentMethod: "pix",
     });
     expect(inserted.externalReference).toMatch(/^pdb-7-/);
     expect(createPreferenceMock).toHaveBeenCalledWith(
@@ -93,6 +98,63 @@ describe("payments.createPaymentPreference", () => {
     expect(result).toMatchObject({ contributionId: 91, preferenceId: "pref-123", environment: "test" });
   });
 
+  it("aceita checkout legado sem dados extras do doador", async () => {
+    const { db, values, set } = createDb([
+      { id: 7, title: "Casa da Viúva", status: "active" },
+    ]);
+    getDbMock.mockResolvedValue(db);
+    createPreferenceMock.mockResolvedValue({
+      id: "pref-456",
+      checkoutUrl: "https://sandbox.mercadopago.com/checkout/v1/redirect",
+      environment: "test",
+    });
+
+    const caller = appRouter.createCaller(createContext());
+    const result = await caller.payments.createPaymentPreference({
+      campaignId: 7,
+      amount: 5_000,
+      donorEmail: "doador@example.com",
+      donorName: "",
+    });
+
+    expect(values).toHaveBeenCalledTimes(1);
+    const inserted = values.mock.calls[0]?.[0];
+    expect(inserted).toMatchObject({
+      donorName: "",
+      donorWhatsapp: "",
+      donorCity: "",
+      allowPublicDisplay: false,
+    });
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({ preferenceId: "pref-456", paymentStatusDetail: "preference_created" }),
+    );
+    expect(result).toMatchObject({ preferenceId: "pref-456", environment: "test" });
+  });
+
+  it("propaga mensagem útil quando o Mercado Pago não está configurado", async () => {
+    const { db, values } = createDb([
+      { id: 7, title: "Casa da Viúva", status: "active" },
+    ]);
+    getDbMock.mockResolvedValue(db);
+    createPreferenceMock.mockRejectedValueOnce(new Error("MERCADO_PAGO_ACCESS_TOKEN não configurado"));
+
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.payments.createPaymentPreference({
+        campaignId: 7,
+        amount: 5_000,
+        donorEmail: "doador@example.com",
+        donorName: "Maria",
+        donorWhatsapp: "11999999999",
+        donorCity: "São Paulo",
+        allowPublicDisplay: false,
+        paymentMethod: "pix",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_GATEWAY", message: "MERCADO_PAGO_ACCESS_TOKEN não configurado" });
+    expect(values).toHaveBeenCalledTimes(1);
+  });
+
   it("recusa checkout para campanha inexistente ou inativa", async () => {
     const { db, values } = createDb([]);
     getDbMock.mockResolvedValue(db);
@@ -103,6 +165,10 @@ describe("payments.createPaymentPreference", () => {
         campaignId: 99,
         amount: 1_000,
         donorEmail: "doador@example.com",
+        donorName: "Maria",
+        donorWhatsapp: "11999999999",
+        donorCity: "São Paulo",
+        allowPublicDisplay: false,
       }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(values).not.toHaveBeenCalled();
@@ -125,6 +191,9 @@ describe("contributions", () => {
       description: "Cinquenta sacos de cimento disponíveis para retirada.",
       donorName: "João",
       donorEmail: "joao@example.com",
+      donorWhatsapp: "11999999999",
+      donorCity: "São Paulo",
+      allowPublicDisplay: false,
     });
 
     expect(values).toHaveBeenCalledWith(

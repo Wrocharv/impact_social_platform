@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { AlertCircle, Building2, Edit2, ExternalLink, FileText, Handshake, Megaphone, PackagePlus, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { isAdminUser } from "@/_core/hooks/adminAccess";
 import CampaignAccountabilityDialog from "@/components/admin/CampaignAccountabilityDialog";
 import DashboardLayout from "@/components/DashboardLayout";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -52,7 +53,7 @@ const EMPTY_NEED_FORM = {
 export default function AdminDashboard() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = isAdminUser(user, ["gospeltv@gmail.com"]);
   const [activeTab, setActiveTab] = useState<"campaigns" | "partners">(() =>
     new URLSearchParams(window.location.search).get("tab") === "partners" ? "partners" : "campaigns",
   );

@@ -34,6 +34,7 @@ const categoryConfig = {
 
 export default function CampaignCard({ campaign }: CampaignCardProps) {
   const isCompleted = campaign.status === "completed";
+  const showWorkInProgressTagline = campaign.title.trim().toUpperCase() !== "LEGENDARIO SOLIDARIO";
 
   return (
     <Link href={`/campaign/${campaign.id}`} className="block h-full">
@@ -67,7 +68,9 @@ export default function CampaignCard({ campaign }: CampaignCardProps) {
           <p className="mb-2 line-clamp-3 text-sm leading-relaxed text-[#6d6d6d]">
             {campaign.description}
           </p>
-          <p className="mb-5 text-sm font-semibold text-[#228B22]">Obra em andamento com atualizações e fotos reais.</p>
+          {showWorkInProgressTagline && (
+            <p className="mb-5 text-sm font-semibold text-[#228B22]">Obra em andamento com atualizações e fotos reais.</p>
+          )}
 
           <div className="mt-auto">
             <div

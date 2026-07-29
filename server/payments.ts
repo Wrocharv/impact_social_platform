@@ -3,12 +3,14 @@ import { and, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { campaigns, contributions } from "../drizzle/schema";
+import { ENV } from "./_core/env";
 import { publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import { createMercadoPagoPreference } from "./mercadopago";
 
 const createPaymentPreferenceSchema = z.object({
   campaignId: z.number().int().positive(),
+  campaignTitle: z.string().trim().max(255).optional(),
   amount: z.number().int().min(100, "Valor mínimo: R$ 1,00"),
   donorEmail: z.preprocess(
     (value) => {
@@ -32,6 +34,18 @@ function requestOrigin(req: {
   protocol: string;
   get(name: string): string | undefined;
 }) {
+  const configuredPublicUrl = process.env.PUBLIC_APP_URL?.trim();
+  if (configuredPublicUrl) {
+    try {
+      return new URL(configuredPublicUrl).origin;
+    } catch {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "PUBLIC_APP_URL inválida. Use uma URL completa, ex: https://www.parceriadobem.com.br",
+      });
+    }
+  }
+
   const forwardedProtocol = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
   const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
   const protocol = forwardedProtocol || req.protocol;
@@ -41,10 +55,36 @@ function requestOrigin(req: {
     throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Host público indisponível" });
   }
 
+  // Mercado Pago exige URLs públicas válidas no checkout; localhost causa erro de back_url.
+  if (host.includes("localhost") || host.includes("127.0.0.1")) {
+    return "https://www.parceriadobem.com.br";
+  }
+
   return `${protocol}://${host}`;
 }
 
 function getReadableErrorMessage(error: unknown) {
+  if (error && typeof error === "object") {
+    const maybeApiError = error as {
+      message?: unknown;
+      status?: unknown;
+      cause?: Array<{ code?: string; description?: string }>;
+    };
+
+    const causeDescription = maybeApiError.cause?.[0]?.description?.trim();
+    if (causeDescription) {
+      return causeDescription;
+    }
+
+    const message = typeof maybeApiError.message === "string" ? maybeApiError.message.trim() : "";
+    if (message.length > 0) {
+      if (message.includes("UNAUTHORIZED") || maybeApiError.status === 403) {
+        return "Credencial do Mercado Pago invalida ou sem permissao para criar PIX.";
+      }
+      return message;
+    }
+  }
+
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
@@ -66,16 +106,18 @@ function getReadableErrorMessage(error: unknown) {
   return "Não foi possível iniciar o checkout. Tente novamente.";
 }
 
+function isMercadoPagoUnauthorized(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const maybeCode = (error as { code?: unknown }).code;
+  const maybeStatus = (error as { status?: unknown }).status;
+  return maybeCode === "PA_UNAUTHORIZED_RESULT_FROM_POLICIES" || maybeStatus === 403;
+}
+
 export const paymentsRouter = router({
   createPaymentPreference: publicProcedure
     .input(createPaymentPreferenceSchema)
     .mutation(async ({ input, ctx }) => {
-      if (!process.env.MERCADO_PAGO_ACCESS_TOKEN) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "PIX indisponível no momento: configure MERCADO_PAGO_ACCESS_TOKEN.",
-        });
-      }
+      const enablePixDevFallback = process.env.ENABLE_PIX_DEV_FALLBACK === "true";
 
       const db = await getDb();
       const donorEmail = input.donorEmail?.trim() || `doador+${randomUUID().slice(0, 8)}@parceriadobem.com`;
@@ -83,9 +125,10 @@ export const paymentsRouter = router({
       if (!db) {
         try {
           const externalReference = `pdb-${input.campaignId}-${randomUUID()}`;
+          const fallbackCampaignTitle = input.campaignTitle?.trim() || `Campanha ${input.campaignId}`;
           const preference = await createMercadoPagoPreference({
             campaignId: input.campaignId,
-            campaignTitle: `Campanha #${input.campaignId}`,
+            campaignTitle: fallbackCampaignTitle,
             amountCents: input.amount,
             donorEmail,
             donorName: input.donorName?.trim() || "Doador",
@@ -100,6 +143,17 @@ export const paymentsRouter = router({
             environment: preference.environment,
           };
         } catch (error) {
+          if (!ENV.isProduction && enablePixDevFallback && isMercadoPagoUnauthorized(error)) {
+            const origin = requestOrigin(ctx.req);
+            const fallbackCampaignTitle = input.campaignTitle?.trim() || `Campanha ${input.campaignId}`;
+            return {
+              checkoutUrl: `${origin}/contribute/confirmation?type=financial&campaign=${encodeURIComponent(fallbackCampaignTitle)}&campaignId=${input.campaignId}&donor=${encodeURIComponent(input.donorName?.trim() || "Doador")}&amount=${input.amount}`,
+              contributionId: undefined,
+              preferenceId: "dev-fallback",
+              environment: "test" as const,
+            };
+          }
+
           const message = getReadableErrorMessage(error);
           console.error("[MercadoPago] Falha ao criar preferência sem banco", error);
           throw new TRPCError({
@@ -178,6 +232,16 @@ export const paymentsRouter = router({
           environment: preference.environment,
         };
       } catch (error) {
+        if (!ENV.isProduction && enablePixDevFallback && isMercadoPagoUnauthorized(error)) {
+          const origin = requestOrigin(ctx.req);
+          return {
+            checkoutUrl: `${origin}/contribute/confirmation?type=financial&campaign=${encodeURIComponent(campaign.title)}&campaignId=${campaign.id}&donor=${encodeURIComponent(donorName || "Doador")}&amount=${input.amount}`,
+            contributionId: undefined,
+            preferenceId: "dev-fallback",
+            environment: "test" as const,
+          };
+        }
+
         await db
           .update(contributions)
           .set({

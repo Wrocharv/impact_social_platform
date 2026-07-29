@@ -154,7 +154,7 @@ class SDKServer {
   }
 
   private getSessionSecret() {
-    const secret = ENV.cookieSecret;
+    const secret = ENV.cookieSecret || "dev-local-cookie-secret";
     return new TextEncoder().encode(secret);
   }
 
@@ -211,19 +211,15 @@ class SDKServer {
       });
       const { openId, appId, name } = payload as Record<string, unknown>;
 
-      if (
-        !isNonEmptyString(openId) ||
-        !isNonEmptyString(appId) ||
-        !isNonEmptyString(name)
-      ) {
+      if (!isNonEmptyString(openId)) {
         console.warn("[Auth] Session payload missing required fields");
         return null;
       }
 
       return {
         openId,
-        appId,
-        name,
+        appId: typeof appId === "string" ? appId : "",
+        name: typeof name === "string" ? name : "",
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
@@ -289,6 +285,30 @@ class SDKServer {
     const signedInAt = new Date();
     let user = await db.getUserByOpenId(sessionUserId);
 
+    // Local-dev sessions (openId = "local:<email>") have no DB or OAuth server.
+    // Reconstruct the user from the session claims so the admin area is usable
+    // without any external dependencies.
+    if (!user && sessionUserId.startsWith("local:") && !ENV.isProduction) {
+      const email = sessionUserId.slice("local:".length).trim().toLowerCase();
+      const isAdmin = ENV.adminEmails.includes(email) || sessionUserId === ENV.ownerOpenId;
+      user = {
+        id: 0,
+        openId: sessionUserId,
+        name: session.name ?? "Administrador local",
+        email,
+        loginMethod: "local-dev",
+        role: isAdmin ? "admin" : "user",
+        createdAt: signedInAt,
+        updatedAt: signedInAt,
+        lastSignedIn: signedInAt,
+      };
+      // Best-effort persistence — ignored when no DB is available.
+      try {
+        await db.upsertUser({ openId: sessionUserId, name: user.name, email, loginMethod: "local-dev", lastSignedIn: signedInAt });
+      } catch {}
+      return user;
+    }
+
     // If user not in DB, sync from OAuth server automatically
     if (!user) {
       try {
@@ -313,6 +333,7 @@ class SDKServer {
 
     await db.upsertUser({
       openId: user.openId,
+      email: user.email ?? undefined,
       lastSignedIn: signedInAt,
     });
 

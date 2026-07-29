@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useRouter } from "wouter";
 import { AlertCircle, Camera, ChevronDown, ChevronLeft, Edit2, Plus, Save, Trash2, X } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { isAdminUser } from "@/_core/hooks/adminAccess";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,7 @@ import { toast } from "sonner";
 export default function AdminMobilePage() {
   const [, navigate] = useRouter();
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = isAdminUser(user, ["gospeltv@gmail.com"]);
 
   const [activeTab, setActiveTab] = useState<"campaigns" | "create">(() => "campaigns");
   const [expandedCampaignId, setExpandedCampaignId] = useState<number | null>(null);

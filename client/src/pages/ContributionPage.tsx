@@ -73,6 +73,7 @@ export default function ContributionPage() {
   };
 
   const campaign = campaignQuery.data;
+  const isLegendarioCampaign = campaign?.title?.trim().toUpperCase() === "LEGENDARIO SOLIDARIO";
   if (!campaignId || campaignQuery.isError || (!campaignQuery.isLoading && !campaign)) {
     return (
       <div className="min-h-screen bg-[#f8faf7]">
@@ -95,13 +96,19 @@ export default function ContributionPage() {
         </Link>
         <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#228B22]">{campaignQuery.isLoading ? "Carregando campanha" : campaign?.title}</p>
         <h1 className="mt-3 text-4xl font-bold text-[#2d2d2d] md:text-5xl">Como você quer ajudar?</h1>
-        <p className="mt-4 text-lg text-[#656565]">Escolha uma modalidade. As ofertas de materiais e trabalho serão analisadas pela equipe responsável.</p>
+        <p className="mt-4 text-lg text-[#656565]">
+          {isLegendarioCampaign
+            ? "Escolha uma modalidade. Para esta campanha, recebemos doação financeira e kit completo ou itens do kit."
+            : "Escolha uma modalidade. As ofertas de materiais e trabalho serão analisadas pela equipe responsável."}
+        </p>
 
         <Tabs defaultValue="financial" className="mt-9">
-          <TabsList className="grid h-auto grid-cols-3 bg-[#edf2ec] p-1">
+          <TabsList className={`grid h-auto ${isLegendarioCampaign ? "grid-cols-2" : "grid-cols-3"} bg-[#edf2ec] p-1`}>
             <TabsTrigger value="financial" className="gap-2"><Heart className="h-4 w-4" /><span className="hidden sm:inline">Financeira</span></TabsTrigger>
-            <TabsTrigger value="material" className="gap-2"><Package className="h-4 w-4" /><span className="hidden sm:inline">Material</span></TabsTrigger>
-            <TabsTrigger value="volunteer" className="gap-2"><Users className="h-4 w-4" /><span className="hidden sm:inline">Voluntariado</span></TabsTrigger>
+            <TabsTrigger value="material" className="gap-2"><Package className="h-4 w-4" /><span className="hidden sm:inline">{isLegendarioCampaign ? "Kit/Itens" : "Material"}</span></TabsTrigger>
+            {!isLegendarioCampaign && (
+              <TabsTrigger value="volunteer" className="gap-2"><Users className="h-4 w-4" /><span className="hidden sm:inline">Voluntariado</span></TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="financial" className="mt-6">
@@ -110,7 +117,7 @@ export default function ContributionPage() {
               <p className="mt-3 leading-relaxed text-[#656565]">O valor e os dados do doador serão informados no próximo passo. A plataforma criará apenas um registro pendente ao iniciar o checkout.</p>
               <div className="mt-6 flex gap-3 rounded-lg border border-[#228B22]/20 bg-[#228B22]/5 p-4 text-sm text-[#2d2d2d]">
                 <AlertCircle className="h-5 w-5 flex-none text-[#228B22]" aria-hidden="true" />
-                O pagamento é iniciado no servidor e concluído no ambiente seguro do Mercado Pago.
+                O pagamento é iniciado no servidor e concluído na conta do Mercado Pago.
               </div>
               <Link href={`/checkout/${campaignId}`} className="mt-7 inline-flex min-h-12 w-full items-center justify-center rounded-md bg-[#228B22] px-6 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
                 Prosseguir para pagamento
@@ -120,11 +127,15 @@ export default function ContributionPage() {
 
           <TabsContent value="material" className="mt-6">
             <OfferForm
-              title="Oferta de material"
-              description="Informe o material, a quantidade, o estado e como ele poderá ser entregue ou retirado."
+              title={isLegendarioCampaign ? "Oferta de kit/itens" : "Oferta de material"}
+              description={isLegendarioCampaign
+                ? "Informe o kit completo ou itens separados (mochila, bastão, saco de dormir etc.), quantidade e forma de entrega."
+                : "Informe o material, a quantidade, o estado e como ele poderá ser entregue ou retirado."}
               value={materialDescription}
               onValueChange={setMaterialDescription}
-              placeholder="Ex.: 100 sacos de cimento, disponíveis para retirada..."
+              placeholder={isLegendarioCampaign
+                ? "Ex.: 1 kit completo + 2 bastões, disponíveis para retirada..."
+                : "Ex.: 100 sacos de cimento, disponíveis para retirada..."}
               campaignNeeds={campaignNeeds}
               selectedNeedId={selectedNeedId}
               onNeedChange={setSelectedNeedId}
@@ -137,26 +148,28 @@ export default function ContributionPage() {
               onEmailChange={setDonorEmail}
               onSubmit={handleMaterialSubmit}
               isPending={createMaterial.isPending}
-              submitLabel="Enviar oferta de material"
+              submitLabel={isLegendarioCampaign ? "Enviar oferta de kit/itens" : "Enviar oferta de material"}
             />
           </TabsContent>
 
-          <TabsContent value="volunteer" className="mt-6">
-            <OfferForm
-              title="Oferta de mão de obra"
-              description="Descreva sua habilidade, disponibilidade e região para que a equipe possa avaliar a necessidade."
-              value={volunteerDescription}
-              onValueChange={setVolunteerDescription}
-              placeholder="Ex.: sou eletricista e tenho disponibilidade aos sábados..."
-              donorName={donorName}
-              donorEmail={donorEmail}
-              onNameChange={setDonorName}
-              onEmailChange={setDonorEmail}
-              onSubmit={handleVolunteerSubmit}
-              isPending={createVolunteer.isPending}
-              submitLabel="Enviar oferta de voluntariado"
-            />
-          </TabsContent>
+          {!isLegendarioCampaign && (
+            <TabsContent value="volunteer" className="mt-6">
+              <OfferForm
+                title="Oferta de mão de obra"
+                description="Descreva sua habilidade, disponibilidade e região para que a equipe possa avaliar a necessidade."
+                value={volunteerDescription}
+                onValueChange={setVolunteerDescription}
+                placeholder="Ex.: sou eletricista e tenho disponibilidade aos sábados..."
+                donorName={donorName}
+                donorEmail={donorEmail}
+                onNameChange={setDonorName}
+                onEmailChange={setDonorEmail}
+                onSubmit={handleVolunteerSubmit}
+                isPending={createVolunteer.isPending}
+                submitLabel="Enviar oferta de voluntariado"
+              />
+            </TabsContent>
+          )}
         </Tabs>
       </main>
     </div>
