@@ -1,12 +1,12 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { campaigns, contributions } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
-import { createMercadoPagoPreference } from "./mercadopago";
+import { createMercadoPagoPreference, getMercadoPagoPayment } from "./mercadopago";
 
 const createPaymentPreferenceSchema = z.object({
   campaignId: z.number().int().positive(),
@@ -29,6 +29,41 @@ const createPaymentPreferenceSchema = z.object({
   installmentFrequency: z.enum(["weekly", "biweekly", "monthly"]).optional(),
   paymentMethod: z.enum(["pix", "card", "boleto", "cash"]).optional(),
 });
+
+const syncPaymentStatusSchema = z.object({
+  paymentId: z.string().trim().min(1).optional(),
+  externalReference: z.string().trim().min(6).optional(),
+  preferenceId: z.string().trim().min(3).optional(),
+});
+
+type ContributionStatus =
+  | "pending"
+  | "approved"
+  | "completed"
+  | "rejected"
+  | "cancelled"
+  | "refunded";
+
+function mapMercadoPagoStatus(status?: string): ContributionStatus {
+  switch (status) {
+    case "approved":
+      return "approved";
+    case "rejected":
+      return "rejected";
+    case "cancelled":
+      return "cancelled";
+    case "refunded":
+    case "charged_back":
+      return "refunded";
+    default:
+      return "pending";
+  }
+}
+
+function amountToCents(amount?: number) {
+  if (amount === undefined || !Number.isFinite(amount)) return undefined;
+  return Math.round(amount * 100);
+}
 
 function requestOrigin(req: {
   protocol: string;
@@ -418,5 +453,143 @@ export const paymentsRouter = router({
           message,
         });
       }
+    }),
+
+  syncPaymentStatus: publicProcedure
+    .input(syncPaymentStatusSchema)
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
+      }
+
+      let resolvedPaymentId = input.paymentId;
+      let resolvedExternalReference = input.externalReference;
+
+      if (resolvedPaymentId) {
+        try {
+          const payment = await getMercadoPagoPayment(resolvedPaymentId);
+          resolvedExternalReference = payment.external_reference ?? resolvedExternalReference;
+
+          const status = mapMercadoPagoStatus(payment.status);
+          const paidAt = status === "approved" && payment.date_approved
+            ? new Date(payment.date_approved)
+            : null;
+          const paymentMethod = [payment.payment_type_id, payment.payment_method_id]
+            .filter(Boolean)
+            .join(":") || null;
+
+          const conditions = [
+            resolvedExternalReference ? eq(contributions.externalReference, resolvedExternalReference) : undefined,
+            input.preferenceId ? eq(contributions.preferenceId, input.preferenceId) : undefined,
+          ].filter(Boolean);
+
+          if (conditions.length === 0) {
+            return {
+              success: true,
+              synced: false,
+              credited: false,
+              status,
+              reason: "contribution_not_found",
+            } as const;
+          }
+
+          const [contribution] = await db
+            .select()
+            .from(contributions)
+            .where(and(eq(contributions.type, "financial"), or(...conditions)))
+            .limit(1);
+
+          if (!contribution || contribution.amount === null) {
+            return {
+              success: true,
+              synced: false,
+              credited: false,
+              status,
+              reason: "contribution_not_found",
+            } as const;
+          }
+
+          const paidAmount = amountToCents(payment.transaction_amount);
+          const validAmount = paidAmount === contribution.amount;
+          const validCurrency = payment.currency_id === contribution.currency;
+
+          if (!validAmount || !validCurrency) {
+            return {
+              success: true,
+              synced: false,
+              credited: false,
+              status: contribution.status,
+              reason: "amount_or_currency_mismatch",
+            } as const;
+          }
+
+          await db
+            .update(contributions)
+            .set({
+              status,
+              paymentId: String(payment.id),
+              paymentStatusDetail: payment.status_detail || payment.status || null,
+              paymentMethod,
+              paidAt,
+              updatedAt: new Date(),
+            })
+            .where(eq(contributions.id, contribution.id));
+
+          return {
+            success: true,
+            synced: true,
+            credited: status === "approved" || status === "completed",
+            status,
+            campaignId: contribution.campaignId,
+            amount: contribution.amount,
+            externalReference: contribution.externalReference,
+          } as const;
+        } catch (error) {
+          const message = getReadableErrorMessage(error);
+          throw new TRPCError({ code: "BAD_GATEWAY", message });
+        }
+      }
+
+      const fallbackConditions = [
+        resolvedExternalReference ? eq(contributions.externalReference, resolvedExternalReference) : undefined,
+        input.preferenceId ? eq(contributions.preferenceId, input.preferenceId) : undefined,
+      ].filter(Boolean);
+
+      if (fallbackConditions.length === 0) {
+        return {
+          success: true,
+          synced: false,
+          credited: false,
+          status: "pending",
+          reason: "missing_identifiers",
+        } as const;
+      }
+
+      const [existingContribution] = await db
+        .select()
+        .from(contributions)
+        .where(and(eq(contributions.type, "financial"), or(...fallbackConditions)))
+        .limit(1);
+
+      if (!existingContribution) {
+        return {
+          success: true,
+          synced: false,
+          credited: false,
+          status: "pending",
+          reason: "contribution_not_found",
+        } as const;
+      }
+
+      return {
+        success: true,
+        synced: false,
+        credited: existingContribution.status === "approved" || existingContribution.status === "completed",
+        status: existingContribution.status,
+        campaignId: existingContribution.campaignId,
+        amount: existingContribution.amount,
+        externalReference: existingContribution.externalReference,
+      } as const;
     }),
 });

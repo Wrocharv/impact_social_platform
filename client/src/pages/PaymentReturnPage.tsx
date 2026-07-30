@@ -1,7 +1,9 @@
 import PublicHeader from "@/components/PublicHeader";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { trpc } from "@/lib/trpc";
 import { AlertCircle, CheckCircle2, Clock3, XCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 
 type ReturnState = "success" | "pending" | "failure";
@@ -41,6 +43,71 @@ const content: Record<ReturnState, {
 };
 
 export default function PaymentReturnPage({ state }: { state: ReturnState }) {
+  const syncPaymentStatus = trpc.payments.syncPaymentStatus.useMutation();
+  const [syncLabel, setSyncLabel] = useState<string>("Aguardando confirmação oficial do pagamento.");
+  const [resolvedCampaignId, setResolvedCampaignId] = useState<number | null>(null);
+
+  const returnParams = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return {
+      paymentId: params.get("payment_id") || params.get("collection_id") || undefined,
+      externalReference: params.get("external_reference") || undefined,
+      preferenceId: params.get("preference_id") || undefined,
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const runSync = async (attempt: number) => {
+      if (cancelled || state === "failure") return;
+
+      if (!returnParams.paymentId && !returnParams.externalReference && !returnParams.preferenceId) {
+        setSyncLabel("Sem identificador de retorno para sincronizar agora. Atualize a campanha em instantes.");
+        return;
+      }
+
+      try {
+        const result = await syncPaymentStatus.mutateAsync(returnParams);
+        if (cancelled) return;
+
+        if (typeof result.campaignId === "number") {
+          setResolvedCampaignId(result.campaignId);
+        }
+
+        if (result.credited) {
+          setSyncLabel("Pagamento confirmado e já contabilizado na campanha.");
+          return;
+        }
+
+        if (result.status === "rejected" || result.status === "cancelled" || result.status === "refunded") {
+          setSyncLabel("Pagamento retornou sem aprovação. Nenhum valor foi creditado.");
+          return;
+        }
+
+        if (attempt < 4) {
+          setSyncLabel("Pagamento recebido. Ainda aguardando confirmação final para creditar na campanha...");
+          window.setTimeout(() => {
+            void runSync(attempt + 1);
+          }, 6000);
+          return;
+        }
+
+        setSyncLabel("Ainda em processamento. O crédito será aplicado automaticamente assim que o provedor confirmar.");
+      } catch {
+        if (!cancelled) {
+          setSyncLabel("Não foi possível sincronizar agora. Tente atualizar esta página em alguns instantes.");
+        }
+      }
+    };
+
+    void runSync(0);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [returnParams, state, syncPaymentStatus]);
+
   const item = content[state];
   const Icon = item.icon;
 
@@ -57,9 +124,16 @@ export default function PaymentReturnPage({ state }: { state: ReturnState }) {
             <AlertCircle className="mt-0.5 h-5 w-5 flex-none" aria-hidden="true" />
             <p>{item.note}</p>
           </div>
+          {state !== "failure" && (
+            <div className="mt-4 rounded-xl border border-[#cde2cb] bg-[#f8fcf7] p-4 text-sm text-[#2f4a2f]">
+              {syncLabel}
+            </div>
+          )}
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
             <Button asChild className="min-h-12 bg-[#228B22] font-semibold text-white hover:bg-[#1b711b]">
-              <Link href="/campaigns">Voltar às campanhas</Link>
+              <Link href={resolvedCampaignId ? `/campaign/${resolvedCampaignId}` : "/campaigns"}>
+                {resolvedCampaignId ? "Ver campanha atualizada" : "Voltar às campanhas"}
+              </Link>
             </Button>
             {state === "failure" && (
               <Button asChild variant="outline" className="min-h-12 border-[#228B22]/30 font-semibold text-[#228B22]">
