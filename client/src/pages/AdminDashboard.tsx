@@ -411,6 +411,7 @@ export default function AdminDashboard() {
   }
 
   const partnerMutationPending = createPartner.isPending || updatePartner.isPending;
+  const primaryCampaign = campaignsQuery.data?.[0] ?? null;
 
   return (
     <DashboardLayout>
@@ -458,6 +459,41 @@ export default function AdminDashboard() {
                 </DialogContent>
               </Dialog>
             </div>
+
+            <Card className="border-[#d7dfd4] bg-[#f8fbf6] p-5 md:p-6">
+              <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+                <div>
+                  <h3 className="text-lg font-bold text-[#243128]">Edição rápida da campanha</h3>
+                  {campaignsQuery.isLoading ? (
+                    <p className="mt-1 text-sm text-[#66736a]">Carregando campanha para edição...</p>
+                  ) : primaryCampaign ? (
+                    <p className="mt-1 text-sm text-[#66736a]">
+                      Campanha atual: <span className="font-semibold text-[#243128]">{primaryCampaign.title}</span>. Use o atalho para editar meta e arrecadação inicial agora.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-sm text-[#66736a]">Nenhuma campanha disponível. Clique em Nova campanha para iniciar.</p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => primaryCampaign && openEditCampaign(primaryCampaign)}
+                    disabled={!primaryCampaign || campaignsQuery.isLoading}
+                  >
+                    <Edit2 className="h-4 w-4" /> Editar meta e arrecadação
+                  </Button>
+                  <Button
+                    type="button"
+                    className="gap-2 bg-[#228B22] hover:bg-[#1a6b1a]"
+                    onClick={() => setIsCreateCampaignOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" /> Nova campanha
+                  </Button>
+                </div>
+              </div>
+            </Card>
 
             <Card className="p-5 md:p-6">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
