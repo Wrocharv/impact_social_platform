@@ -458,9 +458,21 @@ export const campaignsRouter = router({
           key: uploaded.key,
         };
       } catch (error) {
+        const message = error instanceof Error ? error.message : "Falha ao enviar imagem da campanha.";
+        const storageNotConfigured = /Storage config missing|BUILT_IN_FORGE_API_(URL|KEY)/i.test(message);
+
+        // Em ambiente local sem storage configurado, manter o fluxo usando data URL.
+        if (storageNotConfigured && process.env.NODE_ENV !== "production") {
+          return {
+            success: true as const,
+            url: `data:${input.mimeType};base64,${input.base64}`,
+            key: `local-inline-${Date.now()}`,
+          };
+        }
+
         throw new TRPCError({
           code: "BAD_GATEWAY",
-          message: error instanceof Error ? error.message : "Falha ao enviar imagem da campanha.",
+          message,
         });
       }
     }),
