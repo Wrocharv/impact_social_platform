@@ -162,6 +162,8 @@ describe("payments.createPaymentPreference", () => {
     expect(createPreferenceMock).not.toHaveBeenCalled();
     expect(result.preferenceId).toBe("cash-manual");
     expect(result.checkoutUrl).toContain("/contribute/confirmation");
+    expect(result.checkoutUrl).toContain("paymentMethod=cash");
+    expect(result.checkoutUrl).toContain("paymentStatus=awaiting_validation");
     expect(result.checkoutUrl).toContain("campaignId=7");
   });
 

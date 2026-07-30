@@ -1,6 +1,6 @@
 import PublicHeader from "@/components/PublicHeader";
 import { Card } from "@/components/ui/card";
-import { CheckCircle, Heart, ArrowRight, Printer, Download } from "lucide-react";
+import { CheckCircle, Heart, ArrowRight, Printer, Download, Clock3 } from "lucide-react";
 import { Link } from "wouter";
 
 interface ContributionData {
@@ -15,6 +15,8 @@ interface ContributionData {
 
 export default function ContributionConfirmationPage() {
   const searchParams = new URLSearchParams(window.location.search);
+  const paymentMethod = searchParams.get("paymentMethod");
+  const paymentStatus = searchParams.get("paymentStatus");
   const data: ContributionData = {
     type: (searchParams.get("type") as any) || "financial",
     campaignTitle: searchParams.get("campaign") || "Campanha",
@@ -27,6 +29,8 @@ export default function ContributionConfirmationPage() {
 
   const firstName = data.donorName.trim().split(" ")[0] || "Doador";
   const receiptNumber = `RCB-${Date.now().toString(36).toUpperCase()}`;
+  const isCashAwaitingValidation =
+    data.type === "financial" && paymentMethod === "cash" && paymentStatus === "awaiting_validation";
 
   const typeConfig = {
     financial: { icon: "💰", label: "Doação Financeira", color: "blue" },
@@ -38,6 +42,17 @@ export default function ContributionConfirmationPage() {
   const config = data.type === "material" && isLegendarioCampaign
     ? { ...typeConfig.material, label: "Kit completo ou itens do kit" }
     : typeConfig[data.type];
+
+  const pageTitle = isCashAwaitingValidation ? "Aguardando Validação Presencial" : "Contribuição Registrada!";
+  const pageDescription = isCashAwaitingValidation
+    ? "Sua intenção de doação em dinheiro foi registrada e precisa ser validada por quem recebeu presencialmente."
+    : `Sua ${config.label.toLowerCase()} foi recebida com sucesso`;
+  const badgeTitle = isCashAwaitingValidation
+    ? `Obrigado, ${firstName}! Estamos aguardando a validação do recebedor presencial.`
+    : `Obrigado, ${firstName}! Sua generosidade impacta vidas.`;
+  const badgeDescription = isCashAwaitingValidation
+    ? "O valor só será contabilizado na campanha após a confirmação oficial do recebimento."
+    : "Guarde este recibo digital caso deseje registrar sua contribuição.";
 
   const receiptHtml = `
     <html>
@@ -101,21 +116,25 @@ export default function ContributionConfirmationPage() {
           {/* Success Badge */}
           <div className="mb-8 flex justify-center">
             <div className="relative">
-              <div className="absolute inset-0 bg-green-400/20 blur-xl rounded-full"></div>
-              <CheckCircle className="relative h-24 w-24 text-green-600 animate-pulse" />
+              <div className={`absolute inset-0 blur-xl rounded-full ${isCashAwaitingValidation ? "bg-amber-300/30" : "bg-green-400/20"}`}></div>
+              {isCashAwaitingValidation ? (
+                <Clock3 className="relative h-24 w-24 text-amber-600 animate-pulse" />
+              ) : (
+                <CheckCircle className="relative h-24 w-24 text-green-600 animate-pulse" />
+              )}
             </div>
           </div>
 
           {/* Main Content */}
-          <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-white p-8">
+          <Card className={`border-2 p-8 ${isCashAwaitingValidation ? "border-amber-200 bg-gradient-to-br from-amber-50 to-white" : "border-green-200 bg-gradient-to-br from-green-50 to-white"}`}>
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-green-600 mb-2">Contribuição Registrada!</h1>
-              <p className="text-gray-600">Sua {config.label.toLowerCase()} foi recebida com sucesso</p>
+              <h1 className={`text-3xl font-bold mb-2 ${isCashAwaitingValidation ? "text-amber-700" : "text-green-600"}`}>{pageTitle}</h1>
+              <p className="text-gray-600">{pageDescription}</p>
             </div>
 
-            <div className="mb-8 rounded-lg border border-green-200 bg-green-100/60 p-4 text-center">
-              <p className="text-green-800 font-semibold">Obrigado, {firstName}! Sua generosidade impacta vidas.</p>
-              <p className="text-sm text-green-700 mt-1">Guarde este recibo digital caso deseje registrar sua contribuição.</p>
+            <div className={`mb-8 rounded-lg border p-4 text-center ${isCashAwaitingValidation ? "border-amber-200 bg-amber-100/70" : "border-green-200 bg-green-100/60"}`}>
+              <p className={`font-semibold ${isCashAwaitingValidation ? "text-amber-900" : "text-green-800"}`}>{badgeTitle}</p>
+              <p className={`text-sm mt-1 ${isCashAwaitingValidation ? "text-amber-800" : "text-green-700"}`}>{badgeDescription}</p>
             </div>
 
             {/* Contribution Details */}
@@ -157,20 +176,22 @@ export default function ContributionConfirmationPage() {
               </div>
             </div>
 
-            <div className="mb-8 grid gap-3 sm:grid-cols-2">
-              <button
-                onClick={handlePrintReceipt}
-                className="inline-flex items-center justify-center gap-2 min-h-12 rounded-md border-2 border-gray-300 px-4 py-3 font-semibold text-gray-700 hover:bg-gray-50 transition active:scale-95"
-              >
-                <Printer className="h-4 w-4" /> Imprimir Recibo
-              </button>
-              <button
-                onClick={handleDownloadReceipt}
-                className="inline-flex items-center justify-center gap-2 min-h-12 rounded-md border-2 border-green-600 px-4 py-3 font-semibold text-green-700 hover:bg-green-50 transition active:scale-95"
-              >
-                <Download className="h-4 w-4" /> Baixar Recibo
-              </button>
-            </div>
+            {!isCashAwaitingValidation && (
+              <div className="mb-8 grid gap-3 sm:grid-cols-2">
+                <button
+                  onClick={handlePrintReceipt}
+                  className="inline-flex items-center justify-center gap-2 min-h-12 rounded-md border-2 border-gray-300 px-4 py-3 font-semibold text-gray-700 hover:bg-gray-50 transition active:scale-95"
+                >
+                  <Printer className="h-4 w-4" /> Imprimir Recibo
+                </button>
+                <button
+                  onClick={handleDownloadReceipt}
+                  className="inline-flex items-center justify-center gap-2 min-h-12 rounded-md border-2 border-green-600 px-4 py-3 font-semibold text-green-700 hover:bg-green-50 transition active:scale-95"
+                >
+                  <Download className="h-4 w-4" /> Baixar Recibo
+                </button>
+              </div>
+            )}
 
             {/* Next Steps */}
             <div className="mb-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
@@ -179,18 +200,37 @@ export default function ContributionConfirmationPage() {
                 O que acontece agora?
               </h2>
               <ul className="space-y-2 text-sm text-gray-700">
-                <li className="flex items-start gap-3">
-                  <span className="font-bold text-blue-600 flex-shrink-0">1.</span>
-                  <span>A equipe responsável receberá sua contribuição e fará a triagem</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="font-bold text-blue-600 flex-shrink-0">2.</span>
-                  <span>Você receberá um contato por WhatsApp para confirmação e próximos passos</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="font-bold text-blue-600 flex-shrink-0">3.</span>
-                  <span>Acompanhe o progresso da campanha em tempo real</span>
-                </li>
+                {isCashAwaitingValidation ? (
+                  <>
+                    <li className="flex items-start gap-3">
+                      <span className="font-bold text-blue-600 flex-shrink-0">1.</span>
+                      <span>O responsável pelo recebimento presencial precisa validar que o valor foi realmente entregue.</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="font-bold text-blue-600 flex-shrink-0">2.</span>
+                      <span>Somente após essa validação o valor será contabilizado oficialmente na campanha.</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="font-bold text-blue-600 flex-shrink-0">3.</span>
+                      <span>Se precisar, apresente este protocolo ao recebedor para conferência da contribuição.</span>
+                    </li>
+                  </>
+                ) : (
+                  <>
+                    <li className="flex items-start gap-3">
+                      <span className="font-bold text-blue-600 flex-shrink-0">1.</span>
+                      <span>A equipe responsável receberá sua contribuição e fará a triagem</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="font-bold text-blue-600 flex-shrink-0">2.</span>
+                      <span>Você receberá um contato por WhatsApp para confirmação e próximos passos</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="font-bold text-blue-600 flex-shrink-0">3.</span>
+                      <span>Acompanhe o progresso da campanha em tempo real</span>
+                    </li>
+                  </>
+                )}
               </ul>
             </div>
 

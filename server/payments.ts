@@ -150,8 +150,26 @@ function buildContributionConfirmationUrl(input: {
   campaignTitle: string;
   donorName: string;
   amountCents: number;
+  paymentMethod?: "pix" | "card" | "boleto" | "cash";
+  paymentStatus?: "awaiting_validation";
 }) {
-  return `${input.baseUrl}/contribute/confirmation?type=financial&campaign=${encodeURIComponent(input.campaignTitle)}&campaignId=${input.campaignId}&donor=${encodeURIComponent(input.donorName || "Doador")}&amount=${input.amountCents}`;
+  const params = new URLSearchParams({
+    type: "financial",
+    campaign: input.campaignTitle,
+    campaignId: String(input.campaignId),
+    donor: input.donorName || "Doador",
+    amount: String(input.amountCents),
+  });
+
+  if (input.paymentMethod) {
+    params.set("paymentMethod", input.paymentMethod);
+  }
+
+  if (input.paymentStatus) {
+    params.set("paymentStatus", input.paymentStatus);
+  }
+
+  return `${input.baseUrl}/contribute/confirmation?${params.toString()}`;
 }
 
 function buildPaymentPendingUrl(baseUrl: string) {
@@ -181,6 +199,8 @@ export const paymentsRouter = router({
               campaignTitle: fallbackCampaignTitle,
               donorName,
               amountCents: input.amount,
+              paymentMethod: "cash",
+              paymentStatus: "awaiting_validation",
             }),
             contributionId: undefined,
             preferenceId: "cash-manual",
@@ -305,6 +325,8 @@ export const paymentsRouter = router({
             campaignTitle: campaign.title,
             donorName: donorName || "Doador",
             amountCents: input.amount,
+            paymentMethod: "cash",
+            paymentStatus: "awaiting_validation",
           }),
           contributionId: contribution?.id,
           preferenceId: persistedContribution ? "cash-manual" : "cash-manual-no-db",
