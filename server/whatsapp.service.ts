@@ -215,6 +215,17 @@ export const whatsappService = {
     return next;
   },
 
+  deleteFallbackCampaign(id: number) {
+    refreshFallbackCampaignsFromDisk();
+    const index = fallbackCampaigns.findIndex((campaign) => campaign.id === id);
+    if (index < 0) return false;
+
+    fallbackCampaigns.splice(index, 1);
+
+    persistFallbackCampaignsToDisk();
+    return true;
+  },
+
   resetFallbackCampaigns() {
     fallbackCampaigns.length = 0;
     persistFallbackCampaignsToDisk();

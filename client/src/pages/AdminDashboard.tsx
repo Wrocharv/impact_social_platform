@@ -75,6 +75,7 @@ export default function AdminDashboard() {
   const [accountabilityCampaign, setAccountabilityCampaign] = useState<{ id: number; title: string } | null>(null);
   const [isPartnerOpen, setIsPartnerOpen] = useState(false);
   const [editingPartnerId, setEditingPartnerId] = useState<number | null>(null);
+  const [campaignToDelete, setCampaignToDelete] = useState<{ id: number; title: string } | null>(null);
   const [partnerToDelete, setPartnerToDelete] = useState<{ id: number; name: string } | null>(null);
   const [campaignForm, setCampaignForm] = useState({
     title: "",
@@ -126,6 +127,14 @@ export default function AdminDashboard() {
       await invalidateCampaignData();
     },
     onError: (error) => toast.error(error.message || "Erro ao cadastrar necessidade"),
+  });
+  const deleteCampaign = trpc.campaigns.delete.useMutation({
+    onSuccess: async () => {
+      toast.success("Campanha removida com sucesso!");
+      setCampaignToDelete(null);
+      await invalidateCampaignData();
+    },
+    onError: (error) => toast.error(error.message || "Erro ao remover campanha"),
   });
   const createPartner = trpc.partners.create.useMutation({
     onSuccess: async () => {
@@ -682,6 +691,7 @@ export default function AdminDashboard() {
                       <Button variant="outline" size="sm" className="gap-2" onClick={() => openCampaignUpdate(campaign)}><Megaphone className="h-4 w-4" /> Publicar evolução</Button>
                       <Button variant="outline" size="sm" className="gap-2" onClick={() => openCampaignNeed(campaign)}><PackagePlus className="h-4 w-4" /> Necessidade</Button>
                       <Button variant="outline" size="sm" className="gap-2" onClick={() => setAccountabilityCampaign({ id: campaign.id, title: campaign.title })}><FileText className="h-4 w-4" /> Prestação de contas</Button>
+                      <Button variant="outline" size="sm" className="gap-2 text-red-700 hover:text-red-800" onClick={() => setCampaignToDelete({ id: campaign.id, title: campaign.title })}><Trash2 className="h-4 w-4" /> Excluir</Button>
                       <Button asChild variant="ghost" size="sm" className="gap-2"><Link href={`/campaign/${campaign.id}`}><ExternalLink className="h-4 w-4" /> Ver no site</Link></Button>
                     </div>
                   </div>
@@ -848,6 +858,27 @@ export default function AdminDashboard() {
           open={Boolean(accountabilityCampaign)}
           onOpenChange={(open) => !open && setAccountabilityCampaign(null)}
         />
+
+        <AlertDialog open={Boolean(campaignToDelete)} onOpenChange={(open) => !open && setCampaignToDelete(null)}>
+          <AlertDialogContent className="border border-[#d7dfd4] bg-white text-[#1f2a23] shadow-xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir campanha?</AlertDialogTitle>
+              <AlertDialogDescription className="text-[#4e5c53]">
+                A campanha <strong>{campaignToDelete?.title}</strong> será removida do painel e do site público. Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-red-700 hover:bg-red-800"
+                disabled={deleteCampaign.isPending}
+                onClick={() => campaignToDelete && deleteCampaign.mutate({ id: campaignToDelete.id })}
+              >
+                {deleteCampaign.isPending ? "Excluindo..." : "Excluir campanha"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <AlertDialog open={Boolean(partnerToDelete)} onOpenChange={(open) => !open && setPartnerToDelete(null)}>
           <AlertDialogContent className="border border-[#d7dfd4] bg-white text-[#1f2a23] shadow-xl">
