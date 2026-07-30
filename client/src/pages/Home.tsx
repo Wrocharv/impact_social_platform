@@ -538,9 +538,9 @@ function PartnerTickerItem({ partner }: { partner: PartnerItem }) {
   const linkHref = partner.id > 0 ? `/partner/${partner.id}` : "#parceiros";
 
   return (
-    <Link href={linkHref} className="block min-w-[390px] max-w-[390px] rounded-xl border border-white/10 bg-[#f3f8f1] p-4 text-[#1f3023] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+    <Link href={linkHref} className="block min-h-[156px] min-w-[390px] max-w-[390px] rounded-xl border border-white/10 bg-[#f3f8f1] px-4 py-5 text-[#1f3023] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-center gap-3">
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
+        <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
           {partner.logoUrl ? (
             <img src={partner.logoUrl} alt={`Logomarca de ${partner.name}`} className="h-full w-full object-contain p-2" loading="lazy" />
           ) : (
