@@ -461,8 +461,8 @@ export const campaignsRouter = router({
       }));
 
       return dedupeCampaignsById([
-        ...getSyncTestCampaigns({ status: input?.status, query: input?.query }),
         ...publishedRows,
+        ...getSyncTestCampaigns({ status: input?.status, query: input?.query }),
       ]).slice(0, input?.limit ?? 12);
     }),
 
