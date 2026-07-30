@@ -28,11 +28,12 @@ function createDb(campaignRows: unknown[]) {
   const select = vi.fn(() => ({ from }));
   const values = vi.fn().mockResolvedValue({});
   const insert = vi.fn(() => ({ values }));
+  const execute = vi.fn().mockResolvedValue({});
   const updateWhere = vi.fn().mockResolvedValue({});
   const set = vi.fn(() => ({ where: updateWhere }));
   const update = vi.fn(() => ({ set }));
 
-  return { db: { select, insert, update }, values, set };
+  return { db: { select, insert, update, execute }, values, execute, set };
 }
 
 function createContext(): TrpcContext {
@@ -181,13 +182,11 @@ describe("payments.createPaymentPreference", () => {
   });
 
   it("falha quando doacao em dinheiro nao puder ser persistida para validacao", async () => {
-    const { db, values } = createDb([
+    const { db, values, execute } = createDb([
       { id: 7, title: "Casa da Viúva", status: "active" },
     ]);
-    values
-      .mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'paymentStatusDetail'"))
-      .mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'paymentMethod'"))
-      .mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'status'"));
+    values.mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'paymentStatusDetail'"));
+    execute.mockRejectedValue(new Error("ER_BAD_FIELD_ERROR: Unknown column 'status'"));
     getDbMock.mockResolvedValue(db);
 
     const caller = appRouter.createCaller(createContext());
@@ -212,7 +211,7 @@ describe("payments.createPaymentPreference", () => {
   });
 
   it("usa persistencia legada quando coluna nova do cash estiver ausente", async () => {
-    const { db, values } = createDb([
+    const { db, values, execute } = createDb([
       { id: 7, title: "Casa da Viúva", status: "active" },
     ]);
     values.mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'paymentStatusDetail'"));
@@ -230,19 +229,21 @@ describe("payments.createPaymentPreference", () => {
       paymentMethod: "cash",
     });
 
-    expect(values).toHaveBeenCalledTimes(2);
+    expect(values).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(1);
     expect(createPreferenceMock).not.toHaveBeenCalled();
     expect(result.preferenceId).toBe("cash-manual");
     expect(result.checkoutUrl).toContain("paymentMethod=cash");
   });
 
   it("usa persistencia legada quando donorWhatsapp nao existir no schema", async () => {
-    const { db, values } = createDb([
+    const { db, values, execute } = createDb([
       { id: 7, title: "Casa da Viúva", status: "active" },
     ]);
-    values
-      .mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'paymentStatusDetail'"))
-      .mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'donorWhatsapp'"));
+    values.mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'paymentStatusDetail'"));
+    execute
+      .mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'donorWhatsapp'"))
+      .mockResolvedValueOnce({});
     getDbMock.mockResolvedValue(db);
 
     const caller = appRouter.createCaller(createContext());
@@ -257,7 +258,8 @@ describe("payments.createPaymentPreference", () => {
       paymentMethod: "cash",
     });
 
-    expect(values).toHaveBeenCalledTimes(3);
+    expect(values).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(2);
     expect(createPreferenceMock).not.toHaveBeenCalled();
     expect(result.preferenceId).toBe("cash-manual");
   });

@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { campaigns, contributions } from "../drizzle/schema";
@@ -195,6 +195,39 @@ function isMissingColumnError(error: unknown) {
   return false;
 }
 
+async function tryInsertCashLegacy(
+  db: { execute: (query: unknown) => Promise<unknown> },
+  input: {
+    campaignId: number;
+    amount: number;
+    donorName: string;
+    donorEmail: string;
+    externalReference: string;
+  },
+) {
+  const attempts = [
+    sql`insert into contributions (campaignId, type, amount, donorName, donorEmail, status, externalReference, paymentMethod) values (${input.campaignId}, ${"financial"}, ${input.amount}, ${input.donorName}, ${input.donorEmail}, ${"pending"}, ${input.externalReference}, ${"cash"})`,
+    sql`insert into contributions (campaignId, type, amount, donorName, donorEmail, status, externalReference) values (${input.campaignId}, ${"financial"}, ${input.amount}, ${input.donorName}, ${input.donorEmail}, ${"pending"}, ${input.externalReference})`,
+    sql`insert into contributions (campaignId, type, amount, donorName, donorEmail, status) values (${input.campaignId}, ${"financial"}, ${input.amount}, ${input.donorName}, ${input.donorEmail}, ${"pending"})`,
+    sql`insert into contributions (campaignId, type, amount, donorName, donorEmail) values (${input.campaignId}, ${"financial"}, ${input.amount}, ${input.donorName}, ${input.donorEmail})`,
+    sql`insert into contributions (campaignId, type, amount, donorName) values (${input.campaignId}, ${"financial"}, ${input.amount}, ${input.donorName})`,
+    sql`insert into contributions (campaignId, type, amount) values (${input.campaignId}, ${"financial"}, ${input.amount})`,
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      await db.execute(attempt);
+      return true;
+    } catch (error) {
+      if (!isMissingColumnError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  return false;
+}
+
 function buildContributionConfirmationUrl(input: {
   baseUrl: string;
   campaignId: number;
@@ -366,42 +399,20 @@ export const paymentsRouter = router({
         persistError = error;
         if (isCashPayment && isMissingColumnError(error)) {
           try {
-            // Compatibilidade com schema legado em produção: tenta inserir sem colunas novas.
-            await db.insert(contributions).values({
+            // Compatibilidade com schema legado em produção: usa SQL explícito para evitar colunas inexistentes do schema local.
+            const legacyPersisted = await tryInsertCashLegacy(db as { execute: (query: unknown) => Promise<unknown> }, {
               campaignId: campaign.id,
-              userId: ctx.user?.id,
-              type: "financial",
               amount: input.amount,
               donorName,
               donorEmail,
-              donorWhatsapp,
-              paymentMethod: "cash",
-              status: "pending",
               externalReference,
             });
-            persistedContribution = true;
-            persistError = undefined;
-          } catch (legacyError) {
-            // Schema ainda mais antigo: tenta sem paymentMethod/externalReference e sem donorWhatsapp.
-            if (isMissingColumnError(legacyError)) {
-              try {
-                await db.insert(contributions).values({
-                  campaignId: campaign.id,
-                  userId: ctx.user?.id,
-                  type: "financial",
-                  amount: input.amount,
-                  donorName,
-                  donorEmail,
-                  status: "pending",
-                });
-                persistedContribution = true;
-                persistError = undefined;
-              } catch (lastLegacyError) {
-                persistError = lastLegacyError;
-              }
-            } else {
-              persistError = legacyError;
+            if (legacyPersisted) {
+              persistedContribution = true;
+              persistError = undefined;
             }
+          } catch (legacyError) {
+            persistError = legacyError;
           }
         }
 
