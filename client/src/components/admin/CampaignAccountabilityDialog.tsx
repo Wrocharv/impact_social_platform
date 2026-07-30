@@ -57,6 +57,10 @@ export default function CampaignAccountabilityDialog({
   const utils = trpc.useUtils();
   const input = useMemo(() => ({ campaignId: campaign?.id ?? 1 }), [campaign?.id]);
   const reportQuery = trpc.accountability.getAdminReport.useQuery(input, { enabled: open && Boolean(campaign) });
+  const cashAuditQuery = trpc.contributions.getRecentCashValidations.useQuery(
+    { campaignId: campaign?.id ?? 1, limit: 10 },
+    { enabled: open && Boolean(campaign) },
+  );
   const [expenseForm, setExpenseForm] = useState(EMPTY_EXPENSE);
   const [documentForm, setDocumentForm] = useState(EMPTY_DOCUMENT);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
@@ -168,10 +172,17 @@ export default function CampaignAccountabilityDialog({
           <Card className="border-red-200 bg-red-50 p-6 text-center text-red-700">Não foi possível carregar a prestação de contas.</Card>
         ) : (
           <div className="grid gap-3 sm:grid-cols-3">
-            <Summary label="Despesas" value={formatCurrency(reportQuery.data?.summary.totalSpent ?? 0)} />
-            <Summary label="Comprovantes" value={String(reportQuery.data?.documents.length ?? 0)} />
-            <Summary label="Lançamentos" value={String(reportQuery.data?.expenses.length ?? 0)} />
+            <Summary label="Entradas confirmadas" value={formatCurrency(reportQuery.data?.financialSummary.totalConfirmedEntries ?? 0)} />
+            <Summary label="Despesas" value={formatCurrency(reportQuery.data?.financialSummary.totalSpent ?? reportQuery.data?.summary.totalSpent ?? 0)} />
+            <Summary label="Saldo disponível" value={formatCurrency(reportQuery.data?.financialSummary.availableBalance ?? 0)} />
           </div>
+        )}
+
+        {!reportQuery.isLoading && !reportQuery.isError && (
+          <p className="text-xs text-[#66736a]">
+            {reportQuery.data?.financialSummary.confirmedContributionsCount ?? 0} contribuição(ões) financeira(s)
+            confirmada(s) na campanha e {reportQuery.data?.documents.length ?? 0} comprovante(s) publicado(s).
+          </p>
         )}
 
         <Tabs defaultValue="expense" className="mt-2">
@@ -216,6 +227,38 @@ export default function CampaignAccountabilityDialog({
             <div className="mt-3 space-y-2">{reportQuery.data?.expenses.slice(0, 5).map((expense) => <div key={expense.id} className="flex items-center justify-between gap-4 rounded-lg bg-[#f5f8f3] p-3 text-sm"><div><p className="font-semibold text-[#243128]">{expense.title}</p><p className="text-[#66736a]">{CATEGORY_LABELS[expense.category] ?? expense.category} · {new Date(expense.expenseDate).toLocaleDateString("pt-BR")}</p></div><strong>{formatCurrency(expense.amount)}</strong></div>)}</div>
           </section>
         )}
+
+        <section className="border-t pt-5">
+          <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-[#228B22]" /><h3 className="font-bold text-[#243128]">Auditoria da validação presencial</h3></div>
+          <p className="mt-1 text-sm text-[#66736a]">Registro das aprovações e rejeições de contribuições em dinheiro presencial.</p>
+          {cashAuditQuery.isLoading ? (
+            <p className="mt-3 text-sm text-[#66736a]">Carregando auditoria...</p>
+          ) : cashAuditQuery.isError ? (
+            <Card className="mt-3 border-red-200 bg-red-50 p-4 text-sm text-red-700">Não foi possível carregar a trilha de auditoria da validação presencial.</Card>
+          ) : cashAuditQuery.data?.length ? (
+            <div className="mt-3 space-y-2">
+              {cashAuditQuery.data.map((item) => {
+                const isApproved = item.paymentStatusDetail === "cash_validated_in_person";
+                const validator = item.validatorName || item.validatorEmail || (item.validatedBy ? `Usuário #${item.validatedBy}` : "Não identificado");
+                return (
+                  <div key={`cash-audit-${item.id}`} className="rounded-lg bg-[#f5f8f3] p-3 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-semibold text-[#243128]">Contribuição #{item.id} · {formatCurrency(item.amount ?? 0)}</p>
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${isApproved ? "bg-[#daf4df] text-[#1a6b1a]" : "bg-red-100 text-red-700"}`}>
+                        {isApproved ? "Aprovada" : "Rejeitada"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[#4e5c53]">Doador: {item.donorName || "Não informado"}</p>
+                    <p className="mt-1 text-[#4e5c53]">Validado por: {validator} · Em: {item.validatedAt ? new Date(item.validatedAt).toLocaleString("pt-BR") : "Data não informada"}</p>
+                    {item.validationNote && <p className="mt-1 text-[#4e5c53]">Observação: {item.validationNote}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-[#66736a]">Nenhuma validação presencial auditada para esta campanha.</p>
+          )}
+        </section>
       </DialogContent>
     </Dialog>
   );

@@ -3,6 +3,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import {
   campaignExpenses,
+  contributions,
   campaigns,
   transparencyDocuments,
   type CampaignExpense,
@@ -25,6 +26,7 @@ const expenseCategorySchema = z.enum([
 ]);
 
 const documentTypeSchema = z.enum(["invoice", "receipt", "report", "other"]);
+const CONFIRMED_FINANCIAL_STATUSES = ["approved", "completed"] as const;
 
 const uploadSchema = z.object({
   name: z.string().trim().min(1).max(255),
@@ -107,7 +109,7 @@ async function requireCampaign(db: Awaited<ReturnType<typeof requireDatabase>>, 
 async function loadReport(campaignId: number, publicOnly: boolean) {
   const db = await requireDatabase();
   const campaign = await requireCampaign(db, campaignId, publicOnly);
-  const [expenses, documents] = await Promise.all([
+  const [expenses, documents, confirmedEntries] = await Promise.all([
     db
       .select()
       .from(campaignExpenses)
@@ -118,9 +120,35 @@ async function loadReport(campaignId: number, publicOnly: boolean) {
       .from(transparencyDocuments)
       .where(eq(transparencyDocuments.campaignId, campaignId))
       .orderBy(desc(transparencyDocuments.uploadedAt)),
+    db
+      .select({ amount: contributions.amount })
+      .from(contributions)
+      .where(and(
+        eq(contributions.campaignId, campaignId),
+        eq(contributions.type, "financial"),
+        inArray(contributions.status, CONFIRMED_FINANCIAL_STATUSES),
+      )),
   ]);
 
-  return { campaign, expenses, documents, summary: summarizeExpenses(expenses) };
+  const summary = summarizeExpenses(expenses);
+  const totalConfirmedEntries = confirmedEntries.reduce(
+    (sum, entry) => sum + Math.max(0, entry.amount ?? 0),
+    0,
+  );
+  const availableBalance = totalConfirmedEntries - summary.totalSpent;
+
+  return {
+    campaign,
+    expenses,
+    documents,
+    summary,
+    financialSummary: {
+      totalConfirmedEntries,
+      confirmedContributionsCount: confirmedEntries.length,
+      totalSpent: summary.totalSpent,
+      availableBalance,
+    },
+  };
 }
 
 export const accountabilityRouter = router({

@@ -21,8 +21,10 @@ export default function CampaignAccountabilityPage() {
   const reportQuery = trpc.accountability.getPublicReport.useQuery(accountabilityInput, {
     enabled: Number.isInteger(campaignId) && campaignId > 0,
   });
-  const totalSpent = reportQuery.data?.summary.totalSpent ?? 0;
-  const availableBalance = (query.data?.raised ?? 0) - totalSpent;
+  const totalSpent = reportQuery.data?.financialSummary.totalSpent ?? reportQuery.data?.summary.totalSpent ?? 0;
+  const confirmedEntries = reportQuery.data?.financialSummary.totalConfirmedEntries ?? query.data?.raised ?? 0;
+  const availableBalance = reportQuery.data?.financialSummary.availableBalance ?? (confirmedEntries - totalSpent);
+  const confirmedCount = reportQuery.data?.financialSummary.confirmedContributionsCount ?? 0;
   const documents = reportQuery.data?.documents ?? query.data?.documents ?? [];
 
   return (
@@ -51,14 +53,20 @@ export default function CampaignAccountabilityPage() {
 
             <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
               <Metric label="Meta" value={formatCurrency(query.data.goal)} />
-              <Metric label="Arrecadado" value={formatCurrency(query.data.raised)} accent />
+              <Metric label="Entradas confirmadas" value={formatCurrency(confirmedEntries)} accent />
               <Metric label="Gasto" value={formatCurrency(totalSpent)} />
               <Metric label="Saldo disponível" value={formatCurrency(availableBalance)} accent={availableBalance >= 0} warning={availableBalance < 0} />
             </div>
 
+            <p className="mt-3 text-sm text-[#66736a]">
+              {confirmedCount > 0
+                ? `${confirmedCount} contribuição(ões) financeira(s) confirmada(s) compõem o total de entradas.`
+                : "Ainda não há contribuições financeiras confirmadas para esta campanha."}
+            </p>
+
             <Card className="mt-6 p-7">
               <h2 className="text-xl font-bold text-[#2d2d2d]">Progresso de arrecadação</h2>
-              <div className="mt-5"><AnimatedProgressBar current={query.data.raised} goal={query.data.goal} animated showLabel /></div>
+              <div className="mt-5"><AnimatedProgressBar current={confirmedEntries} goal={query.data.goal} animated showLabel /></div>
             </Card>
 
             <section className="mt-12" aria-labelledby="expenses-title">

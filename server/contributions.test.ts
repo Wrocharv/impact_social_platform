@@ -106,13 +106,14 @@ describe("contributions.reviewCashContribution", () => {
         },
       ])
       .mockResolvedValueOnce({});
+    const set = vi.fn(() => ({ where }));
 
     const db = {
       select: vi.fn(() => ({
         from: vi.fn(() => ({ where: vi.fn(() => ({ limit: where })) })),
       })),
       update: vi.fn(() => ({
-        set: vi.fn(() => ({ where })),
+        set,
       })),
     };
 
@@ -122,10 +123,59 @@ describe("contributions.reviewCashContribution", () => {
     const result = await caller.contributions.reviewCashContribution({
       contributionId: 123,
       decision: "approve",
+      validationNote: "  Caixa recebido na igreja  ",
     });
 
     expect(result).toMatchObject({ success: true, status: "approved" });
     expect(db.update).toHaveBeenCalledTimes(1);
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({
+      status: "approved",
+      paymentStatusDetail: "cash_validated_in_person",
+      validatedBy: 1,
+      validationNote: "Caixa recebido na igreja",
+    }));
+  });
+
+  it("registra trilha de auditoria ao rejeitar validação presencial", async () => {
+    const where = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          id: 200,
+          type: "financial",
+          status: "pending",
+          paymentMethod: "cash",
+          paymentStatusDetail: "awaiting_cash_confirmation",
+        },
+      ])
+      .mockResolvedValueOnce({});
+    const set = vi.fn(() => ({ where }));
+
+    const db = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({ where: vi.fn(() => ({ limit: where })) })),
+      })),
+      update: vi.fn(() => ({
+        set,
+      })),
+    };
+
+    getDbMock.mockResolvedValue(db);
+    const caller = appRouter.createCaller(createAdminContext());
+
+    const result = await caller.contributions.reviewCashContribution({
+      contributionId: 200,
+      decision: "reject",
+      validationNote: "Não houve confirmação do recebedor.",
+    });
+
+    expect(result).toMatchObject({ success: true, status: "rejected", contributionId: 200 });
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({
+      status: "rejected",
+      paymentStatusDetail: "cash_validation_rejected",
+      validatedBy: 1,
+      validationNote: "Não houve confirmação do recebedor.",
+    }));
   });
 
   it("rejeita quando contribuição não está aguardando validação presencial", async () => {

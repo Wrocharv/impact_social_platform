@@ -85,10 +85,12 @@ export default function AdminDashboard() {
   const [campaignUpdateForm, setCampaignUpdateForm] = useState(EMPTY_UPDATE_FORM);
   const [campaignNeedForm, setCampaignNeedForm] = useState(EMPTY_NEED_FORM);
   const [partnerForm, setPartnerForm] = useState(EMPTY_PARTNER_FORM);
+  const [cashValidationNotes, setCashValidationNotes] = useState<Record<number, string>>({});
 
   const campaignsQuery = trpc.campaigns.getAll.useQuery(undefined, { enabled: isAdmin });
   const partnersQuery = trpc.partners.getAll.useQuery(undefined, { enabled: isAdmin });
   const pendingCashQuery = trpc.contributions.getPendingCashValidations.useQuery(undefined, { enabled: isAdmin });
+  const recentCashQuery = trpc.contributions.getRecentCashValidations.useQuery({ limit: 20 }, { enabled: isAdmin });
   const createCampaign = trpc.campaigns.create.useMutation({
     onSuccess: async () => {
       toast.success("Campanha criada com sucesso!");
@@ -149,8 +151,14 @@ export default function AdminDashboard() {
   const reviewCashContribution = trpc.contributions.reviewCashContribution.useMutation({
     onSuccess: async (result) => {
       toast.success(result.status === "approved" ? "Contribuição em dinheiro validada." : "Contribuição em dinheiro rejeitada.");
+      setCashValidationNotes((current) => {
+        const next = { ...current };
+        delete next[result.contributionId];
+        return next;
+      });
       await Promise.all([
         pendingCashQuery.refetch(),
+        recentCashQuery.refetch(),
         invalidateCampaignData(),
         utils.contributions.getPublicDonors.invalidate(),
       ]);
@@ -409,12 +417,29 @@ export default function AdminDashboard() {
                         <p><span className="font-semibold text-[#243128]">WhatsApp:</span> {item.donorWhatsapp || "Não informado"}</p>
                         <p><span className="font-semibold text-[#243128]">Cidade:</span> {item.donorCity || "Não informada"}</p>
                       </div>
+                      <div className="mt-3">
+                        <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-[#546459]">Observação da validação (opcional)</label>
+                        <Textarea
+                          rows={2}
+                          maxLength={500}
+                          placeholder="Ex.: Confirmado presencialmente no bazar de domingo."
+                          value={cashValidationNotes[item.id] ?? ""}
+                          onChange={(event) => setCashValidationNotes((current) => ({
+                            ...current,
+                            [item.id]: event.target.value,
+                          }))}
+                        />
+                      </div>
                       <div className="mt-4 flex flex-wrap gap-2">
                         <Button
                           size="sm"
                           className="gap-2 bg-[#228B22] hover:bg-[#1a6b1a]"
                           disabled={reviewCashContribution.isPending}
-                          onClick={() => reviewCashContribution.mutate({ contributionId: item.id, decision: "approve" })}
+                          onClick={() => reviewCashContribution.mutate({
+                            contributionId: item.id,
+                            decision: "approve",
+                            validationNote: cashValidationNotes[item.id]?.trim() || undefined,
+                          })}
                         >
                           <CheckCircle2 className="h-4 w-4" /> Confirmar recebimento
                         </Button>
@@ -423,7 +448,11 @@ export default function AdminDashboard() {
                           variant="outline"
                           className="gap-2 border-red-300 text-red-700 hover:text-red-800"
                           disabled={reviewCashContribution.isPending}
-                          onClick={() => reviewCashContribution.mutate({ contributionId: item.id, decision: "reject" })}
+                          onClick={() => reviewCashContribution.mutate({
+                            contributionId: item.id,
+                            decision: "reject",
+                            validationNote: cashValidationNotes[item.id]?.trim() || undefined,
+                          })}
                         >
                           <XCircle className="h-4 w-4" /> Rejeitar validação
                         </Button>
@@ -434,6 +463,42 @@ export default function AdminDashboard() {
               ) : (
                 <p className="text-sm text-[#66736a]">Sem pendências de validação presencial no momento.</p>
               )}
+
+              <div className="mt-6 border-t border-[#e1e6df] pt-5">
+                <h4 className="text-sm font-bold text-[#243128]">Histórico recente de validações presenciais</h4>
+                <p className="mt-1 text-xs text-[#66736a]">Auditoria de quem validou/rejeitou contribuições em dinheiro e quando.</p>
+                {recentCashQuery.isLoading ? (
+                  <p className="mt-3 text-sm text-[#66736a]">Carregando histórico...</p>
+                ) : recentCashQuery.isError ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <p className="text-sm text-[#b42318]">Não foi possível carregar o histórico de validações.</p>
+                    <Button variant="outline" size="sm" onClick={() => recentCashQuery.refetch()}>Tentar novamente</Button>
+                  </div>
+                ) : recentCashQuery.data?.length ? (
+                  <div className="mt-3 space-y-2">
+                    {recentCashQuery.data.map((item) => {
+                      const isApproved = item.paymentStatusDetail === "cash_validated_in_person";
+                      const validator = item.validatorName || item.validatorEmail || (item.validatedBy ? `Usuário #${item.validatedBy}` : "Não identificado");
+                      const when = item.validatedAt ? new Date(item.validatedAt).toLocaleString("pt-BR") : "Data não informada";
+                      return (
+                        <div key={`cash-validation-${item.id}`} className="rounded-lg bg-[#f5f8f3] p-3 text-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-semibold text-[#243128]">Contribuição #{item.id} · Campanha #{item.campaignId}</p>
+                            <Badge variant={isApproved ? "default" : "secondary"} className={isApproved ? "bg-[#228B22]" : "bg-red-100 text-red-700"}>
+                              {isApproved ? "Aprovada" : "Rejeitada"}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-[#4e5c53]">Valor: {formatCurrency(item.amount ?? 0)} · Doador: {item.donorName || "Não informado"}</p>
+                          <p className="mt-1 text-[#4e5c53]">Validado por: {validator} · Em: {when}</p>
+                          {item.validationNote && <p className="mt-1 text-[#4e5c53]">Observação: {item.validationNote}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-[#66736a]">Nenhuma validação presencial auditada ainda.</p>
+                )}
+              </div>
             </Card>
 
             <div className="space-y-4">

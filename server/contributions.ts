@@ -1,9 +1,11 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { campaignNeeds, campaigns, contributions } from "../drizzle/schema";
+import { campaignNeeds, campaigns, contributions, users } from "../drizzle/schema";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
+
+const CASH_AUDIT_DETAILS = ["cash_validated_in_person", "cash_validation_rejected"] as const;
 
 const donorInfoSchema = z.object({
   donorName: z.preprocess(
@@ -273,16 +275,65 @@ export const contributionsRouter = router({
         .orderBy(desc(contributions.createdAt));
     }),
 
-  reviewCashContribution: adminProcedure
+  getRecentCashValidations: adminProcedure
     .input(z.object({
-      contributionId: z.number().int().positive(),
-      decision: z.enum(["approve", "reject"]),
-    }))
-    .mutation(async ({ input }) => {
+      campaignId: z.number().int().positive().optional(),
+      limit: z.number().int().positive().max(100).optional().default(20),
+    }).optional())
+    .query(async ({ input }) => {
       const db = await getDb();
       if (!db) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
       }
+
+      const conditions = [
+        eq(contributions.type, "financial"),
+        eq(contributions.paymentMethod, "cash"),
+        inArray(contributions.paymentStatusDetail, CASH_AUDIT_DETAILS),
+      ];
+
+      if (input?.campaignId) {
+        conditions.push(eq(contributions.campaignId, input.campaignId));
+      }
+
+      return db
+        .select({
+          id: contributions.id,
+          campaignId: contributions.campaignId,
+          donorName: contributions.donorName,
+          amount: contributions.amount,
+          status: contributions.status,
+          paymentStatusDetail: contributions.paymentStatusDetail,
+          validatedBy: contributions.validatedBy,
+          validatedAt: contributions.validatedAt,
+          validationNote: contributions.validationNote,
+          validatorName: users.name,
+          validatorEmail: users.email,
+        })
+        .from(contributions)
+        .leftJoin(users, eq(users.id, contributions.validatedBy))
+        .where(and(...conditions))
+        .orderBy(desc(contributions.validatedAt), desc(contributions.updatedAt))
+        .limit(input?.limit ?? 20);
+    }),
+
+  reviewCashContribution: adminProcedure
+    .input(z.object({
+      contributionId: z.number().int().positive(),
+      decision: z.enum(["approve", "reject"]),
+      validationNote: z.string().trim().max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
+      }
+      if (!ctx.user?.id) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Usuário não autenticado." });
+      }
+
+      const validatedAt = new Date();
+      const validationNote = input.validationNote?.trim() || null;
 
       const [contribution] = await db
         .select({
@@ -319,12 +370,15 @@ export const contributionsRouter = router({
           .set({
             status: "approved",
             paymentStatusDetail: "cash_validated_in_person",
+            validatedBy: ctx.user.id,
+            validatedAt,
+            validationNote,
             paidAt: new Date(),
             updatedAt: new Date(),
           })
           .where(eq(contributions.id, input.contributionId));
 
-        return { success: true as const, status: "approved" as const };
+        return { success: true as const, status: "approved" as const, contributionId: input.contributionId };
       }
 
       await db
@@ -332,10 +386,13 @@ export const contributionsRouter = router({
         .set({
           status: "rejected",
           paymentStatusDetail: "cash_validation_rejected",
+          validatedBy: ctx.user.id,
+          validatedAt,
+          validationNote,
           updatedAt: new Date(),
         })
         .where(eq(contributions.id, input.contributionId));
 
-      return { success: true as const, status: "rejected" as const };
+      return { success: true as const, status: "rejected" as const, contributionId: input.contributionId };
     }),
 });
