@@ -10,8 +10,15 @@ type PartnerRecord = {
   id: number;
   name: string;
   type: "company" | "individual";
+  ownerName?: string | null;
   description?: string | null;
   logoUrl?: string | null;
+  storePhotoUrl?: string | null;
+  ownerPhotoUrl?: string | null;
+  address?: string | null;
+  contactInfo?: string | null;
+  testimonialVideoUrl?: string | null;
+  testimonialText?: string | null;
   website?: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -111,8 +118,15 @@ const optionalHttpUrl = z.preprocess(
 const partnerFields = {
   name: z.string().trim().min(2, "Nome deve ter pelo menos 2 caracteres").max(255),
   type: z.enum(["company", "individual"]),
+  ownerName: optionalText(255),
   description: optionalText(1_500),
   logoUrl: optionalHttpUrl,
+  storePhotoUrl: optionalHttpUrl,
+  ownerPhotoUrl: optionalHttpUrl,
+  address: optionalText(1_000),
+  contactInfo: optionalText(255),
+  testimonialVideoUrl: optionalHttpUrl,
+  testimonialText: optionalText(2_000),
   website: optionalHttpUrl,
 };
 
@@ -123,6 +137,13 @@ const updatePartnerSchema = z.object({
   type: partnerFields.type.optional(),
   description: partnerFields.description,
   logoUrl: partnerFields.logoUrl,
+  storePhotoUrl: partnerFields.storePhotoUrl,
+  ownerPhotoUrl: partnerFields.ownerPhotoUrl,
+  ownerName: partnerFields.ownerName,
+  address: partnerFields.address,
+  contactInfo: partnerFields.contactInfo,
+  testimonialVideoUrl: partnerFields.testimonialVideoUrl,
+  testimonialText: partnerFields.testimonialText,
   website: partnerFields.website,
 });
 

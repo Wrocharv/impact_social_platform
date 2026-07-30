@@ -20,8 +20,15 @@ import { toast } from "sonner";
 const EMPTY_PARTNER_FORM = {
   name: "",
   type: "company" as "company" | "individual",
+  ownerName: "",
   description: "",
   logoUrl: "",
+  storePhotoUrl: "",
+  ownerPhotoUrl: "",
+  address: "",
+  contactInfo: "",
+  testimonialVideoUrl: "",
+  testimonialText: "",
   website: "",
 };
 
@@ -182,8 +189,15 @@ export default function AdminDashboard() {
     setPartnerForm({
       name: partner.name,
       type: partner.type,
+      ownerName: partner.ownerName ?? "",
       description: partner.description ?? "",
       logoUrl: partner.logoUrl ?? "",
+      storePhotoUrl: partner.storePhotoUrl ?? "",
+      ownerPhotoUrl: partner.ownerPhotoUrl ?? "",
+      address: partner.address ?? "",
+      contactInfo: partner.contactInfo ?? "",
+      testimonialVideoUrl: partner.testimonialVideoUrl ?? "",
+      testimonialText: partner.testimonialText ?? "",
       website: partner.website ?? "",
     });
     setIsPartnerOpen(true);
@@ -298,8 +312,15 @@ export default function AdminDashboard() {
     const values = {
       name: partnerForm.name,
       type: partnerForm.type,
+      ownerName: partnerForm.ownerName || undefined,
       description: partnerForm.description || undefined,
       logoUrl: partnerForm.logoUrl || undefined,
+      storePhotoUrl: partnerForm.storePhotoUrl || undefined,
+      ownerPhotoUrl: partnerForm.ownerPhotoUrl || undefined,
+      address: partnerForm.address || undefined,
+      contactInfo: partnerForm.contactInfo || undefined,
+      testimonialVideoUrl: partnerForm.testimonialVideoUrl || undefined,
+      testimonialText: partnerForm.testimonialText || undefined,
       website: partnerForm.website || undefined,
     };
     if (editingPartnerId) updatePartner.mutate({ id: editingPartnerId, ...values });
@@ -370,7 +391,25 @@ export default function AdminDashboard() {
               <div className="grid gap-4 lg:grid-cols-2">
                 {partnersQuery.data.map((partner) => (
                   <Card key={partner.id} className="p-5">
-                    <div className="flex gap-4"><div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#eef4ec] p-2">{partner.logoUrl ? <img src={partner.logoUrl} alt="" className="h-full w-full object-contain" /> : <Handshake className="h-7 w-7 text-[#228B22]" />}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-[#243128]">{partner.name}</h3><Badge variant="secondary">{partner.type === "company" ? "Empresa" : "Profissional"}</Badge></div>{partner.description && <p className="mt-2 line-clamp-2 text-sm text-[#66736a]">{partner.description}</p>}{partner.website && <a href={partner.website} target="_blank" rel="noreferrer noopener" className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-[#228B22] hover:underline">Abrir site <ExternalLink className="h-3.5 w-3.5" /></a>}</div></div>
+                    <div className="flex gap-4"><div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#eef4ec] p-2">{partner.logoUrl ? <img src={partner.logoUrl} alt="" className="h-full w-full object-contain" /> : <Handshake className="h-7 w-7 text-[#228B22]" />}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-[#243128]">{partner.name}</h3><Badge variant="secondary">{partner.type === "company" ? "Empresa" : "Profissional"}</Badge></div>{partner.ownerName && <p className="mt-1 text-sm font-medium text-[#55645a]">Responsável: {partner.ownerName}</p>}{partner.description && <p className="mt-2 line-clamp-2 text-sm text-[#66736a]">{partner.description}</p>}{partner.address && <p className="mt-2 text-sm text-[#66736a]">Endereço: {partner.address}</p>}{partner.contactInfo && <p className="mt-1 text-sm text-[#66736a]">Contato: {partner.contactInfo}</p>}{partner.website && <a href={partner.website} target="_blank" rel="noreferrer noopener" className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-[#228B22] hover:underline">Abrir site <ExternalLink className="h-3.5 w-3.5" /></a>}</div></div>
+                    {(partner.storePhotoUrl || partner.ownerPhotoUrl) && (
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div className="overflow-hidden rounded-lg bg-[#eef4ec]">
+                          {partner.storePhotoUrl ? (
+                            <img src={partner.storePhotoUrl} alt={`Foto da loja de ${partner.name}`} className="h-24 w-full object-cover" />
+                          ) : (
+                            <div className="flex h-24 items-center justify-center text-xs font-medium text-[#66736a]">Sem foto da loja</div>
+                          )}
+                        </div>
+                        <div className="overflow-hidden rounded-lg bg-[#eef4ec]">
+                          {partner.ownerPhotoUrl ? (
+                            <img src={partner.ownerPhotoUrl} alt={`Foto do responsável de ${partner.name}`} className="h-24 w-full object-cover" />
+                          ) : (
+                            <div className="flex h-24 items-center justify-center text-xs font-medium text-[#66736a]">Sem foto do responsável</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     <div className="mt-5 flex justify-end gap-2 border-t pt-4"><Button variant="outline" size="sm" className="gap-2" onClick={() => openEditPartner(partner)}><Edit2 className="h-4 w-4" /> Editar</Button><Button variant="outline" size="sm" className="gap-2 text-red-700 hover:text-red-800" onClick={() => setPartnerToDelete({ id: partner.id, name: partner.name })}><Trash2 className="h-4 w-4" /> Excluir</Button></div>
                   </Card>
                 ))}
@@ -439,8 +478,15 @@ export default function AdminDashboard() {
             <form onSubmit={handleSavePartner} className="space-y-4">
               <Field label="Nome *"><Input value={partnerForm.name} onChange={(event) => setPartnerForm({ ...partnerForm, name: event.target.value })} required minLength={2} /></Field>
               <Field label="Tipo *"><Select value={partnerForm.type} onValueChange={(value: "company" | "individual") => setPartnerForm({ ...partnerForm, type: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="company">Empresa</SelectItem><SelectItem value="individual">Profissional</SelectItem></SelectContent></Select></Field>
+              <Field label="Nome do responsável"><Input value={partnerForm.ownerName} onChange={(event) => setPartnerForm({ ...partnerForm, ownerName: event.target.value })} maxLength={255} /></Field>
               <Field label="Descrição"><Textarea value={partnerForm.description} onChange={(event) => setPartnerForm({ ...partnerForm, description: event.target.value })} rows={4} maxLength={1500} /></Field>
               <Field label="URL da logomarca"><Input type="url" value={partnerForm.logoUrl} onChange={(event) => setPartnerForm({ ...partnerForm, logoUrl: event.target.value })} placeholder="https://..." /></Field>
+              <Field label="URL da foto da loja"><Input type="url" value={partnerForm.storePhotoUrl} onChange={(event) => setPartnerForm({ ...partnerForm, storePhotoUrl: event.target.value })} placeholder="https://..." /></Field>
+              <Field label="URL da foto do responsável"><Input type="url" value={partnerForm.ownerPhotoUrl} onChange={(event) => setPartnerForm({ ...partnerForm, ownerPhotoUrl: event.target.value })} placeholder="https://..." /></Field>
+              <Field label="Endereço"><Textarea value={partnerForm.address} onChange={(event) => setPartnerForm({ ...partnerForm, address: event.target.value })} rows={3} maxLength={1000} /></Field>
+              <Field label="Contato"><Input value={partnerForm.contactInfo} onChange={(event) => setPartnerForm({ ...partnerForm, contactInfo: event.target.value })} maxLength={255} placeholder="Telefone, WhatsApp ou e-mail" /></Field>
+              <Field label="URL do vídeo de testemunho"><Input type="url" value={partnerForm.testimonialVideoUrl} onChange={(event) => setPartnerForm({ ...partnerForm, testimonialVideoUrl: event.target.value })} placeholder="https://..." /></Field>
+              <Field label="Texto do testemunho"><Textarea value={partnerForm.testimonialText} onChange={(event) => setPartnerForm({ ...partnerForm, testimonialText: event.target.value })} rows={4} maxLength={2000} placeholder="Depoimento convidando mais pessoas para a parceria" /></Field>
               <Field label="Site"><Input type="url" value={partnerForm.website} onChange={(event) => setPartnerForm({ ...partnerForm, website: event.target.value })} placeholder="https://..." /></Field>
               <p className="rounded-lg bg-[#f1f6ef] p-3 text-sm text-[#55645a]">Ao salvar, o parceiro poderá aparecer imediatamente na homepage. Cadastre somente dados cuja publicação tenha sido autorizada.</p>
               <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={closePartnerDialog}>Cancelar</Button><Button type="submit" disabled={partnerMutationPending}>{partnerMutationPending ? "Salvando..." : "Salvar parceiro"}</Button></div>

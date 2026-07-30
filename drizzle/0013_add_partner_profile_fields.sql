@@ -1,0 +1,6 @@
+ALTER TABLE partners
+  ADD COLUMN ownerName VARCHAR(255),
+  ADD COLUMN storePhotoUrl VARCHAR(512),
+  ADD COLUMN ownerPhotoUrl VARCHAR(512),
+  ADD COLUMN address TEXT,
+  ADD COLUMN contactInfo VARCHAR(255);

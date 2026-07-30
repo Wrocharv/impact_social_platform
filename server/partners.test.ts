@@ -35,8 +35,13 @@ const rows = [
     id: 3,
     name: "Construtora Solidária",
     type: "company" as const,
+    ownerName: "João Silva",
     description: "Doação de materiais",
     logoUrl: "https://example.org/logo.png",
+    storePhotoUrl: "https://example.org/loja.png",
+    ownerPhotoUrl: "https://example.org/dono.png",
+    address: "Rua das Flores, 123 - Centro",
+    contactInfo: "(11) 99999-9999",
     website: "https://example.org",
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     updatedAt: new Date("2026-01-01T00:00:00.000Z"),
@@ -102,14 +107,24 @@ describe("partners router", () => {
       type: "company",
       description: "",
       logoUrl: "",
+      ownerName: "",
+      storePhotoUrl: "",
+      ownerPhotoUrl: "",
+      address: "",
+      contactInfo: "",
       website: "",
     });
 
     expect(values).toHaveBeenCalledWith({
       name: "Construtora Solidária",
       type: "company",
+      ownerName: undefined,
       description: undefined,
       logoUrl: undefined,
+      storePhotoUrl: undefined,
+      ownerPhotoUrl: undefined,
+      address: undefined,
+      contactInfo: undefined,
       website: undefined,
     });
     expect(result.success).toBe(true);

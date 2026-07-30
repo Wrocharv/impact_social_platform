@@ -171,3 +171,26 @@
     @apply bg-transparent;
   }
 }
+
+@keyframes partners-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.partners-marquee-track {
+  animation: partners-marquee 34s linear infinite;
+}
+
+.partners-marquee-track:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .partners-marquee-track {
+    animation: none;
+  }
+}

@@ -48,7 +48,7 @@ export default function Home() {
   const partners = (partnersQuery.data ?? []) as PartnerItem[];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white">
+    <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white pb-22 md:pb-24">
       <PublicHeader />
 
       <section
@@ -237,11 +237,11 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="parceiros" className="bg-[#173f20] py-20 text-white md:py-28" aria-labelledby="parceiros-title">
+      <section id="parceiros" className="bg-[#1f2c29] py-20 text-white md:py-28" aria-labelledby="parceiros-title">
         <div className="container max-w-7xl px-4">
           <div className="mb-12 grid gap-6 md:grid-cols-[1fr_0.55fr] md:items-end">
             <div>
-              <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-[#b8dfb3]">Rede de parceiros</p>
+              <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-[#c6d6c3]">Rede de parceiros</p>
               <h2 id="parceiros-title" className="max-w-3xl text-4xl font-bold md:text-5xl">
                 Empresas e profissionais que constroem impacto conosco
               </h2>
@@ -296,7 +296,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="border-t border-white/15 bg-[#173f20] py-12 md:py-16">
+      <section className="border-t border-white/15 bg-[#1f2c29] py-12 md:py-16">
         <div className="container max-w-7xl px-4">
           <div className="mb-8 text-center">
             <h2 className="text-3xl font-bold text-white">Pronto para fazer a diferença?</h2>
@@ -305,7 +305,7 @@ export default function Home() {
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
               href="/campaigns"
-              className="inline-flex min-h-12 items-center justify-center rounded-md bg-white px-7 font-semibold text-[#173f20] transition hover:bg-[#f0f5f0] active:scale-[0.97]"
+              className="inline-flex min-h-12 items-center justify-center rounded-md bg-white px-7 font-semibold text-[#1f2c29] transition hover:bg-[#f0f5f0] active:scale-[0.97]"
             >
               <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
             </Link>
@@ -319,7 +319,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="bg-[#252525] py-10 text-white">
+      <footer className="bg-[#18201d] py-10 text-white">
         <div className="container flex max-w-7xl flex-col justify-between gap-6 px-4 sm:flex-row sm:items-center">
           <div className="flex items-center gap-2">
             <Heart className="h-6 w-6 fill-[#55a94a] text-[#55a94a]" aria-hidden="true" />
@@ -332,6 +332,8 @@ export default function Home() {
           <p className="text-sm text-white/60">© 2026 Parceiros do Bem</p>
         </div>
       </footer>
+
+      {partners.length > 0 && <PartnersTicker partners={partners} />}
     </div>
   );
 }
@@ -349,13 +351,22 @@ type PartnerItem = {
   id: number;
   name: string;
   type: "company" | "individual";
+  ownerName: string | null;
   description: string | null;
   logoUrl: string | null;
+  storePhotoUrl: string | null;
+  ownerPhotoUrl: string | null;
+  address: string | null;
+  contactInfo: string | null;
+  testimonialVideoUrl: string | null;
+  testimonialText: string | null;
   website: string | null;
 };
 
 function PartnerCard({ partner }: { partner: PartnerItem }) {
   const [logoFailed, setLogoFailed] = useState(false);
+  const [storePhotoFailed, setStorePhotoFailed] = useState(false);
+  const [ownerPhotoFailed, setOwnerPhotoFailed] = useState(false);
 
   return (
     <Card className="group border-white/10 bg-white p-6 text-[#26332a] shadow-lg shadow-black/10 transition duration-200 hover:-translate-y-1 hover:shadow-xl">
@@ -379,7 +390,58 @@ function PartnerCard({ partner }: { partner: PartnerItem }) {
         {partner.type === "company" ? "Empresa parceira" : "Profissional parceiro"}
       </p>
       <h3 className="mt-2 text-xl font-bold text-[#1f3023]">{partner.name}</h3>
-      {partner.description && <p className="mt-3 line-clamp-3 leading-relaxed text-[#66736a]">{partner.description}</p>}
+      {partner.ownerName && <p className="mt-3 text-sm font-medium text-[#4f6255]">Responsável: {partner.ownerName}</p>}
+      {partner.description && <p className="mt-2 line-clamp-3 leading-relaxed text-[#66736a]">{partner.description}</p>}
+      {(partner.storePhotoUrl || partner.ownerPhotoUrl) && (
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="overflow-hidden rounded-lg bg-[#f4f7f2]">
+            {partner.storePhotoUrl && !storePhotoFailed ? (
+              <img
+                src={partner.storePhotoUrl}
+                alt={`Foto da loja de ${partner.name}`}
+                className="h-24 w-full object-cover"
+                loading="lazy"
+                onError={() => setStorePhotoFailed(true)}
+              />
+            ) : (
+              <div className="flex h-24 items-center justify-center text-center text-xs font-medium text-[#6a7b6f]">Foto da loja indisponível</div>
+            )}
+          </div>
+          <div className="overflow-hidden rounded-lg bg-[#f4f7f2]">
+            {partner.ownerPhotoUrl && !ownerPhotoFailed ? (
+              <img
+                src={partner.ownerPhotoUrl}
+                alt={`Foto do responsável de ${partner.name}`}
+                className="h-24 w-full object-cover"
+                loading="lazy"
+                onError={() => setOwnerPhotoFailed(true)}
+              />
+            ) : (
+              <div className="flex h-24 items-center justify-center text-center text-xs font-medium text-[#6a7b6f]">Foto do responsável indisponível</div>
+            )}
+          </div>
+        </div>
+      )}
+      {(partner.testimonialVideoUrl || partner.testimonialText) && (
+        <div className="mt-4 rounded-xl border border-[#d7e6d9] bg-[#f5faf5] p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#2f6f49]">Testemunho</p>
+          {partner.testimonialText && (
+            <p className="mt-2 text-sm italic leading-relaxed text-[#4f6658]">"{partner.testimonialText}"</p>
+          )}
+          {partner.testimonialVideoUrl && (
+            <a
+              href={partner.testimonialVideoUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-[#228B22] hover:underline"
+            >
+              Assistir depoimento <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </a>
+          )}
+        </div>
+      )}
+      {partner.address && <p className="mt-4 text-sm text-[#5f7364]">Endereço: {partner.address}</p>}
+      {partner.contactInfo && <p className="mt-1 text-sm text-[#5f7364]">Contato: {partner.contactInfo}</p>}
       {partner.website && (
         <a
           href={partner.website}
@@ -391,5 +453,38 @@ function PartnerCard({ partner }: { partner: PartnerItem }) {
         </a>
       )}
     </Card>
+  );
+}
+
+function PartnersTicker({ partners }: { partners: PartnerItem[] }) {
+  const loopPartners = [...partners, ...partners];
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#3b4c46] bg-[#1f2c29]/95 backdrop-blur-sm">
+      <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 text-white">
+        <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.14em] text-[#c6d6c3]">Parceiros do bem</p>
+        <div className="relative min-w-0 flex-1 overflow-hidden">
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-[#1f2c29] to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-[#1f2c29] to-transparent" />
+          <div className="partners-marquee-track flex w-max items-center gap-3 pr-3">
+            {loopPartners.map((partner, index) => {
+              const imageUrl = partner.logoUrl || partner.storePhotoUrl || partner.ownerPhotoUrl;
+              return (
+                <div key={`${partner.id}-${index}`} className="flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5">
+                  <div className="h-7 w-7 overflow-hidden rounded-full bg-white/20">
+                    {imageUrl ? (
+                      <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[10px] font-bold text-white/70">PB</div>
+                    )}
+                  </div>
+                  <span className="whitespace-nowrap text-sm font-medium text-white">{partner.name}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
