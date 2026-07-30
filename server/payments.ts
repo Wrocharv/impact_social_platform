@@ -122,11 +122,6 @@ function shouldUsePixDevFallback(error: unknown) {
   return isMercadoPagoUnauthorized(error) || isMercadoPagoNotConfigured(error);
 }
 
-function isDbSchemaMismatch(error: unknown) {
-  const message = getReadableErrorMessage(error).toLowerCase();
-  return message.includes("unknown column") || message.includes("er_bad_field_error");
-}
-
 function buildContributionConfirmationUrl(input: {
   baseUrl: string;
   campaignId: number;
@@ -253,9 +248,6 @@ export const paymentsRouter = router({
         persistedContribution = true;
       } catch (error) {
         console.error("[Payments] Falha ao persistir contribuição, seguindo com checkout sem registro local", error);
-        if (!isDbSchemaMismatch(error)) {
-          throw error;
-        }
       }
 
       if (isCashPayment) {
