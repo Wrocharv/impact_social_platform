@@ -14,7 +14,7 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   });
 
-const DEFAULT_PRESENTATION_VIDEO_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+const DEFAULT_PRESENTATION_VIDEO_URL = "https://www.instagram.com/reel/DMgbH5HPUMe/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA==";
 
 type PresentationVideoSource =
   | { kind: "embed"; src: string; title: string }
