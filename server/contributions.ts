@@ -207,6 +207,64 @@ export const contributionsRouter = router({
       };
     }),
 
+  getDonorProfileLookup: publicProcedure
+    .input(z.object({
+      donorWhatsapp: z.string().trim().min(8).max(20).optional(),
+      donorName: z.string().trim().min(2).max(255).optional(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
+      }
+
+      const normalizedWhatsapp = input.donorWhatsapp?.replace(/\D/g, "") ?? "";
+      const normalizedName = input.donorName?.trim().toLowerCase() ?? "";
+
+      if (!normalizedWhatsapp && normalizedName.length < 2) {
+        return null;
+      }
+
+      const rows = await db
+        .select({
+          donorName: contributions.donorName,
+          donorWhatsapp: contributions.donorWhatsapp,
+          donorEmail: contributions.donorEmail,
+          donorCity: contributions.donorCity,
+          donorChurch: contributions.donorChurch,
+          allowPublicDisplay: contributions.allowPublicDisplay,
+          createdAt: contributions.createdAt,
+        })
+        .from(contributions)
+        .orderBy(desc(contributions.createdAt))
+        .limit(300);
+
+      const byWhatsapp = normalizedWhatsapp
+        ? rows.find((row) => (row.donorWhatsapp || "").replace(/\D/g, "") === normalizedWhatsapp)
+        : undefined;
+
+      const byName = !byWhatsapp && normalizedName
+        ? (
+          rows.find((row) => (row.donorName || "").trim().toLowerCase() === normalizedName)
+          || rows.find((row) => (row.donorName || "").trim().toLowerCase().includes(normalizedName))
+        )
+        : undefined;
+
+      const match = byWhatsapp ?? byName;
+      if (!match) {
+        return null;
+      }
+
+      return {
+        donorName: match.donorName,
+        donorWhatsapp: match.donorWhatsapp,
+        donorEmail: match.donorEmail,
+        donorCity: match.donorCity,
+        donorChurch: match.donorChurch,
+        allowPublicDisplay: match.allowPublicDisplay ?? false,
+      };
+    }),
+
   getUserContributions: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) {

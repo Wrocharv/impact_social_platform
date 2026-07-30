@@ -48,6 +48,7 @@ export default function ContributionWizardPage() {
   const [, params] = useRoute("/contribute/wizard/:id");
   const campaignId = Number(params?.id ?? 0);
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
 
   // Carregar dados de doadores salvos
   const { isLoaded, currentDonor, saveDonor } = useDonorStorage();
@@ -58,6 +59,7 @@ export default function ContributionWizardPage() {
   );
 
   const [step, setStep] = useState<Step>("type");
+  const [lastLookupKey, setLastLookupKey] = useState("");
   const [state, setState] = useState<WizardState>({
     type: null,
     donorName: "",
@@ -89,6 +91,87 @@ export default function ContributionWizardPage() {
       }));
     }
   }, [isLoaded, currentDonor]);
+
+  useEffect(() => {
+    if (step !== "donor-info") return;
+
+    const normalizedWhatsapp = state.donorWhatsapp.replace(/\D/g, "");
+    const normalizedName = state.donorName.trim().toLowerCase();
+
+    if (normalizedWhatsapp.length < 8 && normalizedName.length < 3) return;
+
+    const lookupKey = `${normalizedWhatsapp}|${normalizedName}`;
+    if (lookupKey === lastLookupKey) return;
+
+    const timer = window.setTimeout(async () => {
+      setLastLookupKey(lookupKey);
+      let profile: Awaited<ReturnType<typeof utils.contributions.getDonorProfileLookup.fetch>> | null = null;
+
+      try {
+        profile = await utils.contributions.getDonorProfileLookup.fetch({
+          donorWhatsapp: normalizedWhatsapp.length >= 8 ? state.donorWhatsapp : undefined,
+          donorName: normalizedName.length >= 3 ? state.donorName : undefined,
+        });
+      } catch {
+        profile = null;
+      }
+
+      const localFallback = currentDonor && (
+        (normalizedWhatsapp.length >= 8 && currentDonor.donorWhatsapp.replace(/\D/g, "") === normalizedWhatsapp)
+        || (normalizedName.length >= 3 && currentDonor.donorName.trim().toLowerCase().includes(normalizedName))
+      )
+        ? {
+          donorName: currentDonor.donorName,
+          donorWhatsapp: currentDonor.donorWhatsapp,
+          donorEmail: currentDonor.donorEmail,
+          donorCity: currentDonor.donorCity,
+          donorChurch: currentDonor.donorChurch,
+          allowPublicDisplay: state.allowPublicDisplay ?? false,
+        }
+        : null;
+
+      const resolvedProfile = profile ?? localFallback;
+      if (!resolvedProfile) return;
+
+      setState((prev) => {
+        const next = {
+          ...prev,
+          donorName: resolvedProfile.donorName || prev.donorName,
+          donorWhatsapp: resolvedProfile.donorWhatsapp || prev.donorWhatsapp,
+          donorEmail: resolvedProfile.donorEmail || prev.donorEmail,
+          donorCity: resolvedProfile.donorCity || prev.donorCity,
+          donorChurch: resolvedProfile.donorChurch || prev.donorChurch,
+          allowPublicDisplay: resolvedProfile.allowPublicDisplay ?? prev.allowPublicDisplay,
+        };
+
+        const changed =
+          next.donorName !== prev.donorName
+          || next.donorWhatsapp !== prev.donorWhatsapp
+          || next.donorEmail !== prev.donorEmail
+          || next.donorCity !== prev.donorCity
+          || next.donorChurch !== prev.donorChurch
+          || next.allowPublicDisplay !== prev.allowPublicDisplay;
+
+        if (changed) {
+          toast.success("Dados do doador preenchidos automaticamente.");
+        }
+
+        return next;
+      });
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    step,
+    state.donorWhatsapp,
+    state.donorName,
+    utils,
+    currentDonor,
+    lastLookupKey,
+    state.donorCity,
+    state.donorChurch,
+    state.donorEmail,
+  ]);
 
   const createMaterial = trpc.contributions.createMaterialContribution.useMutation();
   const createVolunteer = trpc.contributions.createVolunteerContribution.useMutation();
