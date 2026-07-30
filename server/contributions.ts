@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { campaignNeeds, campaigns, contributions, users } from "../drizzle/schema";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
@@ -12,6 +12,7 @@ import {
 import { getDb } from "./db";
 
 const CASH_AUDIT_DETAILS = ["cash_validated_in_person", "cash_validation_rejected"] as const;
+const CASH_PENDING_DETAILS = ["awaiting_cash_confirmation", "awaiting_validation"] as const;
 
 const donorInfoSchema = z.object({
   donorName: z.preprocess(
@@ -336,7 +337,10 @@ export const contributionsRouter = router({
         eq(contributions.type, "financial"),
         eq(contributions.status, "pending"),
         eq(contributions.paymentMethod, "cash"),
-        eq(contributions.paymentStatusDetail, "awaiting_cash_confirmation"),
+        or(
+          inArray(contributions.paymentStatusDetail, CASH_PENDING_DETAILS),
+          isNull(contributions.paymentStatusDetail),
+        ),
       ];
 
       if (input?.campaignId) {
@@ -470,7 +474,11 @@ export const contributionsRouter = router({
         contribution.type === "financial"
         && contribution.status === "pending"
         && contribution.paymentMethod === "cash"
-        && contribution.paymentStatusDetail === "awaiting_cash_confirmation";
+        && (
+          contribution.paymentStatusDetail === "awaiting_cash_confirmation"
+          || contribution.paymentStatusDetail === "awaiting_validation"
+          || contribution.paymentStatusDetail === null
+        );
 
       if (!isCashValidationPending) {
         throw new TRPCError({
