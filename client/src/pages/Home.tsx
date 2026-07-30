@@ -17,7 +17,7 @@ const formatCurrency = (value: number) =>
 const DEFAULT_PRESENTATION_VIDEO_URL = "https://www.instagram.com/reel/DMgbH5HPUMe/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA==";
 
 type PresentationVideoSource =
-  | { kind: "embed"; src: string; title: string }
+  | { kind: "embed"; src: string; title: string; provider: "youtube" | "instagram" | "generic" }
   | { kind: "file"; src: string; mimeType: string; title: string };
 
 function toPresentationVideoSource(rawValue: string): PresentationVideoSource {
@@ -51,6 +51,7 @@ function toPresentationVideoSource(rawValue: string): PresentationVideoSource {
           kind: "embed",
           src: `https://www.youtube.com/embed/${id}`,
           title: "Vídeo de apresentação da plataforma",
+          provider: "youtube",
         };
       }
     }
@@ -61,6 +62,7 @@ function toPresentationVideoSource(rawValue: string): PresentationVideoSource {
           kind: "embed",
           src: url.toString(),
           title: "Vídeo de apresentação da plataforma",
+          provider: "youtube",
         };
       }
 
@@ -70,6 +72,7 @@ function toPresentationVideoSource(rawValue: string): PresentationVideoSource {
           kind: "embed",
           src: `https://www.youtube.com/embed/${id}`,
           title: "Vídeo de apresentação da plataforma",
+          provider: "youtube",
         };
       }
     }
@@ -80,6 +83,7 @@ function toPresentationVideoSource(rawValue: string): PresentationVideoSource {
           kind: "embed",
           src: url.toString(),
           title: "Vídeo de apresentação da plataforma",
+          provider: "instagram",
         };
       }
 
@@ -91,6 +95,7 @@ function toPresentationVideoSource(rawValue: string): PresentationVideoSource {
           kind: "embed",
           src: `https://www.instagram.com/${type}/${id}/embed`,
           title: "Vídeo de apresentação da plataforma",
+          provider: "instagram",
         };
       }
     }
@@ -102,6 +107,7 @@ function toPresentationVideoSource(rawValue: string): PresentationVideoSource {
     kind: "embed",
     src: "https://www.youtube.com/embed/dQw4w9WgXcQ",
     title: "Vídeo de apresentação da plataforma",
+    provider: "generic",
   };
 }
 
@@ -221,25 +227,57 @@ export default function Home() {
           </div>
 
           <div className="mx-auto mt-8 max-w-4xl overflow-hidden rounded-2xl border border-[#d7e2d7] bg-[#eaf1e8] shadow-sm">
-            <div className="aspect-video w-full">
+            <div className={presentationVideoSource.kind === "embed" && presentationVideoSource.provider === "instagram"
+              ? "mx-auto w-full max-w-[420px]"
+              : "w-full"}
+            >
               {presentationVideoSource.kind === "file" ? (
-                <video className="h-full w-full bg-black" controls preload="metadata" playsInline>
-                  <source src={presentationVideoSource.src} type={presentationVideoSource.mimeType} />
-                  Seu navegador não suporta reprodução de vídeo.
-                </video>
+                <div className="aspect-video w-full">
+                  <video className="h-full w-full bg-black" controls preload="metadata" playsInline>
+                    <source src={presentationVideoSource.src} type={presentationVideoSource.mimeType} />
+                    Seu navegador não suporta reprodução de vídeo.
+                  </video>
+                </div>
+              ) : presentationVideoSource.provider === "instagram" ? (
+                <div className="relative aspect-[9/16] w-full overflow-hidden rounded-xl bg-black">
+                  <iframe
+                    className="h-full w-full"
+                    style={{ height: "calc(100% + 56px)", marginBottom: "-56px" }}
+                    src={presentationVideoSource.src}
+                    title={presentationVideoSource.title}
+                    loading="lazy"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                  />
+                </div>
               ) : (
-                <iframe
-                  className="h-full w-full"
-                  src={presentationVideoSource.src}
-                  title={presentationVideoSource.title}
-                  loading="lazy"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  allowFullScreen
-                />
+                <div className="aspect-video w-full">
+                  <iframe
+                    className="h-full w-full"
+                    src={presentationVideoSource.src}
+                    title={presentationVideoSource.title}
+                    loading="lazy"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                  />
+                </div>
               )}
             </div>
           </div>
+          {presentationVideoSource.kind === "embed" && presentationVideoSource.provider === "instagram" && (
+            <div className="mt-3 text-center">
+              <a
+                href={presentationVideoSource.src.replace("/embed", "")}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-[#1f6f37] hover:underline"
+              >
+                Ver no Instagram <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </a>
+            </div>
+          )}
           <p className="mx-auto mt-3 max-w-4xl text-center text-xs text-[#647168]">
             Aceita YouTube, Instagram (reel/post) e vídeo direto da raiz (ex.: /videos/apresentacao.mp4) via VITE_HOME_PRESENTATION_VIDEO_URL.
           </p>
@@ -538,11 +576,11 @@ function PartnerTickerItem({ partner }: { partner: PartnerItem }) {
   const linkHref = partner.id > 0 ? `/partner/${partner.id}` : "#parceiros";
 
   return (
-    <Link href={linkHref} className="block min-h-[156px] min-w-[390px] max-w-[390px] rounded-xl border border-white/10 bg-[#f3f8f1] px-4 py-5 text-[#1f3023] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+    <Link href={linkHref} className="block min-h-[196px] min-w-[390px] max-w-[390px] rounded-xl border border-white/10 bg-[#f3f8f1] px-4 py-6 text-[#1f3023] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-center gap-3">
-        <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
+        <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
           {partner.logoUrl ? (
-            <img src={partner.logoUrl} alt={`Logomarca de ${partner.name}`} className="h-full w-full object-contain p-2" loading="lazy" />
+            <img src={partner.logoUrl} alt={`Logomarca de ${partner.name}`} className="h-full w-full object-contain p-2.5" loading="lazy" />
           ) : (
             <Handshake className="h-8 w-8 text-[#5a7d5f]" aria-hidden="true" />
           )}
