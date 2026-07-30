@@ -171,7 +171,11 @@ export default function AdminDashboard() {
   const uploadPartnerImage = trpc.partners.uploadImage.useMutation({
     onError: (error) => toast.error(error.message || "Erro ao enviar imagem"),
   });
+  const uploadCampaignImage = trpc.campaigns.uploadImage.useMutation({
+    onError: (error) => toast.error(error.message || "Erro ao enviar imagem da campanha"),
+  });
   const [uploadingPartnerField, setUploadingPartnerField] = useState<"logoUrl" | "storePhotoUrl" | "ownerPhotoUrl" | null>(null);
+  const [uploadingCampaignImage, setUploadingCampaignImage] = useState<"create" | "edit" | null>(null);
 
   if (!user) return <DashboardLayout><div /></DashboardLayout>;
 
@@ -410,6 +414,41 @@ export default function AdminDashboard() {
     }
   }
 
+  async function handleCampaignImageUpload(target: "create" | "edit", file?: File) {
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione um arquivo de imagem válido.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("A imagem deve ter no máximo 5MB.");
+      return;
+    }
+
+    setUploadingCampaignImage(target);
+    try {
+      const base64 = await fileToBase64(file);
+      const result = await uploadCampaignImage.mutateAsync({
+        fileName: file.name,
+        mimeType: (file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/webp") ? file.type : "image/png",
+        size: file.size,
+        base64,
+      });
+
+      if (target === "create") {
+        setCampaignForm((current) => ({ ...current, imageUrl: result.url }));
+      } else {
+        setCampaignEditForm((current) => ({ ...current, imageUrl: result.url }));
+      }
+
+      toast.success("Imagem da campanha enviada com sucesso.");
+    } finally {
+      setUploadingCampaignImage(null);
+    }
+  }
+
   const partnerMutationPending = createPartner.isPending || updatePartner.isPending;
   const primaryCampaign = campaignsQuery.data?.[0] ?? null;
 
@@ -452,7 +491,12 @@ export default function AdminDashboard() {
                       <Field label="Arrecadação inicial (R$)"><Input inputMode="decimal" value={campaignForm.initialRaised} onChange={(event) => setCampaignForm({ ...campaignForm, initialRaised: event.target.value })} placeholder="Ex.: 12.350,90" /></Field>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label="URL da imagem"><Input type="url" value={campaignForm.imageUrl} onChange={(event) => setCampaignForm({ ...campaignForm, imageUrl: event.target.value })} placeholder="https://..." /></Field>
+                      <Field label="Imagem da campanha (arquivo)">
+                        <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleCampaignImageUpload("create", event.target.files?.[0])} />
+                        {uploadingCampaignImage === "create" && <p className="text-xs text-[#66736a]">Enviando imagem...</p>}
+                        {campaignForm.imageUrl && <p className="text-xs text-[#228B22] break-all">Arquivo enviado: {campaignForm.imageUrl}</p>}
+                      </Field>
+                      <Field label="URL da imagem (opcional)"><Input type="url" value={campaignForm.imageUrl} onChange={(event) => setCampaignForm({ ...campaignForm, imageUrl: event.target.value })} placeholder="https://..." /></Field>
                     </div>
                     <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={() => setIsCreateCampaignOpen(false)}>Cancelar</Button><Button type="submit" disabled={createCampaign.isPending}>{createCampaign.isPending ? "Criando..." : "Criar campanha"}</Button></div>
                   </form>
@@ -693,7 +737,14 @@ export default function AdminDashboard() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Status *"><Select value={campaignEditForm.status} onValueChange={(status: typeof campaignEditForm.status) => setCampaignEditForm({ ...campaignEditForm, status })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Ativa</SelectItem><SelectItem value="paused">Pausada</SelectItem><SelectItem value="completed">Concluída</SelectItem><SelectItem value="archived">Arquivada</SelectItem></SelectContent></Select></Field>
               </div>
-              <Field label="URL da imagem"><Input type="url" value={campaignEditForm.imageUrl} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, imageUrl: event.target.value })} placeholder="https://..." /></Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Imagem da campanha (arquivo)">
+                  <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleCampaignImageUpload("edit", event.target.files?.[0])} />
+                  {uploadingCampaignImage === "edit" && <p className="text-xs text-[#66736a]">Enviando imagem...</p>}
+                  {campaignEditForm.imageUrl && <p className="text-xs text-[#228B22] break-all">Arquivo enviado: {campaignEditForm.imageUrl}</p>}
+                </Field>
+                <Field label="URL da imagem (opcional)"><Input type="url" value={campaignEditForm.imageUrl} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, imageUrl: event.target.value })} placeholder="https://..." /></Field>
+              </div>
               <p className="rounded-lg bg-[#fff8e6] p-3 text-sm text-[#70571a]">Campanhas pausadas ou arquivadas deixam de aparecer nas áreas públicas. Campanhas concluídas continuam disponíveis para prestação de contas.</p>
               <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={closeEditCampaignDialog}>Cancelar</Button><Button type="submit" disabled={updateCampaign.isPending}>{updateCampaign.isPending ? "Salvando..." : "Salvar alterações"}</Button></div>
             </form>

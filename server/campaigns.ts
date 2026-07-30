@@ -11,6 +11,7 @@ import {
 } from "../drizzle/schema";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
+import { storagePut } from "./storage";
 import { whatsappService } from "./whatsapp.service";
 
 const DEMO_CAMPAIGN = {
@@ -387,10 +388,40 @@ const createCommentSchema = z.object({
   content: z.string().trim().min(3, "O comentário deve ter pelo menos 3 caracteres").max(2_000),
 });
 
+const uploadCampaignImageSchema = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+  size: z.number().int().positive().max(5 * 1024 * 1024),
+  base64: z.string().min(4).max(7_500_000),
+});
+
 const reviewCommentSchema = z.object({
   id: z.number().int().positive(),
   status: z.enum(["approved", "rejected", "pending"]),
 });
+
+function cleanFileName(name: string) {
+  return name.replace(/[^A-Za-z0-9._ -]/g, "_").replace(/\s+/g, " ").trim().slice(0, 255);
+}
+
+function decodeCampaignImage(file: z.infer<typeof uploadCampaignImageSchema>) {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(file.base64)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Arquivo em formato inválido." });
+  }
+
+  const buffer = Buffer.from(file.base64, "base64");
+  if (buffer.length !== file.size || buffer.length > 5 * 1024 * 1024) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Tamanho do arquivo inválido." });
+  }
+
+  return buffer;
+}
+
+function extensionForCampaignMimeType(mimeType: z.infer<typeof uploadCampaignImageSchema>["mimeType"]) {
+  if (mimeType === "image/jpeg") return "jpg";
+  if (mimeType === "image/png") return "png";
+  return "webp";
+}
 
 async function requireCampaign(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
@@ -407,6 +438,33 @@ async function requireCampaign(
 }
 
 export const campaignsRouter = router({
+  uploadImage: adminProcedure
+    .input(uploadCampaignImageSchema)
+    .mutation(async ({ input }) => {
+      const bytes = decodeCampaignImage(input);
+      const extension = extensionForCampaignMimeType(input.mimeType);
+      const safeName = cleanFileName(input.fileName).replace(/\.[^.]+$/, "") || "campaign-image";
+
+      try {
+        const uploaded = await storagePut(
+          `campaigns/${Date.now()}-${safeName}.${extension}`,
+          bytes,
+          input.mimeType,
+        );
+
+        return {
+          success: true as const,
+          url: uploaded.url,
+          key: uploaded.key,
+        };
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message: error instanceof Error ? error.message : "Falha ao enviar imagem da campanha.",
+        });
+      }
+    }),
+
   getAll: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) {
