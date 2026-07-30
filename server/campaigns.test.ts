@@ -190,6 +190,44 @@ describe("campaigns.listPublished", () => {
   });
 });
 
+describe("campaigns.getAll fallback", () => {
+  beforeEach(() => {
+    getDbMock.mockReset();
+    whatsappServiceMock.getFallbackCampaigns.mockReset();
+  });
+
+  it("lista no admin apenas campanhas locais editaveis quando DB estiver indisponivel", async () => {
+    getDbMock.mockResolvedValue(null);
+    whatsappServiceMock.getFallbackCampaigns.mockReturnValue([
+      {
+        id: 100001,
+        title: "Campanha Local",
+        description: "Campanha criada localmente para operacao offline.",
+        longDescription: "Campanha criada localmente para operacao offline com descricao completa.",
+        category: "outro",
+        goal: 200_000,
+        raised: 25_000,
+        status: "active" as const,
+        imageUrl: "/obra-paredes.jpg",
+        createdBy: 1,
+        createdAt: new Date("2026-07-30T10:00:00.000Z"),
+        updatedAt: new Date("2026-07-30T10:00:00.000Z"),
+      },
+    ]);
+
+    const caller = appRouter.createCaller(createAdminContext());
+    const result = await caller.campaigns.getAll();
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: 100001,
+      title: "Campanha Local",
+      initialRaised: 25_000,
+      raised: 25_000,
+    });
+  });
+});
+
 describe("campaigns comments", () => {
   beforeEach(() => {
     getDbMock.mockReset();

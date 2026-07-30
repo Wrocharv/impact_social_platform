@@ -163,9 +163,10 @@ export const whatsappService = {
     longDescription?: string;
     imageUrl?: string;
   }) {
-    const nextId = fallbackCampaigns.length > 0
-      ? Math.max(...fallbackCampaigns.map((campaign) => campaign.id)) + 1
-      : 1;
+    const highestExistingId = fallbackCampaigns.length > 0
+      ? Math.max(...fallbackCampaigns.map((campaign) => campaign.id))
+      : 0;
+    const nextId = Math.max(100000, highestExistingId + 1);
 
     const campaign: FallbackCampaign = {
       id: nextId,

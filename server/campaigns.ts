@@ -410,9 +410,9 @@ export const campaignsRouter = router({
   getAll: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) {
+      // Admin sem DB deve mostrar apenas campanhas realmente editaveis no fallback local.
       const fallbackCampaigns = getMappedFallbackCampaigns();
-      const demoCampaigns = getDemoCampaigns();
-      return dedupeCampaignsById([...fallbackCampaigns, ...demoCampaigns]).sort(
+      return dedupeCampaignsById(fallbackCampaigns).sort(
         (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
       );
     }
@@ -657,7 +657,10 @@ export const campaignsRouter = router({
         });
 
         if (!fallbackCampaign) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Campanha não encontrada" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Campanha não encontrada no modo local. Recarregue a página ou recrie a campanha neste ambiente.",
+          });
         }
 
         return { success: true, message: "Campanha atualizada com sucesso!" };
