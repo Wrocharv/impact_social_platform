@@ -189,6 +189,41 @@ describe("payments.createPaymentPreference", () => {
     expect(values).toHaveBeenCalledTimes(1);
   });
 
+  it("segue para checkout mesmo quando salvar contribuicao falha por schema desatualizado", async () => {
+    const { db, values, set } = createDb([
+      { id: 7, title: "Casa da Viúva", status: "active" },
+    ]);
+    values.mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'paymentMethod'"));
+    getDbMock.mockResolvedValue(db);
+    createPreferenceMock.mockResolvedValue({
+      id: "pref-schema-fallback",
+      checkoutUrl: "https://sandbox.mercadopago.com/checkout/v1/redirect",
+      environment: "test",
+    });
+
+    const caller = appRouter.createCaller(createContext());
+    const result = await caller.payments.createPaymentPreference({
+      campaignId: 7,
+      amount: 5_000,
+      donorEmail: "doador@example.com",
+      donorName: "Maria",
+      donorWhatsapp: "11999999999",
+      donorCity: "São Paulo",
+      allowPublicDisplay: false,
+      paymentMethod: "pix",
+    });
+
+    expect(values).toHaveBeenCalledTimes(1);
+    expect(createPreferenceMock).toHaveBeenCalledTimes(1);
+    expect(set).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      preferenceId: "pref-schema-fallback",
+      checkoutUrl: "https://sandbox.mercadopago.com/checkout/v1/redirect",
+      contributionId: undefined,
+      environment: "test",
+    });
+  });
+
   it("recusa checkout para campanha inexistente ou inativa", async () => {
     const { db, values } = createDb([]);
     getDbMock.mockResolvedValue(db);

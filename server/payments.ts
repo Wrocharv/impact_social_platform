@@ -122,6 +122,11 @@ function shouldUsePixDevFallback(error: unknown) {
   return isMercadoPagoUnauthorized(error) || isMercadoPagoNotConfigured(error);
 }
 
+function isDbSchemaMismatch(error: unknown) {
+  const message = getReadableErrorMessage(error).toLowerCase();
+  return message.includes("unknown column") || message.includes("er_bad_field_error");
+}
+
 function buildContributionConfirmationUrl(input: {
   baseUrl: string;
   campaignId: number;
@@ -224,32 +229,45 @@ export const paymentsRouter = router({
       const donorCity = input.donorCity?.trim() ?? "";
       const donorChurch = input.donorChurch?.trim() ?? "";
       const allowPublicDisplay = input.allowPublicDisplay ?? false;
+      let persistedContribution = false;
 
-      await db.insert(contributions).values({
-        campaignId: campaign.id,
-        userId: ctx.user?.id,
-        type: "financial",
-        amount: input.amount,
-        donorName,
-        donorEmail,
-        donorWhatsapp,
-        donorCity,
-        donorChurch,
-        allowPublicDisplay,
-        numberOfInstallments: input.numberOfInstallments,
-        installmentFrequency: input.installmentFrequency,
-        paymentMethod: input.paymentMethod,
-        status: "pending",
-        externalReference,
-        paymentStatusDetail: isCashPayment ? "awaiting_cash_confirmation" : "preference_creating",
-      });
+      try {
+        await db.insert(contributions).values({
+          campaignId: campaign.id,
+          userId: ctx.user?.id,
+          type: "financial",
+          amount: input.amount,
+          donorName,
+          donorEmail,
+          donorWhatsapp,
+          donorCity,
+          donorChurch,
+          allowPublicDisplay,
+          numberOfInstallments: input.numberOfInstallments,
+          installmentFrequency: input.installmentFrequency,
+          paymentMethod: input.paymentMethod,
+          status: "pending",
+          externalReference,
+          paymentStatusDetail: isCashPayment ? "awaiting_cash_confirmation" : "preference_creating",
+        });
+        persistedContribution = true;
+      } catch (error) {
+        console.error("[Payments] Falha ao persistir contribuição, seguindo com checkout sem registro local", error);
+        if (!isDbSchemaMismatch(error)) {
+          throw error;
+        }
+      }
 
       if (isCashPayment) {
-        const [contribution] = await db
-          .select({ id: contributions.id })
-          .from(contributions)
-          .where(eq(contributions.externalReference, externalReference))
-          .limit(1);
+        const contribution = persistedContribution
+          ? (
+              await db
+                .select({ id: contributions.id })
+                .from(contributions)
+                .where(eq(contributions.externalReference, externalReference))
+                .limit(1)
+            )[0]
+          : undefined;
         const origin = requestOrigin(ctx.req);
 
         return {
@@ -261,7 +279,7 @@ export const paymentsRouter = router({
             amountCents: input.amount,
           }),
           contributionId: contribution?.id,
-          preferenceId: "cash-manual",
+          preferenceId: persistedContribution ? "cash-manual" : "cash-manual-no-db",
           environment: ENV.isProduction ? "production" as const : "test" as const,
         };
       }
@@ -277,20 +295,26 @@ export const paymentsRouter = router({
           baseUrl: requestOrigin(ctx.req),
         });
 
-        await db
-          .update(contributions)
-          .set({
-            preferenceId: preference.id,
-            paymentStatusDetail: "preference_created",
-            updatedAt: new Date(),
-          })
-          .where(eq(contributions.externalReference, externalReference));
+        if (persistedContribution) {
+          await db
+            .update(contributions)
+            .set({
+              preferenceId: preference.id,
+              paymentStatusDetail: "preference_created",
+              updatedAt: new Date(),
+            })
+            .where(eq(contributions.externalReference, externalReference));
+        }
 
-        const [contribution] = await db
-          .select({ id: contributions.id })
-          .from(contributions)
-          .where(eq(contributions.externalReference, externalReference))
-          .limit(1);
+        const contribution = persistedContribution
+          ? (
+              await db
+                .select({ id: contributions.id })
+                .from(contributions)
+                .where(eq(contributions.externalReference, externalReference))
+                .limit(1)
+            )[0]
+          : undefined;
 
         return {
           checkoutUrl: preference.checkoutUrl,
@@ -315,14 +339,16 @@ export const paymentsRouter = router({
           };
         }
 
-        await db
-          .update(contributions)
-          .set({
-            status: "cancelled",
-            paymentStatusDetail: "preference_creation_failed",
-            updatedAt: new Date(),
-          })
-          .where(eq(contributions.externalReference, externalReference));
+        if (persistedContribution) {
+          await db
+            .update(contributions)
+            .set({
+              status: "cancelled",
+              paymentStatusDetail: "preference_creation_failed",
+              updatedAt: new Date(),
+            })
+            .where(eq(contributions.externalReference, externalReference));
+        }
 
         const message = getReadableErrorMessage(error);
         console.error("[MercadoPago] Falha ao criar preferência", error);
