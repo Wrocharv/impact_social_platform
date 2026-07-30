@@ -14,6 +14,7 @@ export default function CheckoutPage() {
   const [amount, setAmount] = useState("");
   const [donorName, setDonorName] = useState("");
   const [donorEmail, setDonorEmail] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"pix" | "card" | "boleto" | "cash">("pix");
   const [isProcessing, setIsProcessing] = useState(false);
 
   const campaignQuery = trpc.campaigns.getById.useQuery(
@@ -37,7 +38,7 @@ export default function CheckoutPage() {
       {
         campaignId,
         amount: amountInCents,
-        paymentMethod: "pix",
+        paymentMethod,
         donorEmail: donorEmail.trim(),
         donorName: donorName.trim() || undefined,
       },
@@ -159,6 +160,46 @@ export default function CheckoutPage() {
                 </p>
 
                 <form onSubmit={handleCheckout} className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">
+                      Forma de pagamento
+                    </label>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Button
+                        type="button"
+                        variant={paymentMethod === "pix" ? "default" : "outline"}
+                        className={paymentMethod === "pix" ? "bg-[#228B22]" : ""}
+                        onClick={() => setPaymentMethod("pix")}
+                      >
+                        PIX
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={paymentMethod === "card" ? "default" : "outline"}
+                        className={paymentMethod === "card" ? "bg-[#228B22]" : ""}
+                        onClick={() => setPaymentMethod("card")}
+                      >
+                        Cartão
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={paymentMethod === "boleto" ? "default" : "outline"}
+                        className={paymentMethod === "boleto" ? "bg-[#228B22]" : ""}
+                        onClick={() => setPaymentMethod("boleto")}
+                      >
+                        Boleto
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={paymentMethod === "cash" ? "default" : "outline"}
+                        className={paymentMethod === "cash" ? "bg-[#228B22]" : ""}
+                        onClick={() => setPaymentMethod("cash")}
+                      >
+                        Dinheiro presencial
+                      </Button>
+                    </div>
+                  </div>
+
                   {/* Amount */}
                   <div>
                     <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">
@@ -218,8 +259,9 @@ export default function CheckoutPage() {
                   <div className="bg-[#228B22]/5 border border-[#228B22]/20 rounded-lg p-4 flex gap-3">
                     <AlertCircle className="w-5 h-5 text-[#228B22] flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-[#2d2d2d]">
-                      Você será redirecionado para a conta do Mercado Pago para completar o pagamento com segurança.
-                      Aceitamos PIX, cartão de crédito e débito.
+                      {paymentMethod === "cash"
+                        ? "A doação ficará como aguardando validação presencial. Ela só entra no total da campanha após confirmação manual do recebimento."
+                        : "Você será redirecionado para a conta do Mercado Pago para completar o pagamento com segurança. Aceitamos PIX, cartão de crédito e débito."}
                     </div>
                   </div>
 
@@ -235,14 +277,18 @@ export default function CheckoutPage() {
                         Processando...
                       </>
                     ) : (
-                      `Prosseguir para Pagamento - R$ ${amount || "0,00"}`
+                      paymentMethod === "cash"
+                        ? `Confirmar Doação em Dinheiro - R$ ${amount || "0,00"}`
+                        : `Prosseguir para Pagamento - R$ ${amount || "0,00"}`
                     )}
                   </Button>
 
-                  <p className="flex items-center justify-center gap-2 text-center text-xs text-[#787878]">
-                    <LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
-                    O pagamento será processado no ambiente seguro do Mercado Pago.
-                  </p>
+                  {paymentMethod !== "cash" && (
+                    <p className="flex items-center justify-center gap-2 text-center text-xs text-[#787878]">
+                      <LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
+                      O pagamento será processado no ambiente seguro do Mercado Pago.
+                    </p>
+                  )}
                 </form>
               </Card>
             </div>
