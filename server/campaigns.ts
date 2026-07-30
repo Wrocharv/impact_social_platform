@@ -104,6 +104,29 @@ const DEMO_CAMPAIGN = {
   documents: [],
 };
 
+const SYNC_TEST_CAMPAIGN = {
+  id: 99001,
+  title: "Campanha Teste de Sincronizacao",
+  description: "Campanha de teste para validar se localhost e site publicado estao sincronizados.",
+  longDescription:
+    "Este item foi criado apenas para verificacao tecnica de sincronizacao entre ambientes. Se voce esta vendo esta campanha nos dois ambientes, a publicacao esta alinhada.",
+  category: "outro" as const,
+  goal: 50_000,
+  imageUrl: "/render-hotel.jpg",
+  createdBy: 1,
+  status: "active" as const,
+  createdAt: new Date("2026-07-30T09:00:00.000Z"),
+  updatedAt: new Date("2026-07-30T09:00:00.000Z"),
+  raised: 0,
+  remaining: 50_000,
+  progress: 0,
+  contributorsCount: 0,
+  galleryImages: ["/render-hotel.jpg", "/render-quarto.jpg"],
+  needs: [],
+  updates: [],
+  documents: [],
+};
+
 function isCanonicalRecantoCampaign(campaign: { id: number; title: string }) {
   return campaign.id === DEMO_CAMPAIGN.id || /recanto de paz/i.test(campaign.title);
 }
@@ -117,22 +140,46 @@ function withCanonicalRecantoCover<T extends { id: number; title: string; imageU
 }
 
 function getDemoCampaigns(status?: "active" | "completed") {
-  if (!status || DEMO_CAMPAIGN.status === status) {
-    return [DEMO_CAMPAIGN];
+  const demoCampaigns = [DEMO_CAMPAIGN, SYNC_TEST_CAMPAIGN].filter((campaign) => {
+    return !status || campaign.status === status;
+  });
+
+  if (demoCampaigns.length > 0) {
+    return demoCampaigns;
   }
+
   return [];
 }
 
 function getDemoCampaignById(id: number) {
-  return id === DEMO_CAMPAIGN.id ? DEMO_CAMPAIGN : null;
+  if (id === DEMO_CAMPAIGN.id) return DEMO_CAMPAIGN;
+  if (id === SYNC_TEST_CAMPAIGN.id) return SYNC_TEST_CAMPAIGN;
+  return null;
 }
 
 function getDemoPublicStats() {
+  const demoCampaigns = [DEMO_CAMPAIGN, SYNC_TEST_CAMPAIGN];
+  const activeCampaigns = demoCampaigns.filter((campaign) => campaign.status === "active");
+
   return {
-    activeCampaigns: DEMO_CAMPAIGN.status === "active" ? 1 : 0,
-    raised: DEMO_CAMPAIGN.raised,
-    contributorsCount: DEMO_CAMPAIGN.contributorsCount,
+    activeCampaigns: activeCampaigns.length,
+    raised: activeCampaigns.reduce((sum, campaign) => sum + campaign.raised, 0),
+    contributorsCount: activeCampaigns.reduce((sum, campaign) => sum + campaign.contributorsCount, 0),
   };
+}
+
+function getSyncTestCampaigns(input?: { status?: "active" | "completed"; query?: string }) {
+  const query = input?.query?.trim().toLowerCase();
+
+  if (input?.status && SYNC_TEST_CAMPAIGN.status !== input.status) {
+    return [];
+  }
+
+  if (query && !SYNC_TEST_CAMPAIGN.title.toLowerCase().includes(query)) {
+    return [];
+  }
+
+  return [SYNC_TEST_CAMPAIGN];
 }
 
 function mapFallbackCampaignToPublicShape(campaign: ReturnType<typeof whatsappService.getFallbackCampaigns>[number]) {
@@ -408,10 +455,15 @@ export const campaignsRouter = router({
         rows.map((campaign) => campaign.id),
       );
 
-      return rows.map((campaign) => ({
+      const publishedRows = rows.map((campaign) => ({
         ...withCanonicalRecantoCover(campaign),
         ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, [])),
       }));
+
+      return dedupeCampaignsById([
+        ...getSyncTestCampaigns({ status: input?.status, query: input?.query }),
+        ...publishedRows,
+      ]).slice(0, input?.limit ?? 12);
     }),
 
   getPublicStats: publicProcedure.query(async () => {
@@ -447,7 +499,7 @@ export const campaignsRouter = router({
         return summary;
       },
       {
-        activeCampaigns: activeCampaigns.length,
+        activeCampaigns: activeCampaigns.length + 1,
         raised: 0,
         contributorsCount: 0,
       },
