@@ -433,22 +433,22 @@ function PartnerTickerItem({ partner }: { partner: PartnerItem }) {
   const linkHref = partner.id > 0 ? `/partner/${partner.id}` : "#parceiros";
 
   return (
-    <Link href={linkHref} className="block min-w-[260px] max-w-[260px] rounded-xl border border-white/10 bg-[#f3f8f1] p-3 text-[#1f3023] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+    <Link href={linkHref} className="block min-w-[390px] max-w-[390px] rounded-xl border border-white/10 bg-[#f3f8f1] p-4 text-[#1f3023] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-center gap-3">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
+        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
           {partner.logoUrl ? (
-            <img src={partner.logoUrl} alt={`Logomarca de ${partner.name}`} className="h-full w-full object-contain p-1.5" loading="lazy" />
+            <img src={partner.logoUrl} alt={`Logomarca de ${partner.name}`} className="h-full w-full object-contain p-2" loading="lazy" />
           ) : (
-            <Handshake className="h-6 w-6 text-[#5a7d5f]" aria-hidden="true" />
+            <Handshake className="h-8 w-8 text-[#5a7d5f]" aria-hidden="true" />
           )}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold">{partner.name}</p>
-          <p className="truncate text-xs text-[#55665c]">{partner.type === "company" ? "Empresa parceira" : "Profissional parceiro"}</p>
-          {partner.ownerName && <p className="truncate text-xs text-[#6a7a71]">{partner.ownerName}</p>}
+          <p className="truncate text-base font-bold">{partner.name}</p>
+          <p className="truncate text-sm text-[#55665c]">{partner.type === "company" ? "Empresa parceira" : "Profissional parceiro"}</p>
+          {partner.ownerName && <p className="truncate text-sm text-[#6a7a71]">{partner.ownerName}</p>}
         </div>
       </div>
-      <div className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#1f6f37]">
+      <div className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#1f6f37]">
         Abrir vitrine do parceiro <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       </div>
     </Link>
