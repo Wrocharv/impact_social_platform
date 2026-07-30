@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { Building2, ExternalLink, Handshake, Heart, ShieldCheck, Zap } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "wouter";
 
 const formatCurrency = (value: number) =>
@@ -51,6 +51,7 @@ export default function Home() {
     return name.length > 1 && !name.includes("localhost") && !name.includes("127.0.0.1");
   });
   const visiblePartners = validPartners.length > 0 ? validPartners : getDemoPartners();
+  const scrollingPartners = visiblePartners.length > 1 ? [...visiblePartners, ...visiblePartners] : visiblePartners;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white pb-22 md:pb-24">
@@ -270,24 +271,24 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="parceiros" className="bg-[#1f2c29] py-20 text-white md:py-28" aria-labelledby="parceiros-title">
+      <section id="parceiros" className="border-t border-white/15 bg-[#121a17] py-12 text-white md:py-14" aria-labelledby="parceiros-title">
         <div className="container max-w-7xl px-4">
-          <div className="mb-12 grid gap-6 md:grid-cols-[1fr_0.55fr] md:items-end">
+          <div className="mb-7 grid gap-4 md:grid-cols-[1fr_0.6fr] md:items-end">
             <div>
-              <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-[#c6d6c3]">Rede de parceiros</p>
-              <h2 id="parceiros-title" className="max-w-3xl text-4xl font-bold md:text-5xl">
-                Empresas e profissionais que constroem impacto conosco
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#b7cabf]">Parceiros em destaque</p>
+              <h2 id="parceiros-title" className="max-w-3xl text-3xl font-bold md:text-4xl">
+                Empresas parceiras com atenção especial e retorno real
               </h2>
             </div>
-            <p className="leading-relaxed text-white/75 md:text-right">
-              Reconhecemos publicamente somente parceiros cadastrados e validados pela equipe responsável.
+            <p className="leading-relaxed text-white/75 md:text-right md:text-sm">
+              Passe o mouse para pausar. Clique em qualquer parceiro para abrir a página exclusiva com mídia, links e divulgação.
             </p>
           </div>
 
           {partnersQuery.isLoading && (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <Skeleton key={index} className="h-52 rounded-2xl bg-white/10" />
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <Skeleton key={index} className="h-28 rounded-xl bg-white/10" />
               ))}
             </div>
           )}
@@ -300,22 +301,16 @@ export default function Home() {
           )}
 
           {!partnersQuery.isLoading && visiblePartners.length > 0 && (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {visiblePartners.map((partner) => <PartnerCard key={partner.id} partner={partner} />)}
+            <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#18221e] p-3 md:p-4">
+              <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-[#18221e] to-transparent" />
+              <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-[#18221e] to-transparent" />
+              <div className="partner-marquee-track flex w-max gap-3 hover:[animation-play-state:paused]">
+                {scrollingPartners.map((partner, index) => (
+                  <PartnerTickerItem key={`${partner.id}-${index}`} partner={partner} />
+                ))}
+              </div>
             </div>
           )}
-
-          <div className="mt-10 flex flex-col items-start justify-between gap-5 border-t border-white/15 pt-8 sm:flex-row sm:items-center">
-            <p className="max-w-2xl text-white/75">
-              Quer mobilizar pessoas para uma campanha? Conheça também o programa de embaixadores.
-            </p>
-            <Link
-              href="/ambassadors"
-              className="inline-flex min-h-12 items-center justify-center rounded-md bg-white px-7 font-semibold text-[#173f20] transition hover:bg-[#eef7ec] active:scale-[0.97]"
-            >
-              Conhecer embaixadores
-            </Link>
-          </div>
         </div>
       </section>
 
@@ -338,21 +333,6 @@ export default function Home() {
             >
               <Handshake className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ser parceiro
             </a>
-          </div>
-        </div>
-      </section>
-
-      <section className="border-t border-[#e8ece8] bg-[#f8fbf7] py-8" aria-labelledby="parceiros-destaque-title">
-        <div className="container max-w-7xl px-4">
-          <div className="mb-6 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#228B22]">Parceiros em destaque</p>
-              <h2 id="parceiros-destaque-title" className="mt-1 text-2xl font-bold text-[#243128]">Rede ativa de apoio</h2>
-            </div>
-            <a href="#parceiros" className="text-sm font-semibold text-[#228B22] hover:underline">Ver seção completa</a>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            {visiblePartners.slice(0, 3).map((partner) => <PartnerCard key={`preview-${partner.id}`} partner={partner} />)}
           </div>
         </div>
       </section>
@@ -449,100 +429,28 @@ function getDemoPartners(): PartnerItem[] {
   ];
 }
 
-function PartnerCard({ partner }: { partner: PartnerItem }) {
-  const [logoFailed, setLogoFailed] = useState(false);
-  const [storePhotoFailed, setStorePhotoFailed] = useState(false);
-  const [ownerPhotoFailed, setOwnerPhotoFailed] = useState(false);
+function PartnerTickerItem({ partner }: { partner: PartnerItem }) {
+  const linkHref = partner.id > 0 ? `/partner/${partner.id}` : "#parceiros";
 
   return (
-    <Card className="group border-white/10 bg-white p-6 text-[#26332a] shadow-lg shadow-black/10 transition duration-200 hover:-translate-y-1 hover:shadow-xl">
-      <div className="mb-6 flex h-20 items-center justify-center rounded-xl bg-[#f4f7f2] p-3">
-        {partner.logoUrl && !logoFailed ? (
-          <img
-            src={partner.logoUrl}
-            alt={`Logomarca de ${partner.name}`}
-            className="h-full max-w-full object-contain"
-            loading="lazy"
-            onError={() => setLogoFailed(true)}
-          />
-        ) : (
-          <span className="flex flex-col items-center gap-1.5 text-[#5a7d5f]">
-            <Handshake className="h-7 w-7" aria-hidden="true" />
-            <span className="text-xs font-semibold uppercase tracking-[0.08em]">Logo não informado</span>
-          </span>
-        )}
-      </div>
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#5a7d5f]">
-        {partner.type === "company" ? "Empresa parceira" : "Profissional parceiro"}
-      </p>
-      <h3 className="mt-2 text-xl font-bold text-[#1f3023]">{partner.name}</h3>
-      {partner.ownerName && <p className="mt-3 text-sm font-medium text-[#4f6255]">Responsável: {partner.ownerName}</p>}
-      {partner.description && <p className="mt-2 line-clamp-3 leading-relaxed text-[#66736a]">{partner.description}</p>}
-      {(partner.storePhotoUrl || partner.ownerPhotoUrl) && (
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <div className="overflow-hidden rounded-lg bg-[#f4f7f2]">
-            {partner.storePhotoUrl && !storePhotoFailed ? (
-              <img
-                src={partner.storePhotoUrl}
-                alt={`Foto da loja de ${partner.name}`}
-                className="h-24 w-full object-cover"
-                loading="lazy"
-                onError={() => setStorePhotoFailed(true)}
-              />
-            ) : (
-              <div className="flex h-24 items-center justify-center text-center text-xs font-medium text-[#6a7b6f]">Foto da loja indisponível</div>
-            )}
-          </div>
-          <div className="overflow-hidden rounded-lg bg-[#f4f7f2]">
-            {partner.ownerPhotoUrl && !ownerPhotoFailed ? (
-              <img
-                src={partner.ownerPhotoUrl}
-                alt={`Foto do responsável de ${partner.name}`}
-                className="h-24 w-full object-cover"
-                loading="lazy"
-                onError={() => setOwnerPhotoFailed(true)}
-              />
-            ) : (
-              <div className="flex h-24 items-center justify-center text-center text-xs font-medium text-[#6a7b6f]">Foto do responsável indisponível</div>
-            )}
-          </div>
-        </div>
-      )}
-      {(partner.testimonialVideoUrl || partner.testimonialText) && (
-        <div className="mt-4 rounded-xl border border-[#d7e6d9] bg-[#f5faf5] p-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#2f6f49]">Testemunho</p>
-          {partner.testimonialText && (
-            <p className="mt-2 text-sm italic leading-relaxed text-[#4f6658]">"{partner.testimonialText}"</p>
-          )}
-          {partner.testimonialVideoUrl && (
-            <a
-              href={partner.testimonialVideoUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-[#228B22] hover:underline"
-            >
-              Assistir depoimento <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            </a>
+    <Link href={linkHref} className="block min-w-[260px] max-w-[260px] rounded-xl border border-white/10 bg-[#f3f8f1] p-3 text-[#1f3023] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <div className="flex items-center gap-3">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
+          {partner.logoUrl ? (
+            <img src={partner.logoUrl} alt={`Logomarca de ${partner.name}`} className="h-full w-full object-contain p-1.5" loading="lazy" />
+          ) : (
+            <Handshake className="h-6 w-6 text-[#5a7d5f]" aria-hidden="true" />
           )}
         </div>
-      )}
-      {partner.address && <p className="mt-4 text-sm text-[#5f7364]">Endereço: {partner.address}</p>}
-      {partner.contactInfo && <p className="mt-1 text-sm text-[#5f7364]">Contato: {partner.contactInfo}</p>}
-      {partner.website && (
-        <a
-          href={partner.website}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="mt-5 inline-flex items-center gap-2 font-semibold text-[#228B22] hover:underline"
-        >
-          Visitar site <ExternalLink className="h-4 w-4" aria-hidden="true" />
-        </a>
-      )}
-      <div className="mt-4">
-        <Link href={`/partner/${partner.id}`} className="inline-flex items-center gap-2 text-sm font-semibold text-[#1f3023] hover:text-[#228B22]">
-          Ver página do parceiro <ExternalLink className="h-4 w-4" aria-hidden="true" />
-        </Link>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold">{partner.name}</p>
+          <p className="truncate text-xs text-[#55665c]">{partner.type === "company" ? "Empresa parceira" : "Profissional parceiro"}</p>
+          {partner.ownerName && <p className="truncate text-xs text-[#6a7a71]">{partner.ownerName}</p>}
+        </div>
       </div>
-    </Card>
+      <div className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#1f6f37]">
+        Abrir vitrine do parceiro <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+      </div>
+    </Link>
   );
 }

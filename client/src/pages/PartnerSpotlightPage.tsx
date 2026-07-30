@@ -26,6 +26,35 @@ function normalizeInstagram(partner: { website?: string | null; contactInfo?: st
   return null;
 }
 
+function toEmbedVideoUrl(url?: string | null) {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+
+    if (host.includes("youtu.be")) {
+      const id = parsed.pathname.replace(/^\//, "");
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+
+    if (host.includes("youtube.com")) {
+      if (parsed.pathname.startsWith("/embed/")) return parsed.toString();
+      const id = parsed.searchParams.get("v");
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+
+    if (host.includes("vimeo.com")) {
+      const id = parsed.pathname.split("/").filter(Boolean).at(-1);
+      return id ? `https://player.vimeo.com/video/${id}` : null;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export default function PartnerSpotlightPage() {
   const [, params] = useRoute("/partner/:id");
   const partnerId = Number(params?.id ?? 0);
@@ -54,6 +83,7 @@ export default function PartnerSpotlightPage() {
 
   const whatsappUrl = normalizeWhatsapp(partner.contactInfo);
   const instagramUrl = normalizeInstagram(partner);
+  const embeddedVideoUrl = toEmbedVideoUrl(partner.testimonialVideoUrl);
 
   return (
     <div className="min-h-screen bg-[#f7faf6] text-[#233127]">
@@ -139,6 +169,28 @@ export default function PartnerSpotlightPage() {
             <Button asChild variant="outline" className="border-[#228B22]/40 text-[#228B22]"><Link href="/">Voltar ao início</Link></Button>
           </div>
         </Card>
+
+        {embeddedVideoUrl && (
+          <Card className="border-[#dce6da] p-6 md:p-8">
+            <h3 className="text-xl font-bold text-[#223126]">Vídeo de apresentação do parceiro</h3>
+            <p className="mt-2 text-[#4a5e51]">
+              Espaço dedicado para destacar ações, promoções e campanhas do parceiro em potencial.
+            </p>
+            <div className="mt-4 overflow-hidden rounded-xl border border-[#dce6da] bg-[#f1f6ef]">
+              <div className="aspect-video w-full">
+                <iframe
+                  className="h-full w-full"
+                  src={embeddedVideoUrl}
+                  title={`Video de apresentacao de ${partner.name}`}
+                  loading="lazy"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+          </Card>
+        )}
       </main>
     </div>
   );
