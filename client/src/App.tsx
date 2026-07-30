@@ -19,6 +19,7 @@ import CampaignsPage from "./pages/CampaignsPage";
 import AccountabilityIndexPage from "./pages/AccountabilityIndexPage";
 import PaymentReturnPage from "./pages/PaymentReturnPage";
 import DonorsPage from "./pages/DonorsPage";
+import PartnerSpotlightPage from "./pages/PartnerSpotlightPage";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -27,6 +28,7 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/campaigns"} component={CampaignsPage} />
       <Route path={"/campaign/:id"} component={CampaignDetail} />
+      <Route path={"/partner/:id"} component={PartnerSpotlightPage} />
       <Route path={"/donors"} component={DonorsPage} />
       <Route path={"/contribute/wizard/:id"} component={ContributionWizardPage} />
       <Route path={"/contribute/confirmation"} component={ContributionConfirmationPage} />

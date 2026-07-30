@@ -510,6 +510,11 @@ function PartnerCard({ partner }: { partner: PartnerItem }) {
           Visitar site <ExternalLink className="h-4 w-4" aria-hidden="true" />
         </a>
       )}
+      <div className="mt-4">
+        <Link href={`/partner/${partner.id}`} className="inline-flex items-center gap-2 text-sm font-semibold text-[#1f3023] hover:text-[#228B22]">
+          Ver página do parceiro <ExternalLink className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      </div>
     </Card>
   );
 }

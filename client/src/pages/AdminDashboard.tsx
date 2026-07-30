@@ -166,6 +166,10 @@ export default function AdminDashboard() {
     },
     onError: (error) => toast.error(error.message || "Erro ao revisar contribuição em dinheiro"),
   });
+  const uploadPartnerImage = trpc.partners.uploadImage.useMutation({
+    onError: (error) => toast.error(error.message || "Erro ao enviar imagem"),
+  });
+  const [uploadingPartnerField, setUploadingPartnerField] = useState<"logoUrl" | "storePhotoUrl" | "ownerPhotoUrl" | null>(null);
 
   if (!user) return <DashboardLayout><div /></DashboardLayout>;
 
@@ -346,6 +350,35 @@ export default function AdminDashboard() {
     };
     if (editingPartnerId) updatePartner.mutate({ id: editingPartnerId, ...values });
     else createPartner.mutate(values);
+  }
+
+  async function handlePartnerImageUpload(field: "logoUrl" | "storePhotoUrl" | "ownerPhotoUrl", file?: File) {
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione um arquivo de imagem válido.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("A imagem deve ter no máximo 5MB.");
+      return;
+    }
+
+    setUploadingPartnerField(field);
+    try {
+      const base64 = await fileToBase64(file);
+      const result = await uploadPartnerImage.mutateAsync({
+        fileName: file.name,
+        mimeType: (file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/webp") ? file.type : "image/png",
+        size: file.size,
+        base64,
+      });
+      setPartnerForm((current) => ({ ...current, [field]: result.url }));
+      toast.success("Imagem enviada com sucesso.");
+    } finally {
+      setUploadingPartnerField(null);
+    }
   }
 
   const partnerMutationPending = createPartner.isPending || updatePartner.isPending;
@@ -640,9 +673,21 @@ export default function AdminDashboard() {
               <Field label="Tipo *"><Select value={partnerForm.type} onValueChange={(value: "company" | "individual") => setPartnerForm({ ...partnerForm, type: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="company">Empresa</SelectItem><SelectItem value="individual">Profissional</SelectItem></SelectContent></Select></Field>
               <Field label="Nome do responsável"><Input value={partnerForm.ownerName} onChange={(event) => setPartnerForm({ ...partnerForm, ownerName: event.target.value })} maxLength={255} /></Field>
               <Field label="Descrição"><Textarea value={partnerForm.description} onChange={(event) => setPartnerForm({ ...partnerForm, description: event.target.value })} rows={4} maxLength={1500} /></Field>
-              <Field label="URL da logomarca"><Input type="url" value={partnerForm.logoUrl} onChange={(event) => setPartnerForm({ ...partnerForm, logoUrl: event.target.value })} placeholder="https://..." /></Field>
-              <Field label="URL da foto da loja"><Input type="url" value={partnerForm.storePhotoUrl} onChange={(event) => setPartnerForm({ ...partnerForm, storePhotoUrl: event.target.value })} placeholder="https://..." /></Field>
-              <Field label="URL da foto do responsável"><Input type="url" value={partnerForm.ownerPhotoUrl} onChange={(event) => setPartnerForm({ ...partnerForm, ownerPhotoUrl: event.target.value })} placeholder="https://..." /></Field>
+              <Field label="Logomarca (arquivo)">
+                <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handlePartnerImageUpload("logoUrl", event.target.files?.[0])} />
+                {uploadingPartnerField === "logoUrl" && <p className="text-xs text-[#66736a]">Enviando logomarca...</p>}
+                {partnerForm.logoUrl && <p className="text-xs text-[#228B22] break-all">Arquivo enviado: {partnerForm.logoUrl}</p>}
+              </Field>
+              <Field label="Foto da loja (arquivo)">
+                <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handlePartnerImageUpload("storePhotoUrl", event.target.files?.[0])} />
+                {uploadingPartnerField === "storePhotoUrl" && <p className="text-xs text-[#66736a]">Enviando foto da loja...</p>}
+                {partnerForm.storePhotoUrl && <p className="text-xs text-[#228B22] break-all">Arquivo enviado: {partnerForm.storePhotoUrl}</p>}
+              </Field>
+              <Field label="Foto do responsável (arquivo)">
+                <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handlePartnerImageUpload("ownerPhotoUrl", event.target.files?.[0])} />
+                {uploadingPartnerField === "ownerPhotoUrl" && <p className="text-xs text-[#66736a]">Enviando foto do responsável...</p>}
+                {partnerForm.ownerPhotoUrl && <p className="text-xs text-[#228B22] break-all">Arquivo enviado: {partnerForm.ownerPhotoUrl}</p>}
+              </Field>
               <Field label="Endereço"><Textarea value={partnerForm.address} onChange={(event) => setPartnerForm({ ...partnerForm, address: event.target.value })} rows={3} maxLength={1000} /></Field>
               <Field label="Contato"><Input value={partnerForm.contactInfo} onChange={(event) => setPartnerForm({ ...partnerForm, contactInfo: event.target.value })} maxLength={255} placeholder="Telefone, WhatsApp ou e-mail" /></Field>
               <Field label="URL do vídeo de testemunho"><Input type="url" value={partnerForm.testimonialVideoUrl} onChange={(event) => setPartnerForm({ ...partnerForm, testimonialVideoUrl: event.target.value })} placeholder="https://..." /></Field>
@@ -687,3 +732,20 @@ function Metric({ label, value, accent = false }: { label: string; value: string
 function formatCurrency(value: number) { return (value / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 function StatusBadge({ status }: { status: string }) { const labels: Record<string, string> = { active: "Ativa", completed: "Concluída", paused: "Pausada", archived: "Arquivada" }; return <Badge variant="secondary">{labels[status] ?? status}</Badge>; }
 function parseMediaUrlsInput(value: string) { return value.split(/[\n,]/).map((url) => url.trim()).filter(Boolean); }
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || "");
+      const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+      if (!base64) {
+        reject(new Error("Não foi possível ler o arquivo."));
+        return;
+      }
+      resolve(base64);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Falha ao ler arquivo."));
+    reader.readAsDataURL(file);
+  });
+}

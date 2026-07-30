@@ -1,10 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { asc, eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { partners } from "../drizzle/schema";
 import { adminProcedure, publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
+import { storagePut } from "./storage";
 
 type PartnerRecord = {
   id: number;
@@ -215,14 +217,39 @@ const optionalHttpUrl = z.preprocess(
     .optional(),
 );
 
+function isLikelyImageUrl(url: string) {
+  const normalized = url.toLowerCase();
+  return (
+    /\.(png|jpe?g|webp|gif|avif)(\?.*)?$/.test(normalized)
+    || normalized.includes("images.unsplash.com")
+    || normalized.includes("/manus-storage/")
+  );
+}
+
+const optionalImageUrl = z.preprocess(
+  (value) => typeof value === "string" && value.trim() === "" ? undefined : value,
+  z
+    .string()
+    .trim()
+    .url("Informe uma URL válida")
+    .max(512)
+    .refine((value) => value.startsWith("https://") || value.startsWith("http://"), {
+      message: "A URL deve usar HTTP ou HTTPS",
+    })
+    .refine((value) => isLikelyImageUrl(value), {
+      message: "Use uma URL de imagem válida (png, jpg, jpeg, webp, gif ou avif)",
+    })
+    .optional(),
+);
+
 const partnerFields = {
   name: z.string().trim().min(2, "Nome deve ter pelo menos 2 caracteres").max(255),
   type: z.enum(["company", "individual"]),
   ownerName: optionalText(255),
   description: optionalText(1_500),
-  logoUrl: optionalHttpUrl,
-  storePhotoUrl: optionalHttpUrl,
-  ownerPhotoUrl: optionalHttpUrl,
+  logoUrl: optionalImageUrl,
+  storePhotoUrl: optionalImageUrl,
+  ownerPhotoUrl: optionalImageUrl,
   address: optionalText(1_000),
   contactInfo: optionalText(255),
   testimonialVideoUrl: optionalHttpUrl,
@@ -231,6 +258,12 @@ const partnerFields = {
 };
 
 const createPartnerSchema = z.object(partnerFields);
+const uploadPartnerImageSchema = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+  size: z.number().int().positive().max(5 * 1024 * 1024),
+  base64: z.string().min(4).max(7_500_000),
+});
 const updatePartnerSchema = z.object({
   id: z.number().int().positive(),
   name: partnerFields.name.optional(),
@@ -247,7 +280,57 @@ const updatePartnerSchema = z.object({
   website: partnerFields.website,
 });
 
+function cleanFileName(name: string) {
+  return name.replace(/[^A-Za-z0-9._ -]/g, "_").replace(/\s+/g, " ").trim().slice(0, 255);
+}
+
+function decodePartnerImage(file: z.infer<typeof uploadPartnerImageSchema>) {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(file.base64)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Arquivo em formato inválido." });
+  }
+
+  const buffer = Buffer.from(file.base64, "base64");
+  if (buffer.length !== file.size || buffer.length > 5 * 1024 * 1024) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Tamanho do arquivo inválido." });
+  }
+
+  return buffer;
+}
+
+function extensionForMimeType(mimeType: z.infer<typeof uploadPartnerImageSchema>["mimeType"]) {
+  if (mimeType === "image/jpeg") return "jpg";
+  if (mimeType === "image/png") return "png";
+  return "webp";
+}
+
 export const partnersRouter = router({
+  uploadImage: adminProcedure
+    .input(uploadPartnerImageSchema)
+    .mutation(async ({ input }) => {
+      const bytes = decodePartnerImage(input);
+      const extension = extensionForMimeType(input.mimeType);
+      const safeName = cleanFileName(input.fileName).replace(/\.[^.]+$/, "") || "partner-image";
+
+      try {
+        const uploaded = await storagePut(
+          `partners/${Date.now()}-${safeName}.${extension}`,
+          bytes,
+          input.mimeType,
+        );
+
+        return {
+          success: true as const,
+          url: uploaded.url,
+          key: uploaded.key,
+        };
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message: error instanceof Error ? error.message : "Falha ao enviar imagem do parceiro.",
+        });
+      }
+    }),
+
   listPublished: publicProcedure.query(async () => {
     const db = await getDb();
     if (!db) {
@@ -264,6 +347,23 @@ export const partnersRouter = router({
       return getFallbackPartners().sort((a, b) => a.name.localeCompare(b.name));
     }
   }),
+
+  getPublicById: publicProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) {
+        return getFallbackPartners().find((partner) => partner.id === input.id) ?? null;
+      }
+
+      const [partner] = await db
+        .select()
+        .from(partners)
+        .where(eq(partners.id, input.id))
+        .limit(1);
+
+      return partner ?? null;
+    }),
 
   getAll: adminProcedure.query(async () => {
     const db = await getDb();
