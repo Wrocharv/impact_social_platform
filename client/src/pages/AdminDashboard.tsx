@@ -844,9 +844,9 @@ export default function AdminDashboard() {
               </Field>
               <Field label="Endereço"><Textarea value={partnerForm.address} onChange={(event) => setPartnerForm({ ...partnerForm, address: event.target.value })} rows={3} maxLength={1000} /></Field>
               <Field label="Contato"><Input value={partnerForm.contactInfo} onChange={(event) => setPartnerForm({ ...partnerForm, contactInfo: event.target.value })} maxLength={255} placeholder="Telefone, WhatsApp ou e-mail" /></Field>
-              <Field label="URL do vídeo de testemunho"><Input type="url" value={partnerForm.testimonialVideoUrl} onChange={(event) => setPartnerForm({ ...partnerForm, testimonialVideoUrl: event.target.value })} placeholder="https://..." /></Field>
+              <Field label="URL do vídeo de testemunho"><Input value={partnerForm.testimonialVideoUrl} onChange={(event) => setPartnerForm({ ...partnerForm, testimonialVideoUrl: event.target.value })} placeholder="https://..." /></Field>
               <Field label="Texto do testemunho"><Textarea value={partnerForm.testimonialText} onChange={(event) => setPartnerForm({ ...partnerForm, testimonialText: event.target.value })} rows={4} maxLength={2000} placeholder="Depoimento convidando mais pessoas para a parceria" /></Field>
-              <Field label="Site"><Input type="url" value={partnerForm.website} onChange={(event) => setPartnerForm({ ...partnerForm, website: event.target.value })} placeholder="https://..." /></Field>
+              <Field label="Site"><Input value={partnerForm.website} onChange={(event) => setPartnerForm({ ...partnerForm, website: event.target.value })} placeholder="https://..." /></Field>
               <p className="rounded-lg bg-[#f1f6ef] p-3 text-sm text-[#55645a]">Ao salvar, o parceiro poderá aparecer imediatamente na homepage. Cadastre somente dados cuja publicação tenha sido autorizada.</p>
               <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={closePartnerDialog}>Cancelar</Button><Button type="submit" disabled={partnerMutationPending}>{partnerMutationPending ? "Salvando..." : "Salvar parceiro"}</Button></div>
             </form>

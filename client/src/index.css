@@ -183,7 +183,7 @@
 }
 
 .partner-marquee-track {
-  animation: partners-marquee 22s linear infinite;
+  animation: partners-marquee 3s linear infinite;
   will-change: transform;
 }
 

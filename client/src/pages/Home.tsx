@@ -14,14 +14,13 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   });
 
-const DEFAULT_PRESENTATION_VIDEO_URL = "https://www.instagram.com/reel/DMgbH5HPUMe/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA==";
-
 type PresentationVideoSource =
   | { kind: "embed"; src: string; title: string; provider: "youtube" | "instagram" | "generic" }
   | { kind: "file"; src: string; mimeType: string; title: string };
 
-function toPresentationVideoSource(rawValue: string): PresentationVideoSource {
+function toPresentationVideoSource(rawValue: string): PresentationVideoSource | null {
   const value = rawValue.trim();
+  if (!value) return null;
   const lowered = value.toLowerCase();
 
   if (value.startsWith("/") || /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/.test(lowered)) {
@@ -103,12 +102,7 @@ function toPresentationVideoSource(rawValue: string): PresentationVideoSource {
     // Keep fallback below when URL parsing fails.
   }
 
-  return {
-    kind: "embed",
-    src: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    title: "Vídeo de apresentação da plataforma",
-    provider: "generic",
-  };
+  return null;
 }
 
 type PublishedCampaign = {
@@ -142,7 +136,7 @@ export default function Home() {
   const partnersQuery = trpc.partners.listPublished.useQuery();
   const presentationVideoSource = useMemo(() => {
     const configured = (import.meta.env.VITE_HOME_PRESENTATION_VIDEO_URL || "").trim();
-    return toPresentationVideoSource(configured || DEFAULT_PRESENTATION_VIDEO_URL);
+    return toPresentationVideoSource(configured);
   }, []);
   const campaigns = (campaignsQuery.data ?? []) as PublishedCampaign[];
   const completedCampaigns = (completedQuery.data ?? []) as PublishedCampaign[];
@@ -227,28 +221,37 @@ export default function Home() {
           </div>
 
           <div className="mx-auto mt-8 max-w-4xl overflow-hidden rounded-2xl border border-[#d7e2d7] bg-[#eaf1e8] shadow-sm">
-            <div className="w-full">
-              {presentationVideoSource.kind === "file" ? (
-                <div className="aspect-video w-full">
-                  <video className="h-full w-full bg-black" controls preload="metadata" playsInline>
-                    <source src={presentationVideoSource.src} type={presentationVideoSource.mimeType} />
-                    Seu navegador não suporta reprodução de vídeo.
-                  </video>
-                </div>
-              ) : (
-                <div className="aspect-video w-full">
-                  <iframe
-                    className="h-full w-full"
-                    src={presentationVideoSource.src}
-                    title={presentationVideoSource.title}
-                    loading="lazy"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    referrerPolicy="strict-origin-when-cross-origin"
-                    allowFullScreen
-                  />
-                </div>
-              )}
-            </div>
+            {presentationVideoSource ? (
+              <div className="w-full">
+                {presentationVideoSource.kind === "file" ? (
+                  <div className="aspect-video w-full">
+                    <video className="h-full w-full bg-black" controls preload="metadata" playsInline>
+                      <source src={presentationVideoSource.src} type={presentationVideoSource.mimeType} />
+                      Seu navegador não suporta reprodução de vídeo.
+                    </video>
+                  </div>
+                ) : (
+                  <div className="aspect-video w-full">
+                    <iframe
+                      className="h-full w-full"
+                      src={presentationVideoSource.src}
+                      title={presentationVideoSource.title}
+                      loading="lazy"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      allowFullScreen
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 px-6 py-14 text-center">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#228B22]">Vídeo no YouTube</p>
+                <p className="max-w-2xl text-lg leading-relaxed text-[#56645c]">
+                  Configure a URL do vídeo em VITE_HOME_PRESENTATION_VIDEO_URL para exibir a apresentação sem depender de arquivo local grande.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </section>

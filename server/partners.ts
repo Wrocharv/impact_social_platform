@@ -204,8 +204,19 @@ const optionalText = (max: number) =>
     z.string().trim().max(max).optional(),
   );
 
+function normalizeHttpUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 const optionalHttpUrl = z.preprocess(
-  (value) => typeof value === "string" && value.trim() === "" ? undefined : value,
+  (value) => {
+    if (typeof value !== "string") return value;
+    if (value.trim() === "") return undefined;
+    return normalizeHttpUrl(value);
+  },
   z
     .string()
     .trim()
@@ -227,7 +238,11 @@ function isLikelyImageUrl(url: string) {
 }
 
 const optionalImageUrl = z.preprocess(
-  (value) => typeof value === "string" && value.trim() === "" ? undefined : value,
+  (value) => {
+    if (typeof value !== "string") return value;
+    if (value.trim() === "") return undefined;
+    return normalizeHttpUrl(value);
+  },
   z
     .string()
     .trim()
@@ -235,9 +250,6 @@ const optionalImageUrl = z.preprocess(
     .max(512)
     .refine((value) => value.startsWith("https://") || value.startsWith("http://"), {
       message: "A URL deve usar HTTP ou HTTPS",
-    })
-    .refine((value) => isLikelyImageUrl(value), {
-      message: "Use uma URL de imagem válida (png, jpg, jpeg, webp, gif ou avif)",
     })
     .optional(),
 );
@@ -410,11 +422,7 @@ export const partnersRouter = router({
         await db.insert(partners).values(input);
         return { success: true, message: "Parceiro cadastrado com sucesso!" };
       } catch (error) {
-        if (!isLegacyPartnerInsertError(error)) {
-          throw error;
-        }
-
-        console.warn("[Partners] Falling back to legacy insert:", error);
+        console.warn("[Partners] Full insert failed, trying legacy insert:", error);
 
         try {
           await db.insert(partners).values(buildLegacyPartnerInsert(input));
