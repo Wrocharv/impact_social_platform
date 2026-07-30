@@ -403,10 +403,10 @@ export default function ContributionWizardPage() {
                         onValueChange={(value) => setState({ ...state, allowPublicDisplay: value === "sim" })}
                         disabled={loading}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="bg-white">
                           <SelectValue placeholder="Escolha uma opção..." />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-white border border-gray-200 shadow-lg">
                           <SelectItem value="sim">✓ Sim, pode divulgar meu nome</SelectItem>
                           <SelectItem value="nao">✕ Não, prefiro manter anônimo</SelectItem>
                         </SelectContent>
@@ -460,10 +460,10 @@ export default function ContributionWizardPage() {
                           onValueChange={(value) => setState({ ...state, recurrence: value as RecurrenceType, numberOfInstallments: undefined })}
                           disabled={loading}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="bg-white">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-white border border-gray-200 shadow-lg">
                             <SelectItem value="unique">À vista (uma vez)</SelectItem>
                             <SelectItem value="installments">Em parcelas</SelectItem>
                           </SelectContent>
@@ -493,10 +493,10 @@ export default function ContributionWizardPage() {
                                 onValueChange={(value) => setState({ ...state, installmentFrequency: value as InstallmentFrequency })}
                                 disabled={loading}
                               >
-                                <SelectTrigger>
+                                <SelectTrigger className="bg-white">
                                   <SelectValue placeholder="Escolha..." />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="bg-white border border-gray-200 shadow-lg">
                                   <SelectItem value="weekly">Semanal</SelectItem>
                                   <SelectItem value="biweekly">Quinzenal</SelectItem>
                                   <SelectItem value="monthly">Mensal</SelectItem>
@@ -550,10 +550,10 @@ export default function ContributionWizardPage() {
                           onValueChange={(value) => setState({ ...state, materialDeliveryFrequency: value as DeliveryFrequency })}
                           disabled={loading}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="bg-white">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-white border border-gray-200 shadow-lg">
                             <SelectItem value="unique">Tudo de uma vez</SelectItem>
                             <SelectItem value="weekly">Semanalmente</SelectItem>
                             <SelectItem value="biweekly">Quinzenalmente</SelectItem>
@@ -569,10 +569,10 @@ export default function ContributionWizardPage() {
                           onValueChange={(value) => setState({ ...state, deliveryMethod: value as DeliveryMethod })}
                           disabled={loading}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="bg-white">
                             <SelectValue placeholder="Escolha uma opção..." />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-white border border-gray-200 shadow-lg">
                             <SelectItem value="pickup">📍 Entrega pessoalmente no local da obra</SelectItem>
                             <SelectItem value="deliver">🚚 Buscar na minha casa/local</SelectItem>
                             <SelectItem value="mail">📦 Enviar pelo correio</SelectItem>
