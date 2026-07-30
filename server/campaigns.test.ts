@@ -194,6 +194,7 @@ describe("campaigns.getAll fallback", () => {
   beforeEach(() => {
     getDbMock.mockReset();
     whatsappServiceMock.getFallbackCampaigns.mockReset();
+    whatsappServiceMock.createFallbackCampaign.mockReset();
   });
 
   it("lista no admin apenas campanhas locais editaveis quando DB estiver indisponivel", async () => {
@@ -224,6 +225,36 @@ describe("campaigns.getAll fallback", () => {
       title: "Campanha Local",
       initialRaised: 25_000,
       raised: 25_000,
+    });
+  });
+
+  it("semeia uma campanha local inicial quando nao houver nenhuma no fallback", async () => {
+    getDbMock.mockResolvedValue(null);
+    whatsappServiceMock.getFallbackCampaigns.mockReturnValue([]);
+    whatsappServiceMock.createFallbackCampaign.mockReturnValue({
+      id: 100010,
+      title: "Campanha Local Inicial",
+      description: "Campanha criada automaticamente no modo local para permitir edicao e testes do painel admin.",
+      longDescription: "Campanha criada automaticamente no modo local para permitir edicao e testes do painel admin quando o banco estiver indisponivel.",
+      category: "outro",
+      goal: 500_000,
+      raised: 0,
+      status: "active" as const,
+      imageUrl: "/obra-paredes.jpg",
+      createdBy: 1,
+      createdAt: new Date("2026-07-30T10:05:00.000Z"),
+      updatedAt: new Date("2026-07-30T10:05:00.000Z"),
+    });
+
+    const caller = appRouter.createCaller(createAdminContext());
+    const result = await caller.campaigns.getAll();
+
+    expect(whatsappServiceMock.createFallbackCampaign).toHaveBeenCalledOnce();
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: 100010,
+      title: "Campanha Local Inicial",
+      goal: 500_000,
     });
   });
 });

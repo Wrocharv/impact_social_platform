@@ -412,6 +412,21 @@ export const campaignsRouter = router({
     if (!db) {
       // Admin sem DB deve mostrar apenas campanhas realmente editaveis no fallback local.
       const fallbackCampaigns = getMappedFallbackCampaigns();
+      if (fallbackCampaigns.length === 0) {
+        const seededCampaign = whatsappService.createFallbackCampaign({
+          title: "Campanha Local Inicial",
+          description: "Campanha criada automaticamente no modo local para permitir edicao e testes do painel admin.",
+          longDescription:
+            "Campanha criada automaticamente no modo local para permitir edicao e testes do painel admin quando o banco estiver indisponivel.",
+          category: "outro",
+          goal: 500_000,
+          raised: 0,
+          imageUrl: "/obra-paredes.jpg",
+        });
+
+        return [mapFallbackCampaignToPublicShape(seededCampaign)];
+      }
+
       return dedupeCampaignsById(fallbackCampaigns).sort(
         (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
       );
