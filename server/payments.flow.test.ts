@@ -184,7 +184,10 @@ describe("payments.createPaymentPreference", () => {
     const { db, values } = createDb([
       { id: 7, title: "Casa da Viúva", status: "active" },
     ]);
-    values.mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'paymentStatusDetail'"));
+    values
+      .mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'paymentStatusDetail'"))
+      .mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'paymentMethod'"))
+      .mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'status'"));
     getDbMock.mockResolvedValue(db);
 
     const caller = appRouter.createCaller(createContext());
@@ -206,6 +209,31 @@ describe("payments.createPaymentPreference", () => {
     });
 
     expect(createPreferenceMock).not.toHaveBeenCalled();
+  });
+
+  it("usa persistencia legada quando coluna nova do cash estiver ausente", async () => {
+    const { db, values } = createDb([
+      { id: 7, title: "Casa da Viúva", status: "active" },
+    ]);
+    values.mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'paymentStatusDetail'"));
+    getDbMock.mockResolvedValue(db);
+
+    const caller = appRouter.createCaller(createContext());
+    const result = await caller.payments.createPaymentPreference({
+      campaignId: 7,
+      amount: 5_000,
+      donorEmail: "doador@example.com",
+      donorName: "Maria",
+      donorWhatsapp: "11999999999",
+      donorCity: "São Paulo",
+      allowPublicDisplay: false,
+      paymentMethod: "cash",
+    });
+
+    expect(values).toHaveBeenCalledTimes(2);
+    expect(createPreferenceMock).not.toHaveBeenCalled();
+    expect(result.preferenceId).toBe("cash-manual");
+    expect(result.checkoutUrl).toContain("paymentMethod=cash");
   });
 
   it("propaga mensagem útil quando o Mercado Pago não está configurado", async () => {

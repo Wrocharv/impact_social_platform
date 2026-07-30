@@ -180,6 +180,21 @@ function shouldUsePixOperationalFallback(input: { paymentMethod?: "pix" | "card"
   return isMercadoPagoUnauthorized(error);
 }
 
+function isMissingColumnError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { message?: unknown; code?: unknown; sqlMessage?: unknown; cause?: unknown };
+
+  if (candidate.code === "ER_BAD_FIELD_ERROR") return true;
+  if (typeof candidate.message === "string" && candidate.message.includes("Unknown column")) return true;
+  if (typeof candidate.sqlMessage === "string" && candidate.sqlMessage.includes("Unknown column")) return true;
+
+  if (candidate.cause && typeof candidate.cause === "object") {
+    return isMissingColumnError(candidate.cause);
+  }
+
+  return false;
+}
+
 function buildContributionConfirmationUrl(input: {
   baseUrl: string;
   campaignId: number;
@@ -349,7 +364,51 @@ export const paymentsRouter = router({
         persistedContribution = true;
       } catch (error) {
         persistError = error;
-        console.error("[Payments] Falha ao persistir contribuição, seguindo com checkout sem registro local", error);
+        if (isCashPayment && isMissingColumnError(error)) {
+          try {
+            // Compatibilidade com schema legado em produção: tenta inserir sem colunas novas.
+            await db.insert(contributions).values({
+              campaignId: campaign.id,
+              userId: ctx.user?.id,
+              type: "financial",
+              amount: input.amount,
+              donorName,
+              donorEmail,
+              donorWhatsapp,
+              paymentMethod: "cash",
+              status: "pending",
+              externalReference,
+            });
+            persistedContribution = true;
+            persistError = undefined;
+          } catch (legacyError) {
+            // Schema ainda mais antigo: tenta sem paymentMethod/externalReference.
+            if (isMissingColumnError(legacyError)) {
+              try {
+                await db.insert(contributions).values({
+                  campaignId: campaign.id,
+                  userId: ctx.user?.id,
+                  type: "financial",
+                  amount: input.amount,
+                  donorName,
+                  donorEmail,
+                  donorWhatsapp,
+                  status: "pending",
+                });
+                persistedContribution = true;
+                persistError = undefined;
+              } catch (lastLegacyError) {
+                persistError = lastLegacyError;
+              }
+            } else {
+              persistError = legacyError;
+            }
+          }
+        }
+
+        if (!persistedContribution) {
+          console.error("[Payments] Falha ao persistir contribuição, seguindo com checkout sem registro local", persistError ?? error);
+        }
       }
 
       if (isCashPayment) {
@@ -361,15 +420,18 @@ export const paymentsRouter = router({
           });
         }
 
-        const contribution = persistedContribution
-          ? (
-              await db
-                .select({ id: contributions.id })
-                .from(contributions)
-                .where(eq(contributions.externalReference, externalReference))
-                .limit(1)
-            )[0]
-          : undefined;
+        let contribution: { id: number } | undefined;
+        try {
+          contribution = (
+            await db
+              .select({ id: contributions.id })
+              .from(contributions)
+              .where(eq(contributions.externalReference, externalReference))
+              .limit(1)
+          )[0];
+        } catch {
+          contribution = undefined;
+        }
         const origin = requestOrigin(ctx.req);
 
         return {
