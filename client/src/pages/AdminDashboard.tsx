@@ -61,6 +61,7 @@ export default function AdminDashboard() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const isAdmin = isAdminUser(user, ["gospeltv@gmail.com"]);
+  const isLocalhost = window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1");
   const [activeTab, setActiveTab] = useState<"campaigns" | "partners">(() =>
     new URLSearchParams(window.location.search).get("tab") === "partners" ? "partners" : "campaigns",
   );
@@ -365,6 +366,14 @@ export default function AdminDashboard() {
           </TabsList>
 
           <TabsContent value="campaigns" className="space-y-6">
+            {isLocalhost && (
+              <Card className="border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm text-amber-900">
+                  Você está no painel local (localhost). Se o banco estiver indisponível, validação de dinheiro e dados publicados do site podem não carregar aqui.
+                  Para operação real e efeito no www, use o painel em produção.
+                </p>
+              </Card>
+            )}
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
               <div><h2 className="text-2xl font-bold text-[#243128]">Campanhas</h2><p className="mt-1 text-[#66736a]">Acompanhe os projetos cadastrados.</p></div>
               <Dialog open={isCreateCampaignOpen} onOpenChange={setIsCreateCampaignOpen}>
@@ -400,7 +409,10 @@ export default function AdminDashboard() {
                 <p className="text-sm text-[#66736a]">Carregando pendências...</p>
               ) : pendingCashQuery.isError ? (
                 <div className="flex flex-wrap items-center gap-3">
-                  <p className="text-sm text-[#b42318]">Não foi possível carregar as pendências de validação.</p>
+                  <p className="text-sm text-[#b42318]">
+                    Não foi possível carregar as pendências de validação.
+                    {pendingCashQuery.error?.message ? ` Motivo: ${pendingCashQuery.error.message}` : ""}
+                  </p>
                   <Button variant="outline" size="sm" onClick={() => pendingCashQuery.refetch()}>Tentar novamente</Button>
                 </div>
               ) : pendingCashQuery.data?.length ? (
@@ -471,7 +483,10 @@ export default function AdminDashboard() {
                   <p className="mt-3 text-sm text-[#66736a]">Carregando histórico...</p>
                 ) : recentCashQuery.isError ? (
                   <div className="mt-3 flex flex-wrap items-center gap-3">
-                    <p className="text-sm text-[#b42318]">Não foi possível carregar o histórico de validações.</p>
+                    <p className="text-sm text-[#b42318]">
+                      Não foi possível carregar o histórico de validações.
+                      {recentCashQuery.error?.message ? ` Motivo: ${recentCashQuery.error.message}` : ""}
+                    </p>
                     <Button variant="outline" size="sm" onClick={() => recentCashQuery.refetch()}>Tentar novamente</Button>
                   </div>
                 ) : recentCashQuery.data?.length ? (
@@ -520,6 +535,14 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="partners" className="space-y-6">
+            {isLocalhost && (
+              <Card className="border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm text-amber-900">
+                  Você está editando parceiros no localhost. Essas alterações podem ficar apenas no fallback local e não aparecer no www.
+                  Para refletir no site publicado, faça a gestão pelo painel em produção.
+                </p>
+              </Card>
+            )}
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
               <div><h2 className="text-2xl font-bold text-[#243128]">Parceiros</h2><p className="mt-1 text-[#66736a]">Somente estes registros aparecem na vitrine pública.</p></div>
               <Button onClick={openNewPartner} className="gap-2 bg-[#228B22] hover:bg-[#1a6b1a]"><Plus className="h-4 w-4" /> Novo parceiro</Button>
