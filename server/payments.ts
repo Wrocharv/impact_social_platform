@@ -325,6 +325,7 @@ export const paymentsRouter = router({
       const donorChurch = input.donorChurch?.trim() ?? "";
       const allowPublicDisplay = input.allowPublicDisplay ?? false;
       let persistedContribution = false;
+      let persistError: unknown;
 
       try {
         await db.insert(contributions).values({
@@ -347,10 +348,19 @@ export const paymentsRouter = router({
         });
         persistedContribution = true;
       } catch (error) {
+        persistError = error;
         console.error("[Payments] Falha ao persistir contribuição, seguindo com checkout sem registro local", error);
       }
 
       if (isCashPayment) {
+        if (!persistedContribution) {
+          throw new TRPCError({
+            code: "SERVICE_UNAVAILABLE",
+            message: "Não foi possível registrar a doação em dinheiro para validação presencial. Tente novamente em instantes.",
+            cause: persistError,
+          });
+        }
+
         const contribution = persistedContribution
           ? (
               await db
@@ -373,7 +383,7 @@ export const paymentsRouter = router({
             paymentStatus: "awaiting_validation",
           }),
           contributionId: contribution?.id,
-          preferenceId: persistedContribution ? "cash-manual" : "cash-manual-no-db",
+          preferenceId: "cash-manual",
           environment: ENV.isProduction ? "production" as const : "test" as const,
         };
       }

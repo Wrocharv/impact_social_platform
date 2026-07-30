@@ -180,6 +180,34 @@ describe("payments.createPaymentPreference", () => {
     expect(result.checkoutUrl).toContain("campaignId=7");
   });
 
+  it("falha quando doacao em dinheiro nao puder ser persistida para validacao", async () => {
+    const { db, values } = createDb([
+      { id: 7, title: "Casa da Viúva", status: "active" },
+    ]);
+    values.mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'paymentStatusDetail'"));
+    getDbMock.mockResolvedValue(db);
+
+    const caller = appRouter.createCaller(createContext());
+
+    await expect(
+      caller.payments.createPaymentPreference({
+        campaignId: 7,
+        amount: 5_000,
+        donorEmail: "doador@example.com",
+        donorName: "Maria",
+        donorWhatsapp: "11999999999",
+        donorCity: "São Paulo",
+        allowPublicDisplay: false,
+        paymentMethod: "cash",
+      }),
+    ).rejects.toMatchObject({
+      code: "SERVICE_UNAVAILABLE",
+      message: "Não foi possível registrar a doação em dinheiro para validação presencial. Tente novamente em instantes.",
+    });
+
+    expect(createPreferenceMock).not.toHaveBeenCalled();
+  });
+
   it("propaga mensagem útil quando o Mercado Pago não está configurado", async () => {
     const { db, values } = createDb([
       { id: 7, title: "Casa da Viúva", status: "active" },
