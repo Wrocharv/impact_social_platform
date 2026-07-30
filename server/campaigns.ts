@@ -16,7 +16,7 @@ import { whatsappService } from "./whatsapp.service";
 const DEMO_CAMPAIGN = {
   id: 1,
   title: "Construção Hotel Recanto de Paz",
-  description: "Apoie a construção do Hotel Recanto de Paz com materiais e contribuições para a obra.",
+  description: "Apoie a construção do Hotel Recanto de Paz com materiais e contribuições para a obra. [Verificacao 30/07]",
   longDescription:
     "A campanha apresenta uma obra real, com evolução de etapas, atualizações de fotos e necessidades concretas de materiais. Apoie a construção do Hotel Recanto de Paz em cada fase.",
   category: "outro" as const,
