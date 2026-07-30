@@ -249,7 +249,7 @@ describe("payments.createPaymentPreference", () => {
     expect(createPreferenceMock).toHaveBeenCalledTimes(1);
     expect(set).not.toHaveBeenCalled();
     expect(result.preferenceId).toBe("pix-credential-fallback");
-    expect(result.checkoutUrl).toContain("/contribute/confirmation");
+    expect(result.checkoutUrl).toContain("/payment/pending");
   });
 
   it("recusa checkout para campanha inexistente ou inativa", async () => {

@@ -154,6 +154,10 @@ function buildContributionConfirmationUrl(input: {
   return `${input.baseUrl}/contribute/confirmation?type=financial&campaign=${encodeURIComponent(input.campaignTitle)}&campaignId=${input.campaignId}&donor=${encodeURIComponent(input.donorName || "Doador")}&amount=${input.amountCents}`;
 }
 
+function buildPaymentPendingUrl(baseUrl: string) {
+  return `${baseUrl}/payment/pending`;
+}
+
 export const paymentsRouter = router({
   createPaymentPreference: publicProcedure
     .input(createPaymentPreferenceSchema)
@@ -206,15 +210,8 @@ export const paymentsRouter = router({
         } catch (error) {
           if (shouldUsePixOperationalFallback(input, error)) {
             const origin = requestOrigin(ctx.req);
-            const fallbackCampaignTitle = input.campaignTitle?.trim() || `Campanha ${input.campaignId}`;
             return {
-              checkoutUrl: buildContributionConfirmationUrl({
-                baseUrl: origin,
-                campaignId: input.campaignId,
-                campaignTitle: fallbackCampaignTitle,
-                donorName: input.donorName?.trim() || "Doador",
-                amountCents: input.amount,
-              }),
+              checkoutUrl: buildPaymentPendingUrl(origin),
               contributionId: undefined,
               preferenceId: "pix-credential-fallback",
               environment: "test" as const,
@@ -357,13 +354,7 @@ export const paymentsRouter = router({
         if (shouldUsePixOperationalFallback(input, error)) {
           const origin = requestOrigin(ctx.req);
           return {
-            checkoutUrl: buildContributionConfirmationUrl({
-              baseUrl: origin,
-              campaignId: campaign.id,
-              campaignTitle: campaign.title,
-              donorName: donorName || "Doador",
-              amountCents: input.amount,
-            }),
+            checkoutUrl: buildPaymentPendingUrl(origin),
             contributionId: undefined,
             preferenceId: "pix-credential-fallback",
             environment: "test" as const,
