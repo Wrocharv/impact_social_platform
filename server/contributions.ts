@@ -14,6 +14,38 @@ import { getDb } from "./db";
 const CASH_AUDIT_DETAILS = ["cash_validated_in_person", "cash_validation_rejected"] as const;
 const CASH_PENDING_DETAILS = ["awaiting_cash_confirmation", "awaiting_validation"] as const;
 
+function isMissingColumnError(error: unknown): boolean {
+  const stack = [error];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || typeof current !== "object") {
+      continue;
+    }
+
+    const candidate = current as {
+      message?: unknown;
+      code?: unknown;
+      sqlMessage?: unknown;
+      cause?: unknown;
+    };
+
+    if (
+      candidate.code === "ER_BAD_FIELD_ERROR"
+      || (typeof candidate.message === "string" && candidate.message.includes("Unknown column"))
+      || (typeof candidate.sqlMessage === "string" && candidate.sqlMessage.includes("Unknown column"))
+    ) {
+      return true;
+    }
+
+    if (candidate.cause) {
+      stack.push(candidate.cause);
+    }
+  }
+
+  return false;
+}
+
 const donorInfoSchema = z.object({
   donorName: z.preprocess(
     (value) => (typeof value === "string" ? value.trim() : ""),
@@ -347,20 +379,55 @@ export const contributionsRouter = router({
         conditions.push(eq(contributions.campaignId, input.campaignId));
       }
 
-      return db
-        .select({
-          id: contributions.id,
-          campaignId: contributions.campaignId,
-          donorName: contributions.donorName,
-          donorWhatsapp: contributions.donorWhatsapp,
-          donorCity: contributions.donorCity,
-          amount: contributions.amount,
-          createdAt: contributions.createdAt,
-          paymentStatusDetail: contributions.paymentStatusDetail,
-        })
-        .from(contributions)
-        .where(and(...conditions))
-        .orderBy(desc(contributions.createdAt));
+      try {
+        return await db
+          .select({
+            id: contributions.id,
+            campaignId: contributions.campaignId,
+            donorName: contributions.donorName,
+            donorWhatsapp: contributions.donorWhatsapp,
+            donorCity: contributions.donorCity,
+            amount: contributions.amount,
+            createdAt: contributions.createdAt,
+            paymentStatusDetail: contributions.paymentStatusDetail,
+          })
+          .from(contributions)
+          .where(and(...conditions))
+          .orderBy(desc(contributions.createdAt));
+      } catch (error) {
+        if (!isMissingColumnError(error)) {
+          throw error;
+        }
+
+        const legacyConditions = [
+          eq(contributions.type, "financial"),
+          eq(contributions.status, "pending"),
+          eq(contributions.paymentMethod, "cash"),
+        ];
+
+        if (input?.campaignId) {
+          legacyConditions.push(eq(contributions.campaignId, input.campaignId));
+        }
+
+        const legacyRows = await db
+          .select({
+            id: contributions.id,
+            campaignId: contributions.campaignId,
+            donorName: contributions.donorName,
+            amount: contributions.amount,
+            createdAt: contributions.createdAt,
+          })
+          .from(contributions)
+          .where(and(...legacyConditions))
+          .orderBy(desc(contributions.createdAt));
+
+        return legacyRows.map((row) => ({
+          ...row,
+          donorWhatsapp: "",
+          donorCity: "",
+          paymentStatusDetail: null,
+        }));
+      }
     }),
 
   getRecentCashValidations: adminProcedure
@@ -387,25 +454,69 @@ export const contributionsRouter = router({
         conditions.push(eq(contributions.campaignId, input.campaignId));
       }
 
-      return db
-        .select({
-          id: contributions.id,
-          campaignId: contributions.campaignId,
-          donorName: contributions.donorName,
-          amount: contributions.amount,
-          status: contributions.status,
-          paymentStatusDetail: contributions.paymentStatusDetail,
-          validatedBy: contributions.validatedBy,
-          validatedAt: contributions.validatedAt,
-          validationNote: contributions.validationNote,
-          validatorName: users.name,
-          validatorEmail: users.email,
-        })
-        .from(contributions)
-        .leftJoin(users, eq(users.id, contributions.validatedBy))
-        .where(and(...conditions))
-        .orderBy(desc(contributions.validatedAt), desc(contributions.updatedAt))
-        .limit(input?.limit ?? 20);
+      try {
+        return await db
+          .select({
+            id: contributions.id,
+            campaignId: contributions.campaignId,
+            donorName: contributions.donorName,
+            amount: contributions.amount,
+            status: contributions.status,
+            paymentStatusDetail: contributions.paymentStatusDetail,
+            validatedBy: contributions.validatedBy,
+            validatedAt: contributions.validatedAt,
+            validationNote: contributions.validationNote,
+            validatorName: users.name,
+            validatorEmail: users.email,
+          })
+          .from(contributions)
+          .leftJoin(users, eq(users.id, contributions.validatedBy))
+          .where(and(...conditions))
+          .orderBy(desc(contributions.validatedAt), desc(contributions.updatedAt))
+          .limit(input?.limit ?? 20);
+      } catch (error) {
+        if (!isMissingColumnError(error)) {
+          throw error;
+        }
+
+        const legacyConditions = [
+          eq(contributions.type, "financial"),
+          eq(contributions.paymentMethod, "cash"),
+          inArray(contributions.status, ["approved", "rejected"]),
+        ];
+
+        if (input?.campaignId) {
+          legacyConditions.push(eq(contributions.campaignId, input.campaignId));
+        }
+
+        const legacyRows = await db
+          .select({
+            id: contributions.id,
+            campaignId: contributions.campaignId,
+            donorName: contributions.donorName,
+            amount: contributions.amount,
+            status: contributions.status,
+            createdAt: contributions.createdAt,
+          })
+          .from(contributions)
+          .where(and(...legacyConditions))
+          .orderBy(desc(contributions.createdAt))
+          .limit(input?.limit ?? 20);
+
+        return legacyRows.map((row) => ({
+          id: row.id,
+          campaignId: row.campaignId,
+          donorName: row.donorName,
+          amount: row.amount,
+          status: row.status,
+          paymentStatusDetail: row.status === "approved" ? "cash_validated_in_person" : "cash_validation_rejected",
+          validatedBy: null,
+          validatedAt: row.createdAt,
+          validationNote: null,
+          validatorName: null,
+          validatorEmail: null,
+        }));
+      }
     }),
 
   reviewCashContribution: adminProcedure
@@ -454,17 +565,46 @@ export const contributionsRouter = router({
       const validatedAt = new Date();
       const validationNote = input.validationNote?.trim() || null;
 
-      const [contribution] = await db
-        .select({
-          id: contributions.id,
-          type: contributions.type,
-          status: contributions.status,
-          paymentMethod: contributions.paymentMethod,
-          paymentStatusDetail: contributions.paymentStatusDetail,
-        })
-        .from(contributions)
-        .where(eq(contributions.id, input.contributionId))
-        .limit(1);
+      let contribution: {
+        id: number;
+        type: string;
+        status: string;
+        paymentMethod: string | null;
+        paymentStatusDetail: string | null;
+      } | undefined;
+
+      try {
+        [contribution] = await db
+          .select({
+            id: contributions.id,
+            type: contributions.type,
+            status: contributions.status,
+            paymentMethod: contributions.paymentMethod,
+            paymentStatusDetail: contributions.paymentStatusDetail,
+          })
+          .from(contributions)
+          .where(eq(contributions.id, input.contributionId))
+          .limit(1);
+      } catch (error) {
+        if (!isMissingColumnError(error)) {
+          throw error;
+        }
+
+        const [legacyContribution] = await db
+          .select({
+            id: contributions.id,
+            type: contributions.type,
+            status: contributions.status,
+            paymentMethod: contributions.paymentMethod,
+          })
+          .from(contributions)
+          .where(eq(contributions.id, input.contributionId))
+          .limit(1);
+
+        contribution = legacyContribution
+          ? { ...legacyContribution, paymentStatusDetail: null }
+          : undefined;
+      }
 
       if (!contribution) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Contribuição não encontrada." });
@@ -488,33 +628,62 @@ export const contributionsRouter = router({
       }
 
       if (input.decision === "approve") {
-        await db
-          .update(contributions)
-          .set({
-            status: "approved",
-            paymentStatusDetail: "cash_validated_in_person",
-            validatedBy: ctx.user.id,
-            validatedAt,
-            validationNote,
-            paidAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(contributions.id, input.contributionId));
+        try {
+          await db
+            .update(contributions)
+            .set({
+              status: "approved",
+              paymentStatusDetail: "cash_validated_in_person",
+              validatedBy: ctx.user.id,
+              validatedAt,
+              validationNote,
+              paidAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(contributions.id, input.contributionId));
+        } catch (error) {
+          if (!isMissingColumnError(error)) {
+            throw error;
+          }
+
+          await db
+            .update(contributions)
+            .set({
+              status: "approved",
+              paidAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(contributions.id, input.contributionId));
+        }
 
         return { success: true as const, status: "approved" as const, contributionId: input.contributionId };
       }
 
-      await db
-        .update(contributions)
-        .set({
-          status: "rejected",
-          paymentStatusDetail: "cash_validation_rejected",
-          validatedBy: ctx.user.id,
-          validatedAt,
-          validationNote,
-          updatedAt: new Date(),
-        })
-        .where(eq(contributions.id, input.contributionId));
+      try {
+        await db
+          .update(contributions)
+          .set({
+            status: "rejected",
+            paymentStatusDetail: "cash_validation_rejected",
+            validatedBy: ctx.user.id,
+            validatedAt,
+            validationNote,
+            updatedAt: new Date(),
+          })
+          .where(eq(contributions.id, input.contributionId));
+      } catch (error) {
+        if (!isMissingColumnError(error)) {
+          throw error;
+        }
+
+        await db
+          .update(contributions)
+          .set({
+            status: "rejected",
+            updatedAt: new Date(),
+          })
+          .where(eq(contributions.id, input.contributionId));
+      }
 
       return { success: true as const, status: "rejected" as const, contributionId: input.contributionId };
     }),
