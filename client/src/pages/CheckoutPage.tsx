@@ -37,6 +37,7 @@ export default function CheckoutPage() {
       {
         campaignId,
         amount: amountInCents,
+        paymentMethod: "pix",
         donorEmail: donorEmail.trim(),
         donorName: donorName.trim() || undefined,
       },

@@ -131,6 +131,40 @@ describe("payments.createPaymentPreference", () => {
     expect(result).toMatchObject({ preferenceId: "pref-456", environment: "test" });
   });
 
+  it("registra doacao em dinheiro sem chamar Mercado Pago", async () => {
+    const { db, values } = createDb([
+      { id: 7, title: "Casa da Viúva", status: "active" },
+    ]);
+    getDbMock.mockResolvedValue(db);
+
+    const caller = appRouter.createCaller(createContext());
+    const result = await caller.payments.createPaymentPreference({
+      campaignId: 7,
+      amount: 5_000,
+      donorEmail: "doador@example.com",
+      donorName: "Maria",
+      donorWhatsapp: "11999999999",
+      donorCity: "São Paulo",
+      allowPublicDisplay: false,
+      paymentMethod: "cash",
+    });
+
+    expect(values).toHaveBeenCalledTimes(1);
+    const inserted = values.mock.calls[0]?.[0];
+    expect(inserted).toMatchObject({
+      campaignId: 7,
+      type: "financial",
+      amount: 5_000,
+      status: "pending",
+      paymentMethod: "cash",
+      paymentStatusDetail: "awaiting_cash_confirmation",
+    });
+    expect(createPreferenceMock).not.toHaveBeenCalled();
+    expect(result.preferenceId).toBe("cash-manual");
+    expect(result.checkoutUrl).toContain("/contribute/confirmation");
+    expect(result.checkoutUrl).toContain("campaignId=7");
+  });
+
   it("propaga mensagem útil quando o Mercado Pago não está configurado", async () => {
     const { db, values } = createDb([
       { id: 7, title: "Casa da Viúva", status: "active" },

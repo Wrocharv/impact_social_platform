@@ -122,16 +122,46 @@ function shouldUsePixDevFallback(error: unknown) {
   return isMercadoPagoUnauthorized(error) || isMercadoPagoNotConfigured(error);
 }
 
+function buildContributionConfirmationUrl(input: {
+  baseUrl: string;
+  campaignId: number;
+  campaignTitle: string;
+  donorName: string;
+  amountCents: number;
+}) {
+  return `${input.baseUrl}/contribute/confirmation?type=financial&campaign=${encodeURIComponent(input.campaignTitle)}&campaignId=${input.campaignId}&donor=${encodeURIComponent(input.donorName || "Doador")}&amount=${input.amountCents}`;
+}
+
 export const paymentsRouter = router({
   createPaymentPreference: publicProcedure
     .input(createPaymentPreferenceSchema)
     .mutation(async ({ input, ctx }) => {
       const enablePixDevFallback = process.env.ENABLE_PIX_DEV_FALLBACK === "true";
+      const isCashPayment = input.paymentMethod === "cash";
 
       const db = await getDb();
       const donorEmail = input.donorEmail?.trim() || `doador+${randomUUID().slice(0, 8)}@parceriadobem.com`;
 
       if (!db) {
+        if (isCashPayment) {
+          const origin = requestOrigin(ctx.req);
+          const fallbackCampaignTitle = input.campaignTitle?.trim() || `Campanha ${input.campaignId}`;
+          const donorName = input.donorName?.trim() || "Doador";
+
+          return {
+            checkoutUrl: buildContributionConfirmationUrl({
+              baseUrl: origin,
+              campaignId: input.campaignId,
+              campaignTitle: fallbackCampaignTitle,
+              donorName,
+              amountCents: input.amount,
+            }),
+            contributionId: undefined,
+            preferenceId: "cash-manual",
+            environment: "test" as const,
+          };
+        }
+
         try {
           const externalReference = `pdb-${input.campaignId}-${randomUUID()}`;
           const fallbackCampaignTitle = input.campaignTitle?.trim() || `Campanha ${input.campaignId}`;
@@ -156,7 +186,13 @@ export const paymentsRouter = router({
             const origin = requestOrigin(ctx.req);
             const fallbackCampaignTitle = input.campaignTitle?.trim() || `Campanha ${input.campaignId}`;
             return {
-              checkoutUrl: `${origin}/contribute/confirmation?type=financial&campaign=${encodeURIComponent(fallbackCampaignTitle)}&campaignId=${input.campaignId}&donor=${encodeURIComponent(input.donorName?.trim() || "Doador")}&amount=${input.amount}`,
+              checkoutUrl: buildContributionConfirmationUrl({
+                baseUrl: origin,
+                campaignId: input.campaignId,
+                campaignTitle: fallbackCampaignTitle,
+                donorName: input.donorName?.trim() || "Doador",
+                amountCents: input.amount,
+              }),
               contributionId: undefined,
               preferenceId: "dev-fallback",
               environment: "test" as const,
@@ -205,8 +241,30 @@ export const paymentsRouter = router({
         paymentMethod: input.paymentMethod,
         status: "pending",
         externalReference,
-        paymentStatusDetail: "preference_creating",
+        paymentStatusDetail: isCashPayment ? "awaiting_cash_confirmation" : "preference_creating",
       });
+
+      if (isCashPayment) {
+        const [contribution] = await db
+          .select({ id: contributions.id })
+          .from(contributions)
+          .where(eq(contributions.externalReference, externalReference))
+          .limit(1);
+        const origin = requestOrigin(ctx.req);
+
+        return {
+          checkoutUrl: buildContributionConfirmationUrl({
+            baseUrl: origin,
+            campaignId: campaign.id,
+            campaignTitle: campaign.title,
+            donorName: donorName || "Doador",
+            amountCents: input.amount,
+          }),
+          contributionId: contribution?.id,
+          preferenceId: "cash-manual",
+          environment: ENV.isProduction ? "production" as const : "test" as const,
+        };
+      }
 
       try {
         const preference = await createMercadoPagoPreference({
@@ -244,7 +302,13 @@ export const paymentsRouter = router({
         if (!ENV.isProduction && enablePixDevFallback && shouldUsePixDevFallback(error)) {
           const origin = requestOrigin(ctx.req);
           return {
-            checkoutUrl: `${origin}/contribute/confirmation?type=financial&campaign=${encodeURIComponent(campaign.title)}&campaignId=${campaign.id}&donor=${encodeURIComponent(donorName || "Doador")}&amount=${input.amount}`,
+            checkoutUrl: buildContributionConfirmationUrl({
+              baseUrl: origin,
+              campaignId: campaign.id,
+              campaignTitle: campaign.title,
+              donorName: donorName || "Doador",
+              amountCents: input.amount,
+            }),
             contributionId: undefined,
             preferenceId: "dev-fallback",
             environment: "test" as const,

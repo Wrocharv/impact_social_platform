@@ -185,6 +185,7 @@ export default function ContributionWizardPage() {
           campaignId,
           campaignTitle: campaign?.title,
           amount: Math.round(state.amount * 100),
+          paymentMethod: state.paymentMethod,
           donorName: state.donorName,
           donorWhatsapp: state.donorWhatsapp,
           donorEmail: state.donorEmail.trim(),
