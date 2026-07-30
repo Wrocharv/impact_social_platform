@@ -496,7 +496,18 @@ export default function AdminDashboard() {
                         {uploadingCampaignImage === "create" && <p className="text-xs text-[#66736a]">Enviando imagem...</p>}
                         {campaignForm.imageUrl && <p className="text-xs text-[#228B22] break-all">Arquivo enviado: {campaignForm.imageUrl}</p>}
                       </Field>
-                      <Field label="Imagem (opcional)"><Input value={campaignForm.imageUrl} onChange={(event) => setCampaignForm({ ...campaignForm, imageUrl: event.target.value })} placeholder="/obra-paredes.jpg ou https://..." /></Field>
+                      <Field label="Caminho da imagem na raiz (opcional)">
+                        <Input
+                          value={campaignForm.imageUrl}
+                          onChange={(event) => setCampaignForm({ ...campaignForm, imageUrl: event.target.value })}
+                          placeholder="Ex.: /obra-paredes.jpg"
+                        />
+                        <p className="mt-1 text-xs text-[#66736a]">Use um caminho da raiz do site (começando com /) ou envie pelo campo de arquivo.</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button type="button" size="sm" variant="outline" onClick={() => setCampaignForm((current) => ({ ...current, imageUrl: "/obra-paredes.jpg" }))}>Usar imagem padrão da raiz</Button>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => setCampaignForm((current) => ({ ...current, imageUrl: "" }))}>Limpar caminho</Button>
+                        </div>
+                      </Field>
                     </div>
                     <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={() => setIsCreateCampaignOpen(false)}>Cancelar</Button><Button type="submit" disabled={createCampaign.isPending}>{createCampaign.isPending ? "Criando..." : "Criar campanha"}</Button></div>
                   </form>
@@ -743,7 +754,18 @@ export default function AdminDashboard() {
                   {uploadingCampaignImage === "edit" && <p className="text-xs text-[#66736a]">Enviando imagem...</p>}
                   {campaignEditForm.imageUrl && <p className="text-xs text-[#228B22] break-all">Arquivo enviado: {campaignEditForm.imageUrl}</p>}
                 </Field>
-                <Field label="Imagem (opcional)"><Input value={campaignEditForm.imageUrl} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, imageUrl: event.target.value })} placeholder="/obra-paredes.jpg ou https://..." /></Field>
+                <Field label="Caminho da imagem na raiz (opcional)">
+                  <Input
+                    value={campaignEditForm.imageUrl}
+                    onChange={(event) => setCampaignEditForm({ ...campaignEditForm, imageUrl: event.target.value })}
+                    placeholder="Ex.: /obra-paredes.jpg"
+                  />
+                  <p className="mt-1 text-xs text-[#66736a]">Use um caminho da raiz do site (começando com /) ou envie pelo campo de arquivo.</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={() => setCampaignEditForm((current) => ({ ...current, imageUrl: "/obra-paredes.jpg" }))}>Usar imagem padrão da raiz</Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setCampaignEditForm((current) => ({ ...current, imageUrl: "" }))}>Limpar caminho</Button>
+                  </div>
+                </Field>
               </div>
               <p className="rounded-lg bg-[#fff8e6] p-3 text-sm text-[#70571a]">Campanhas pausadas ou arquivadas deixam de aparecer nas áreas públicas. Campanhas concluídas continuam disponíveis para prestação de contas.</p>
               <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={closeEditCampaignDialog}>Cancelar</Button><Button type="submit" disabled={updateCampaign.isPending}>{updateCampaign.isPending ? "Salvando..." : "Salvar alterações"}</Button></div>
