@@ -97,10 +97,11 @@ export default function ContributionWizardPage() {
 
     const normalizedWhatsapp = state.donorWhatsapp.replace(/\D/g, "");
     const normalizedName = state.donorName.trim().toLowerCase();
+    const normalizedEmail = state.donorEmail.trim().toLowerCase();
 
-    if (normalizedWhatsapp.length < 8 && normalizedName.length < 3) return;
+    if (normalizedWhatsapp.length < 8 && normalizedName.length < 3 && !normalizedEmail) return;
 
-    const lookupKey = `${normalizedWhatsapp}|${normalizedName}`;
+    const lookupKey = `${normalizedWhatsapp}|${normalizedName}|${normalizedEmail}`;
     if (lookupKey === lastLookupKey) return;
 
     const timer = window.setTimeout(async () => {
@@ -111,6 +112,7 @@ export default function ContributionWizardPage() {
         profile = await utils.contributions.getDonorProfileLookup.fetch({
           donorWhatsapp: normalizedWhatsapp.length >= 8 ? state.donorWhatsapp : undefined,
           donorName: normalizedName.length >= 3 ? state.donorName : undefined,
+          donorEmail: normalizedEmail || undefined,
         });
       } catch {
         profile = null;
@@ -118,6 +120,7 @@ export default function ContributionWizardPage() {
 
       const localFallback = currentDonor && (
         (normalizedWhatsapp.length >= 8 && currentDonor.donorWhatsapp.replace(/\D/g, "") === normalizedWhatsapp)
+        || (normalizedEmail.length > 0 && currentDonor.donorEmail.trim().toLowerCase() === normalizedEmail)
         || (normalizedName.length >= 3 && currentDonor.donorName.trim().toLowerCase().includes(normalizedName))
       )
         ? {

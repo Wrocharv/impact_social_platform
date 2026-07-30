@@ -217,6 +217,7 @@ export const contributionsRouter = router({
     .input(z.object({
       donorWhatsapp: z.string().trim().min(8).max(20).optional(),
       donorName: z.string().trim().min(2).max(255).optional(),
+      donorEmail: z.string().trim().email().optional(),
     }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -226,8 +227,9 @@ export const contributionsRouter = router({
 
       const normalizedWhatsapp = input.donorWhatsapp?.replace(/\D/g, "") ?? "";
       const normalizedName = input.donorName?.trim().toLowerCase() ?? "";
+      const normalizedEmail = input.donorEmail?.trim().toLowerCase() ?? "";
 
-      if (!normalizedWhatsapp && normalizedName.length < 2) {
+      if (!normalizedWhatsapp && normalizedName.length < 2 && !normalizedEmail) {
         return null;
       }
 
@@ -245,6 +247,10 @@ export const contributionsRouter = router({
         .orderBy(desc(contributions.createdAt))
         .limit(300);
 
+      const byEmail = normalizedEmail
+        ? rows.find((row) => (row.donorEmail || "").trim().toLowerCase() === normalizedEmail)
+        : undefined;
+
       const byWhatsapp = normalizedWhatsapp
         ? rows.find((row) => (row.donorWhatsapp || "").replace(/\D/g, "") === normalizedWhatsapp)
         : undefined;
@@ -256,7 +262,7 @@ export const contributionsRouter = router({
         )
         : undefined;
 
-      const match = byWhatsapp ?? byName;
+      const match = byEmail ?? byWhatsapp ?? byName;
       if (!match) {
         return null;
       }
