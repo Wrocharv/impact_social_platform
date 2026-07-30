@@ -661,7 +661,18 @@ export default function AdminDashboard() {
         />
 
         <AlertDialog open={Boolean(partnerToDelete)} onOpenChange={(open) => !open && setPartnerToDelete(null)}>
-          <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Excluir parceiro?</AlertDialogTitle><AlertDialogDescription>O registro de <strong>{partnerToDelete?.name}</strong> será removido da vitrine pública. Esta ação não pode ser desfeita.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className="bg-red-700 hover:bg-red-800" disabled={deletePartner.isPending} onClick={() => partnerToDelete && deletePartner.mutate({ id: partnerToDelete.id })}>{deletePartner.isPending ? "Excluindo..." : "Excluir parceiro"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+          <AlertDialogContent className="border border-[#d7dfd4] bg-white text-[#1f2a23] shadow-xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir parceiro?</AlertDialogTitle>
+              <AlertDialogDescription className="text-[#4e5c53]">
+                O registro de <strong>{partnerToDelete?.name}</strong> será removido da vitrine pública. Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction className="bg-red-700 hover:bg-red-800" disabled={deletePartner.isPending} onClick={() => partnerToDelete && deletePartner.mutate({ id: partnerToDelete.id })}>{deletePartner.isPending ? "Excluindo..." : "Excluir parceiro"}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
         </AlertDialog>
       </div>
     </DashboardLayout>
