@@ -418,11 +418,43 @@ export const partnersRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) {
-        deleteFallbackPartner(input.id);
+        const deleted = deleteFallbackPartner(input.id);
+        if (!deleted) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Parceiro não encontrado." });
+        }
         return { success: true, message: "Parceiro removido com sucesso!" };
       }
 
-      await db.delete(partners).where(eq(partners.id, input.id));
-      return { success: true, message: "Parceiro removido com sucesso!" };
+      try {
+        const [existingPartner] = await db
+          .select({ id: partners.id })
+          .from(partners)
+          .where(eq(partners.id, input.id))
+          .limit(1);
+
+        if (!existingPartner) {
+          const deletedFallback = deleteFallbackPartner(input.id);
+          if (deletedFallback) {
+            return { success: true, message: "Parceiro removido com sucesso!" };
+          }
+
+          throw new TRPCError({ code: "NOT_FOUND", message: "Parceiro não encontrado." });
+        }
+
+        await db.delete(partners).where(eq(partners.id, input.id));
+        // Keep fallback storage aligned when list endpoints need to degrade to local mode.
+        deleteFallbackPartner(input.id);
+        return { success: true, message: "Parceiro removido com sucesso!" };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+
+        console.warn("[Partners] Falling back to local delete:", error);
+        const deletedFallback = deleteFallbackPartner(input.id);
+        if (deletedFallback) {
+          return { success: true, message: "Parceiro removido com sucesso!" };
+        }
+
+        throw error;
+      }
     }),
 });

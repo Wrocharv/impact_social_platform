@@ -169,11 +169,49 @@ describe("partners router", () => {
   });
 
   it("remove um parceiro como administrador", async () => {
+    const limit = vi.fn().mockResolvedValue([{ id: 3 }]);
+    const whereSelect = vi.fn(() => ({ limit }));
+    const from = vi.fn(() => ({ where: whereSelect }));
+    const select = vi.fn(() => ({ from }));
     const where = vi.fn().mockResolvedValue({});
-    getDbMock.mockResolvedValue({ delete: vi.fn(() => ({ where })) });
+    getDbMock.mockResolvedValue({
+      select,
+      delete: vi.fn(() => ({ where })),
+    });
     const caller = appRouter.createCaller(createContext("admin"));
 
     await expect(caller.partners.delete({ id: 3 })).resolves.toMatchObject({ success: true });
     expect(where).toHaveBeenCalled();
+  });
+
+  it("retorna NOT_FOUND quando parceiro nao existe na exclusao", async () => {
+    const limit = vi.fn().mockResolvedValue([]);
+    const whereSelect = vi.fn(() => ({ limit }));
+    const from = vi.fn(() => ({ where: whereSelect }));
+    const select = vi.fn(() => ({ from }));
+    const where = vi.fn();
+    getDbMock.mockResolvedValue({
+      select,
+      delete: vi.fn(() => ({ where })),
+    });
+    const caller = appRouter.createCaller(createContext("admin"));
+
+    await expect(caller.partners.delete({ id: 9999 })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(where).not.toHaveBeenCalled();
+  });
+
+  it("remove parceiro pelo fallback quando o banco falha na exclusao", async () => {
+    const limit = vi.fn().mockRejectedValue(new Error("db unavailable"));
+    const whereSelect = vi.fn(() => ({ limit }));
+    const from = vi.fn(() => ({ where: whereSelect }));
+    const select = vi.fn(() => ({ from }));
+    const caller = appRouter.createCaller(createContext("admin"));
+
+    getDbMock.mockResolvedValue({
+      select,
+      delete: vi.fn(),
+    });
+
+    await expect(caller.partners.delete({ id: 1 })).resolves.toMatchObject({ success: true });
   });
 });
