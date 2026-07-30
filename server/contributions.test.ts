@@ -1,12 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
-const { getDbMock } = vi.hoisted(() => ({
+const {
+  getDbMock,
+  createFallbackCashContributionMock,
+  listFallbackPendingCashValidationsMock,
+  listFallbackRecentCashValidationsMock,
+  reviewFallbackCashContributionMock,
+} = vi.hoisted(() => ({
   getDbMock: vi.fn(),
+  createFallbackCashContributionMock: vi.fn(),
+  listFallbackPendingCashValidationsMock: vi.fn(),
+  listFallbackRecentCashValidationsMock: vi.fn(),
+  reviewFallbackCashContributionMock: vi.fn(),
 }));
 
 vi.mock("./db", () => ({
   getDb: getDbMock,
+}));
+
+vi.mock("./cashValidationFallback", () => ({
+  createFallbackCashContribution: createFallbackCashContributionMock,
+  listFallbackPendingCashValidations: listFallbackPendingCashValidationsMock,
+  listFallbackRecentCashValidations: listFallbackRecentCashValidationsMock,
+  reviewFallbackCashContribution: reviewFallbackCashContributionMock,
 }));
 
 import { appRouter } from "./routers";
@@ -91,6 +108,10 @@ describe("contributions.createMaterialContribution", () => {
 describe("contributions.reviewCashContribution", () => {
   beforeEach(() => {
     getDbMock.mockReset();
+    createFallbackCashContributionMock.mockReset();
+    listFallbackPendingCashValidationsMock.mockReset();
+    listFallbackRecentCashValidationsMock.mockReset();
+    reviewFallbackCashContributionMock.mockReset();
   });
 
   it("aprova contribuição em dinheiro pendente de validação presencial", async () => {
@@ -205,5 +226,44 @@ describe("contributions.reviewCashContribution", () => {
       caller.contributions.reviewCashContribution({ contributionId: 124, decision: "reject" }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("usa fallback local para listar e revisar validacao presencial sem DB", async () => {
+    getDbMock.mockResolvedValue(null);
+    listFallbackPendingCashValidationsMock
+      .mockReturnValueOnce([])
+      .mockReturnValueOnce([
+        {
+          id: 700001,
+          campaignId: 100000,
+          donorName: "Doador Local",
+          donorWhatsapp: "(11) 99999-0000",
+          donorCity: "Sao Paulo",
+          amount: 25_000,
+          createdAt: new Date("2026-07-30T12:00:00.000Z"),
+          paymentStatusDetail: "awaiting_cash_confirmation",
+        },
+      ]);
+    listFallbackRecentCashValidationsMock.mockReturnValue([]);
+    reviewFallbackCashContributionMock.mockReturnValue({
+      ok: true,
+      status: "approved",
+      contributionId: 700001,
+    });
+
+    const caller = appRouter.createCaller(createAdminContext());
+
+    const pending = await caller.contributions.getPendingCashValidations();
+    const recent = await caller.contributions.getRecentCashValidations({ limit: 20 });
+    const reviewed = await caller.contributions.reviewCashContribution({
+      contributionId: 700001,
+      decision: "approve",
+      validationNote: "Confirmado local",
+    });
+
+    expect(createFallbackCashContributionMock).toHaveBeenCalledOnce();
+    expect(pending).toHaveLength(1);
+    expect(recent).toEqual([]);
+    expect(reviewed).toMatchObject({ success: true, status: "approved", contributionId: 700001 });
   });
 });

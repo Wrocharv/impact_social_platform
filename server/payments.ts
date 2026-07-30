@@ -5,6 +5,7 @@ import { z } from "zod";
 import { campaigns, contributions } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { publicProcedure, router } from "./_core/trpc";
+import { createFallbackCashContribution } from "./cashValidationFallback";
 import { getDb } from "./db";
 import { createMercadoPagoPreference, getMercadoPagoPayment } from "./mercadopago";
 
@@ -227,6 +228,13 @@ export const paymentsRouter = router({
           const origin = requestOrigin(ctx.req);
           const fallbackCampaignTitle = input.campaignTitle?.trim() || `Campanha ${input.campaignId}`;
           const donorName = input.donorName?.trim() || "Doador";
+          const fallbackContribution = createFallbackCashContribution({
+            campaignId: input.campaignId,
+            amount: input.amount,
+            donorName,
+            donorWhatsapp: input.donorWhatsapp,
+            donorCity: input.donorCity,
+          });
 
           return {
             checkoutUrl: buildContributionConfirmationUrl({
@@ -238,7 +246,7 @@ export const paymentsRouter = router({
               paymentMethod: "cash",
               paymentStatus: "awaiting_validation",
             }),
-            contributionId: undefined,
+            contributionId: fallbackContribution.id,
             preferenceId: "cash-manual",
             environment: "test" as const,
           };

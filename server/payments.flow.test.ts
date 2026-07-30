@@ -1,14 +1,19 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
-const { getDbMock, createPreferenceMock } = vi.hoisted(() => ({
+const { getDbMock, createPreferenceMock, createFallbackCashContributionMock } = vi.hoisted(() => ({
   getDbMock: vi.fn(),
   createPreferenceMock: vi.fn(),
+  createFallbackCashContributionMock: vi.fn(),
 }));
 
 vi.mock("./db", () => ({ getDb: getDbMock }));
 vi.mock("./mercadopago", () => ({
   createMercadoPagoPreference: createPreferenceMock,
+}));
+
+vi.mock("./cashValidationFallback", () => ({
+  createFallbackCashContribution: createFallbackCashContributionMock,
 }));
 
 import { appRouter } from "./routers";
@@ -51,6 +56,7 @@ describe("payments.createPaymentPreference", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.ENABLE_PIX_OPERATIONAL_FALLBACK = originalEnablePixOperationalFallback;
+    createFallbackCashContributionMock.mockReturnValue({ id: 700111 });
   });
 
   afterAll(() => {
@@ -281,6 +287,30 @@ describe("payments.createPaymentPreference", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(values).not.toHaveBeenCalled();
     expect(createPreferenceMock).not.toHaveBeenCalled();
+  });
+
+  it("persiste doacao em dinheiro no fallback local quando DB estiver indisponivel", async () => {
+    getDbMock.mockResolvedValue(null);
+    const caller = appRouter.createCaller(createContext());
+
+    const result = await caller.payments.createPaymentPreference({
+      campaignId: 7,
+      amount: 5_000,
+      donorEmail: "doador@example.com",
+      donorName: "Maria",
+      donorWhatsapp: "11999999999",
+      donorCity: "Sao Paulo",
+      allowPublicDisplay: false,
+      paymentMethod: "cash",
+    });
+
+    expect(createFallbackCashContributionMock).toHaveBeenCalledWith(expect.objectContaining({
+      campaignId: 7,
+      amount: 5_000,
+      donorName: "Maria",
+    }));
+    expect(result.contributionId).toBe(700111);
+    expect(result.preferenceId).toBe("cash-manual");
   });
 });
 
