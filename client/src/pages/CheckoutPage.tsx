@@ -6,6 +6,7 @@ import { ChevronLeft, AlertCircle, Loader2, LockKeyhole } from "lucide-react";
 import { Link, useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useDonorStorage } from "@/hooks/useDonorStorage";
 
 export default function CheckoutPage() {
   const [match, params] = useRoute("/checkout/:campaignId");
@@ -13,9 +14,22 @@ export default function CheckoutPage() {
 
   const [amount, setAmount] = useState("");
   const [donorName, setDonorName] = useState("");
+  const [donorWhatsapp, setDonorWhatsapp] = useState("");
   const [donorEmail, setDonorEmail] = useState("");
+  const [donorCity, setDonorCity] = useState("");
+  const [donorChurch, setDonorChurch] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"pix" | "card" | "boleto" | "cash">("pix");
   const [isProcessing, setIsProcessing] = useState(false);
+  const { currentDonor, isLoaded, saveDonor } = useDonorStorage();
+
+  useEffect(() => {
+    if (!isLoaded || !currentDonor) return;
+    setDonorName((current) => current || currentDonor.donorName || "");
+    setDonorWhatsapp((current) => current || currentDonor.donorWhatsapp || "");
+    setDonorEmail((current) => current || currentDonor.donorEmail || "");
+    setDonorCity((current) => current || currentDonor.donorCity || "");
+    setDonorChurch((current) => current || currentDonor.donorChurch || "");
+  }, [currentDonor, isLoaded]);
 
   const campaignQuery = trpc.campaigns.getById.useQuery(
     { id: campaignId },
@@ -27,12 +41,20 @@ export default function CheckoutPage() {
     e.preventDefault();
 
     const amountInCents = Math.round(Number(amount.replace(",", ".")) * 100);
-    if (!Number.isInteger(amountInCents) || amountInCents < 100 || !donorEmail.trim()) {
-      toast.error("Preencha todos os campos obrigatórios");
+    if (!Number.isInteger(amountInCents) || amountInCents < 100 || !donorEmail.trim() || donorWhatsapp.replace(/\D/g, "").length < 8 || donorCity.trim().length < 2) {
+      toast.error("Preencha os campos obrigatórios (incluindo WhatsApp e cidade)");
       return;
     }
 
     setIsProcessing(true);
+
+    saveDonor({
+      donorName: donorName.trim() || "Doador",
+      donorWhatsapp: donorWhatsapp.trim(),
+      donorEmail: donorEmail.trim(),
+      donorCity: donorCity.trim(),
+      donorChurch: donorChurch.trim(),
+    });
 
     createPaymentPreference.mutate(
       {
@@ -41,6 +63,9 @@ export default function CheckoutPage() {
         paymentMethod,
         donorEmail: donorEmail.trim(),
         donorName: donorName.trim() || undefined,
+        donorWhatsapp: donorWhatsapp.trim(),
+        donorCity: donorCity.trim(),
+        donorChurch: donorChurch.trim() || undefined,
       },
       {
         onSuccess: (data) => {
@@ -252,6 +277,42 @@ export default function CheckoutPage() {
                       placeholder="seu@email.com"
                       value={donorEmail}
                       onChange={(e) => setDonorEmail(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">
+                      WhatsApp *
+                    </label>
+                    <Input
+                      type="tel"
+                      placeholder="(11) 99999-0000"
+                      value={donorWhatsapp}
+                      onChange={(e) => setDonorWhatsapp(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">
+                      Cidade *
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="Sua cidade"
+                      value={donorCity}
+                      onChange={(e) => setDonorCity(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">
+                      Igreja (opcional)
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="Nome da igreja"
+                      value={donorChurch}
+                      onChange={(e) => setDonorChurch(e.target.value)}
                     />
                   </div>
 
