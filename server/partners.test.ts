@@ -168,6 +168,32 @@ describe("partners router", () => {
     ]));
   });
 
+  it("faz fallback para insercao legada quando o insert completo falha", async () => {
+    const values = vi.fn()
+      .mockRejectedValueOnce(new Error("Unknown column 'ownerName'"))
+      .mockResolvedValueOnce({});
+    getDbMock.mockResolvedValue({ insert: vi.fn(() => ({ values })) });
+    const caller = appRouter.createCaller(createContext("admin"));
+
+    await expect(caller.partners.create({
+      name: "Múltipla Escolha",
+      type: "company",
+      ownerName: "Lucas Daniel Sardinha",
+      description: "Pedras que transformam ambientes",
+      contactInfo: "(64) 3621-201",
+      website: "https://example.org",
+    })).resolves.toMatchObject({ success: true });
+
+    expect(values).toHaveBeenCalledTimes(2);
+    expect(values).toHaveBeenNthCalledWith(2, {
+      name: "Múltipla Escolha",
+      type: "company",
+      description: "Pedras que transformam ambientes",
+      logoUrl: undefined,
+      website: "https://example.org",
+    });
+  });
+
   it("remove um parceiro como administrador", async () => {
     const limit = vi.fn().mockResolvedValue([{ id: 3 }]);
     const whereSelect = vi.fn(() => ({ limit }));
@@ -201,17 +227,34 @@ describe("partners router", () => {
   });
 
   it("remove parceiro pelo fallback quando o banco falha na exclusao", async () => {
-    const limit = vi.fn().mockRejectedValue(new Error("db unavailable"));
+    getDbMock.mockResolvedValue(null);
+    const seedCaller = appRouter.createCaller(createContext("admin"));
+    const uniqueName = `Parceiro fallback ${Date.now()}`;
+    await expect(seedCaller.partners.create({
+      name: uniqueName,
+      type: "company",
+      description: "Seed para teste de exclusao via fallback",
+    })).resolves.toMatchObject({ success: true });
+
+    const seededPartners = await seedCaller.partners.getAll();
+    const seededPartner = seededPartners.find((partner) => partner.name === uniqueName);
+    expect(seededPartner).toBeTruthy();
+    if (!seededPartner) {
+      throw new Error("Partner seed not found");
+    }
+
+    const limit = vi.fn().mockResolvedValue([{ id: seededPartner.id }]);
     const whereSelect = vi.fn(() => ({ limit }));
     const from = vi.fn(() => ({ where: whereSelect }));
     const select = vi.fn(() => ({ from }));
+    const where = vi.fn().mockRejectedValue(new Error("db unavailable"));
     const caller = appRouter.createCaller(createContext("admin"));
 
     getDbMock.mockResolvedValue({
       select,
-      delete: vi.fn(),
+      delete: vi.fn(() => ({ where })),
     });
 
-    await expect(caller.partners.delete({ id: 1 })).resolves.toMatchObject({ success: true });
+    await expect(caller.partners.delete({ id: seededPartner.id })).resolves.toMatchObject({ success: true });
   });
 });

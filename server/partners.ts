@@ -303,6 +303,21 @@ function extensionForMimeType(mimeType: z.infer<typeof uploadPartnerImageSchema>
   return "webp";
 }
 
+function isLegacyPartnerInsertError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /Unknown column|ER_BAD_FIELD_ERROR|Data too long|ER_DATA_TOO_LONG|field count doesn't match/i.test(message);
+}
+
+function buildLegacyPartnerInsert(input: z.infer<typeof createPartnerSchema>) {
+  return {
+    name: input.name,
+    type: input.type,
+    description: input.description,
+    logoUrl: input.logoUrl,
+    website: input.website,
+  };
+}
+
 export const partnersRouter = router({
   uploadImage: adminProcedure
     .input(uploadPartnerImageSchema)
@@ -391,8 +406,25 @@ export const partnersRouter = router({
         return { success: true, message: "Parceiro cadastrado com sucesso!" };
       }
 
-      await db.insert(partners).values(input);
-      return { success: true, message: "Parceiro cadastrado com sucesso!" };
+      try {
+        await db.insert(partners).values(input);
+        return { success: true, message: "Parceiro cadastrado com sucesso!" };
+      } catch (error) {
+        if (!isLegacyPartnerInsertError(error)) {
+          throw error;
+        }
+
+        console.warn("[Partners] Falling back to legacy insert:", error);
+
+        try {
+          await db.insert(partners).values(buildLegacyPartnerInsert(input));
+          return { success: true, message: "Parceiro cadastrado com sucesso!" };
+        } catch (legacyError) {
+          console.warn("[Partners] Legacy insert failed, using local fallback:", legacyError);
+          createFallbackPartner(input);
+          return { success: true, message: "Parceiro cadastrado com sucesso!" };
+        }
+      }
     }),
 
   update: adminProcedure
