@@ -48,16 +48,6 @@ export function useDonorStorage() {
       }
       if (storedCurrent) {
         setCurrentDonor(JSON.parse(storedCurrent));
-      } else if (parsedDonors.length > 0) {
-        // Recover the most recently created donor when current donor key is missing.
-        const fallbackCurrent = [...parsedDonors]
-          .filter((donor) => normalizeWhatsapp(donor.donorWhatsapp).length >= 8)
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-
-        if (fallbackCurrent) {
-          setCurrentDonor(fallbackCurrent);
-          localStorage.setItem(CURRENT_DONOR_KEY, JSON.stringify(fallbackCurrent));
-        }
       }
     } catch (error) {
       console.error("Erro ao carregar doadores:", error);
@@ -128,6 +118,16 @@ export function useDonorStorage() {
   }
 
   /**
+   * Limpar todos os dados salvos do doador neste dispositivo
+   */
+  function clearSavedDonors() {
+    setCurrentDonor(null);
+    setDonors([]);
+    localStorage.removeItem(CURRENT_DONOR_KEY);
+    localStorage.removeItem(DONORS_STORAGE_KEY);
+  }
+
+  /**
    * Obter todos os doadores (para futuros sorteios)
    */
   function getAllDonors(): DonorData[] {
@@ -150,6 +150,7 @@ export function useDonorStorage() {
     currentDonor,
     saveDonor,
     clearCurrentDonor,
+    clearSavedDonors,
     findDonorByWhatsapp,
     getAllDonors,
     getDonorsStats,

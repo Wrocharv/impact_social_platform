@@ -20,7 +20,17 @@ export default function CheckoutPage() {
   const [donorChurch, setDonorChurch] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"pix" | "card" | "boleto" | "cash">("pix");
   const [isProcessing, setIsProcessing] = useState(false);
-  const { currentDonor, isLoaded, saveDonor } = useDonorStorage();
+  const { currentDonor, isLoaded, saveDonor, clearSavedDonors } = useDonorStorage();
+
+  const handleForgetSavedDonor = () => {
+    clearSavedDonors();
+    setDonorName("");
+    setDonorWhatsapp("");
+    setDonorEmail("");
+    setDonorCity("");
+    setDonorChurch("");
+    toast.success("Dados salvos deste dispositivo foram apagados.");
+  };
 
   useEffect(() => {
     if (!isLoaded || !currentDonor) return;
@@ -185,6 +195,22 @@ export default function CheckoutPage() {
                 </p>
 
                 <form onSubmit={handleCheckout} className="space-y-6">
+                  {currentDonor && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                      <p className="text-sm text-blue-700">
+                        Seus dados foram preenchidos automaticamente neste dispositivo.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="mt-2 h-auto p-0 text-sm font-semibold text-blue-700 hover:text-blue-800"
+                        onClick={handleForgetSavedDonor}
+                      >
+                        Esquecer meus dados neste dispositivo
+                      </Button>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">
                       Forma de pagamento

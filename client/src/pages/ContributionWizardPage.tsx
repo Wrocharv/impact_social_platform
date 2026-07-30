@@ -51,7 +51,7 @@ export default function ContributionWizardPage() {
   const utils = trpc.useUtils();
 
   // Carregar dados de doadores salvos
-  const { isLoaded, currentDonor, saveDonor } = useDonorStorage();
+  const { isLoaded, currentDonor, saveDonor, clearSavedDonors } = useDonorStorage();
 
   const campaignQuery = trpc.campaigns.getById.useQuery(
     { id: campaignId },
@@ -118,22 +118,7 @@ export default function ContributionWizardPage() {
         profile = null;
       }
 
-      const localFallback = currentDonor && (
-        (normalizedWhatsapp.length >= 8 && currentDonor.donorWhatsapp.replace(/\D/g, "") === normalizedWhatsapp)
-        || (normalizedEmail.length > 0 && currentDonor.donorEmail.trim().toLowerCase() === normalizedEmail)
-        || (normalizedName.length >= 3 && currentDonor.donorName.trim().toLowerCase().includes(normalizedName))
-      )
-        ? {
-          donorName: currentDonor.donorName,
-          donorWhatsapp: currentDonor.donorWhatsapp,
-          donorEmail: currentDonor.donorEmail,
-          donorCity: currentDonor.donorCity,
-          donorChurch: currentDonor.donorChurch,
-          allowPublicDisplay: state.allowPublicDisplay ?? false,
-        }
-        : null;
-
-      const resolvedProfile = profile ?? localFallback;
+      const resolvedProfile = profile;
       if (!resolvedProfile) return;
 
       setState((prev) => {
@@ -418,6 +403,26 @@ export default function ContributionWizardPage() {
                         <br />
                         <span className="text-xs text-blue-600 mt-1 block">ID do doador: {currentDonor.donorId} • Doações anteriores: {currentDonor.donationsCount}</span>
                       </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="mt-2 h-auto p-0 text-sm font-semibold text-blue-700 hover:text-blue-800"
+                        onClick={() => {
+                          clearSavedDonors();
+                          setLastLookupKey("");
+                          setState((prev) => ({
+                            ...prev,
+                            donorName: "",
+                            donorWhatsapp: "",
+                            donorEmail: "",
+                            donorCity: "",
+                            donorChurch: "",
+                          }));
+                          toast.success("Dados salvos deste dispositivo foram apagados.");
+                        }}
+                      >
+                        Esquecer meus dados neste dispositivo
+                      </Button>
                     </div>
                   )}
 
