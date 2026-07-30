@@ -164,6 +164,19 @@ function getMappedFallbackCampaigns(input?: { status?: "active" | "completed"; q
     });
 }
 
+function dedupeCampaignsById<T extends { id: number }>(rows: T[]): T[] {
+  const seen = new Set<number>();
+  const deduped: T[] = [];
+
+  for (const row of rows) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    deduped.push(row);
+  }
+
+  return deduped;
+}
+
 const PUBLIC_STATUSES = ["active", "completed"] as const;
 const APPROVED_CONTRIBUTION_STATUSES = ["approved", "completed"] as const;
 
@@ -362,7 +375,7 @@ export const campaignsRouter = router({
           status: input?.status,
           query: input?.query,
         });
-        return [...demoCampaigns, ...mappedFallback].slice(0, input?.limit ?? 12);
+        return dedupeCampaignsById([...demoCampaigns, ...mappedFallback]).slice(0, input?.limit ?? 12);
       }
 
       const statusCondition = input?.status
@@ -392,15 +405,15 @@ export const campaignsRouter = router({
   getPublicStats: publicProcedure.query(async () => {
     const db = await getDb();
     if (!db) {
-      const fallbackCampaigns = getMappedFallbackCampaigns({ status: "active" });
-      const demoStats = getDemoPublicStats();
+      const mergedActiveCampaigns = dedupeCampaignsById([
+        ...getDemoCampaigns("active"),
+        ...getMappedFallbackCampaigns({ status: "active" }),
+      ]);
 
       return {
-        activeCampaigns: demoStats.activeCampaigns + fallbackCampaigns.length,
-        raised: demoStats.raised + fallbackCampaigns.reduce((sum, campaign) => sum + campaign.raised, 0),
-        contributorsCount:
-          demoStats.contributorsCount
-          + fallbackCampaigns.reduce((sum, campaign) => sum + campaign.contributorsCount, 0),
+        activeCampaigns: mergedActiveCampaigns.length,
+        raised: mergedActiveCampaigns.reduce((sum, campaign) => sum + campaign.raised, 0),
+        contributorsCount: mergedActiveCampaigns.reduce((sum, campaign) => sum + campaign.contributorsCount, 0),
       };
     }
 
