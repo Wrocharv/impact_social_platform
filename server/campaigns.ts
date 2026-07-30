@@ -18,7 +18,7 @@ const DEMO_CAMPAIGN = {
   title: "Construção Hotel Recanto de Paz",
   description: "Apoie a construção do Hotel Recanto de Paz com materiais e contribuições para a obra. [Verificacao 30/07]",
   longDescription:
-    "A campanha apresenta uma obra real, com evolução de etapas, atualizações de fotos e necessidades concretas de materiais. Apoie a construção do Hotel Recanto de Paz em cada fase.",
+    "A campanha apresenta uma obra real, com evolução de etapas, atualizações de fotos e necessidades concretas de materiais. Apoie a construção do Hotel Recanto de Paz em cada fase. [Verificacao 30/07]",
   category: "outro" as const,
   goal: 10_000_00,
   imageUrl: "/obra-paredes.jpg",
