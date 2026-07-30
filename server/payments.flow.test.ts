@@ -236,6 +236,32 @@ describe("payments.createPaymentPreference", () => {
     expect(result.checkoutUrl).toContain("paymentMethod=cash");
   });
 
+  it("usa persistencia legada quando donorWhatsapp nao existir no schema", async () => {
+    const { db, values } = createDb([
+      { id: 7, title: "Casa da Viúva", status: "active" },
+    ]);
+    values
+      .mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'paymentStatusDetail'"))
+      .mockRejectedValueOnce(new Error("ER_BAD_FIELD_ERROR: Unknown column 'donorWhatsapp'"));
+    getDbMock.mockResolvedValue(db);
+
+    const caller = appRouter.createCaller(createContext());
+    const result = await caller.payments.createPaymentPreference({
+      campaignId: 7,
+      amount: 5_000,
+      donorEmail: "doador@example.com",
+      donorName: "Maria",
+      donorWhatsapp: "11999999999",
+      donorCity: "São Paulo",
+      allowPublicDisplay: false,
+      paymentMethod: "cash",
+    });
+
+    expect(values).toHaveBeenCalledTimes(3);
+    expect(createPreferenceMock).not.toHaveBeenCalled();
+    expect(result.preferenceId).toBe("cash-manual");
+  });
+
   it("propaga mensagem útil quando o Mercado Pago não está configurado", async () => {
     const { db, values } = createDb([
       { id: 7, title: "Casa da Viúva", status: "active" },

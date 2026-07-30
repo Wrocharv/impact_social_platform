@@ -382,7 +382,7 @@ export const paymentsRouter = router({
             persistedContribution = true;
             persistError = undefined;
           } catch (legacyError) {
-            // Schema ainda mais antigo: tenta sem paymentMethod/externalReference.
+            // Schema ainda mais antigo: tenta sem paymentMethod/externalReference e sem donorWhatsapp.
             if (isMissingColumnError(legacyError)) {
               try {
                 await db.insert(contributions).values({
@@ -392,7 +392,6 @@ export const paymentsRouter = router({
                   amount: input.amount,
                   donorName,
                   donorEmail,
-                  donorWhatsapp,
                   status: "pending",
                 });
                 persistedContribution = true;
