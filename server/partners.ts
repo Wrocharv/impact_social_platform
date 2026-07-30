@@ -107,11 +107,39 @@ function loadPartnersFromDisk(): PartnerRecord[] {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) return toDefaultPartners();
 
-    return parsed.map((item) => ({
+    const hydrated = parsed.map((item) => ({
       ...item,
       createdAt: new Date(item.createdAt),
       updatedAt: new Date(item.updatedAt),
     })) as PartnerRecord[];
+
+    const meaningful = hydrated.filter((partner) => {
+      const normalizedName = partner.name?.trim().toLowerCase() || "";
+      return (
+        normalizedName.length > 1
+        && !normalizedName.includes("localhost")
+        && !normalizedName.includes("127.0.0.1")
+        && normalizedName !== "parceria local"
+      );
+    });
+
+    const hasShowcaseProfile = (partner: PartnerRecord) => Boolean(
+      partner.ownerName
+      && (
+        partner.logoUrl
+        || partner.ownerPhotoUrl
+        || partner.storePhotoUrl
+        || partner.address
+        || partner.contactInfo
+        || partner.testimonialText
+      )
+    );
+
+    if (meaningful.length === 0 || meaningful.every((partner) => !hasShowcaseProfile(partner))) {
+      return toDefaultPartners();
+    }
+
+    return meaningful;
   } catch (error) {
     console.warn("[Partners] Unable to load fallback partners from disk:", error);
     return [];
