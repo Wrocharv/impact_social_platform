@@ -226,10 +226,15 @@ export const partnersRouter = router({
       return getFallbackPartners().sort((a, b) => a.name.localeCompare(b.name));
     }
 
-    return db
-      .select()
-      .from(partners)
-      .orderBy(asc(partners.name), asc(partners.id));
+    try {
+      return await db
+        .select()
+        .from(partners)
+        .orderBy(asc(partners.name), asc(partners.id));
+    } catch (error) {
+      console.warn("[Partners] Falling back to local data in listPublished:", error);
+      return getFallbackPartners().sort((a, b) => a.name.localeCompare(b.name));
+    }
   }),
 
   getAll: adminProcedure.query(async () => {
@@ -238,10 +243,15 @@ export const partnersRouter = router({
       return getFallbackPartners().sort((a, b) => a.name.localeCompare(b.name));
     }
 
-    return db
-      .select()
-      .from(partners)
-      .orderBy(asc(partners.name), asc(partners.id));
+    try {
+      return await db
+        .select()
+        .from(partners)
+        .orderBy(asc(partners.name), asc(partners.id));
+    } catch (error) {
+      console.warn("[Partners] Falling back to local data in getAll:", error);
+      return getFallbackPartners().sort((a, b) => a.name.localeCompare(b.name));
+    }
   }),
 
   create: adminProcedure
