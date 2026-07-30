@@ -204,28 +204,9 @@ const optionalText = (max: number) =>
     z.string().trim().max(max).optional(),
   );
 
-function normalizeHttpUrl(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return trimmed;
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
-}
-
 const optionalHttpUrl = z.preprocess(
-  (value) => {
-    if (typeof value !== "string") return value;
-    if (value.trim() === "") return undefined;
-    return normalizeHttpUrl(value);
-  },
-  z
-    .string()
-    .trim()
-    .url("Informe uma URL válida")
-    .max(512)
-    .refine((value) => value.startsWith("https://") || value.startsWith("http://"), {
-      message: "A URL deve usar HTTP ou HTTPS",
-    })
-    .optional(),
+  (value) => typeof value === "string" && value.trim() === "" ? undefined : value,
+  z.string().trim().max(512).optional(),
 );
 
 function isLikelyImageUrl(url: string) {
@@ -238,20 +219,8 @@ function isLikelyImageUrl(url: string) {
 }
 
 const optionalImageUrl = z.preprocess(
-  (value) => {
-    if (typeof value !== "string") return value;
-    if (value.trim() === "") return undefined;
-    return normalizeHttpUrl(value);
-  },
-  z
-    .string()
-    .trim()
-    .url("Informe uma URL válida")
-    .max(512)
-    .refine((value) => value.startsWith("https://") || value.startsWith("http://"), {
-      message: "A URL deve usar HTTP ou HTTPS",
-    })
-    .optional(),
+  (value) => typeof value === "string" && value.trim() === "" ? undefined : value,
+  z.string().trim().max(512).optional(),
 );
 
 const partnerFields = {
