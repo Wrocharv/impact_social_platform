@@ -188,7 +188,7 @@ export default function ContributionWizardPage() {
         ? (state.amount ?? 0) >= 1 &&
           (state.recurrence === "unique" || (state.numberOfInstallments ?? 0) >= 2)
         : state.type === "material"
-          ? state.materialDescription.trim().length >= 10 &&
+          ? state.materialDescription.trim().length >= 3 &&
             state.deliveryMethod !== null &&
             (state.materialDeliveryFrequency === "unique" || state.numberOfInstallments === undefined)
           : state.volunteerDescription.trim().length >= 10,
@@ -202,7 +202,11 @@ export default function ContributionWizardPage() {
   };
 
   const handleTypeSelect = (type: ContributionType) => {
-    setState({ ...state, type });
+    setState({
+      ...state,
+      type,
+      deliveryMethod: type === "material" ? (state.deliveryMethod ?? "pickup") : state.deliveryMethod,
+    });
     setStep("donor-info");
   };
 
@@ -614,6 +618,7 @@ export default function ContributionWizardPage() {
                           disabled={loading}
                           className="min-h-24"
                         />
+                        <p className="mt-1 text-xs text-gray-500">Mínimo de 3 caracteres.</p>
                       </div>
 
                       <div>

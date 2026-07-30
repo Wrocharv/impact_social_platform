@@ -40,7 +40,7 @@ const donorInfoSchema = z.object({
 
 const offerSchema = z.object({
   campaignId: z.number().int().positive(),
-  description: z.string().trim().min(10).max(3000),
+  description: z.string().trim().min(3).max(3000),
   ...donorInfoSchema.shape,
   campaignNeedId: z.number().int().positive().optional(),
   quantity: z.string().trim().max(255).optional(),
