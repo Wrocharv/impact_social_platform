@@ -104,6 +104,18 @@ const DEMO_CAMPAIGN = {
   documents: [],
 };
 
+function isCanonicalRecantoCampaign(campaign: { id: number; title: string }) {
+  return campaign.id === DEMO_CAMPAIGN.id || /recanto de paz/i.test(campaign.title);
+}
+
+function withCanonicalRecantoCover<T extends { id: number; title: string; imageUrl: string | null }>(campaign: T): T {
+  if (!isCanonicalRecantoCampaign(campaign)) return campaign;
+  return {
+    ...campaign,
+    imageUrl: DEMO_CAMPAIGN.imageUrl,
+  };
+}
+
 function getDemoCampaigns(status?: "active" | "completed") {
   if (!status || DEMO_CAMPAIGN.status === status) {
     return [DEMO_CAMPAIGN];
@@ -397,7 +409,7 @@ export const campaignsRouter = router({
       );
 
       return rows.map((campaign) => ({
-        ...campaign,
+        ...withCanonicalRecantoCover(campaign),
         ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, [])),
       }));
     }),
@@ -496,17 +508,28 @@ export const campaignsRouter = router({
         ),
       );
 
+      const canonicalizedCampaign = withCanonicalRecantoCover(campaign);
+      const isRecanto = isCanonicalRecantoCampaign(campaign);
+
       return {
-        ...campaign,
+        ...canonicalizedCampaign,
         ...campaignMetrics,
-        updates: updates.map((update) => ({
-          ...update,
-          images: parseMediaUrls(update.imageUrls),
-          videos: parseMediaUrls(update.videoUrls),
-        })),
-        needs,
+        longDescription: isRecanto ? DEMO_CAMPAIGN.longDescription : campaign.longDescription,
+        category: isRecanto ? DEMO_CAMPAIGN.category : campaign.category,
+        updates: isRecanto
+          ? DEMO_CAMPAIGN.updates.map((update) => ({
+              ...update,
+              images: [...update.images],
+              videos: [],
+            }))
+          : updates.map((update) => ({
+              ...update,
+              images: parseMediaUrls(update.imageUrls),
+              videos: parseMediaUrls(update.videoUrls),
+            })),
+        needs: isRecanto ? DEMO_CAMPAIGN.needs : needs,
         documents,
-        galleryImages,
+        galleryImages: isRecanto ? [...DEMO_CAMPAIGN.galleryImages] : galleryImages,
       };
     }),
 
