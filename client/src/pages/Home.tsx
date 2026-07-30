@@ -57,7 +57,7 @@ export default function Home() {
       <PublicHeader />
 
       <section
-        className="relative overflow-hidden flex h-[520px] items-center justify-center text-white"
+        className="relative overflow-hidden flex h-[430px] items-center justify-center text-white md:h-[470px]"
         style={{
           backgroundImage: "linear-gradient(135deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.32)), url('https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?auto=format&fit=crop&w=1600&q=80')",
           backgroundSize: "cover",
@@ -72,10 +72,10 @@ export default function Home() {
               Solidariedade com transparência
             </p>
             <h1 className="mb-6 text-5xl font-bold uppercase leading-[1.05] md:text-6xl tracking-[0.06em]">
-              Juntos, construímos esperança.
+              Juntos Transformamos Vidas
             </h1>
             <p className="mx-auto mb-9 max-w-2xl text-lg leading-relaxed text-white/90 md:text-xl">
-              Apoie projetos que já estão em andamento, com fotos, evolução da obra e necessidades específicas de materiais e mão de obra.
+              Cada contribuição se transforma em cuidado, dignidade e esperança para quem mais precisa.
             </p>
             <div className="flex flex-col justify-center gap-3 sm:flex-row">
               <Link
@@ -112,30 +112,30 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="border-b border-[#e5e5e5] bg-white py-5" aria-label="Indicadores da plataforma">
-        <div className="container grid max-w-7xl grid-cols-1 gap-6 px-4 sm:grid-cols-2">
-          {statsQuery.isLoading ? (
-            Array.from({ length: 2 }).map((_, index) => <Skeleton key={index} className="mx-auto h-12 w-36" />)
-          ) : (
-            <>
-              <Stat value={String(statsQuery.data?.activeCampaigns ?? 0)} label="Campanhas ativas" />
-              <Stat value={String(statsQuery.data?.contributorsCount ?? 0)} label="Contribuidores confirmados" />
-            </>
-          )}
-        </div>
-      </section>
-
-      <section className="border-b border-[#e8ece8] bg-[#f8fbf7] py-8" aria-labelledby="parceiros-destaque-title">
+      <section className="border-b border-[#e8ece8] bg-[#f7faf6] py-12 md:py-14" aria-labelledby="video-apresentacao-title">
         <div className="container max-w-7xl px-4">
-          <div className="mb-6 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#228B22]">Parceiros em destaque</p>
-              <h2 id="parceiros-destaque-title" className="mt-1 text-2xl font-bold text-[#243128]">Rede ativa de apoio</h2>
-            </div>
-            <a href="#parceiros" className="text-sm font-semibold text-[#228B22] hover:underline">Ver seção completa</a>
+          <div className="mx-auto max-w-4xl text-center">
+            <p className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-[#228B22]">Apresentação</p>
+            <h2 id="video-apresentacao-title" className="text-3xl font-bold text-[#243128] md:text-4xl">
+              Veja o propósito e o objetivo deste projeto
+            </h2>
+            <p className="mt-3 text-[#56645c] md:text-lg">
+              Conheça algumas de nossas ações e seja um doador, seja um parceiro do bem.
+            </p>
           </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            {visiblePartners.slice(0, 3).map((partner) => <PartnerCard key={`preview-${partner.id}`} partner={partner} />)}
+
+          <div className="mx-auto mt-8 max-w-4xl overflow-hidden rounded-2xl border border-[#d7e2d7] bg-[#eaf1e8] shadow-sm">
+            <div className="aspect-video w-full">
+              <iframe
+                className="h-full w-full"
+                src="https://www.youtube.com/embed/dQw4w9WgXcQ"
+                title="Vídeo de apresentação da plataforma"
+                loading="lazy"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -144,7 +144,7 @@ export default function Home() {
         <div className="container max-w-7xl px-4">
           <div className="mb-4 flex flex-col items-start text-left md:items-center md:text-center">
             <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-[#228B22]">Campanhas e obras</p>
-            <h2 className="text-4xl font-bold text-[#2d2d2d] md:text-5xl">Apoie obras que já estão ganhando forma na prática</h2>
+            <h2 className="text-4xl font-bold text-[#2d2d2d] md:text-5xl">Apoie campanhas que transformam vidas, do planejamento à realização</h2>
             <Link href="/campaigns" className="mt-4 font-semibold text-[#228B22] hover:underline">
               Ver todas as campanhas
             </Link>
@@ -177,6 +177,19 @@ export default function Home() {
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
               {campaigns.map((campaign) => <CampaignCard key={campaign.id} campaign={campaign} />)}
             </div>
+          )}
+        </div>
+      </section>
+
+      <section className="border-b border-[#e5e5e5] bg-white py-5" aria-label="Indicadores da plataforma">
+        <div className="container grid max-w-7xl grid-cols-1 gap-6 px-4 sm:grid-cols-2">
+          {statsQuery.isLoading ? (
+            Array.from({ length: 2 }).map((_, index) => <Skeleton key={index} className="mx-auto h-12 w-36" />)
+          ) : (
+            <>
+              <Stat value={String(statsQuery.data?.activeCampaigns ?? 0)} label="Campanhas ativas" />
+              <Stat value={String(statsQuery.data?.contributorsCount ?? 0)} label="Contribuidores confirmados" />
+            </>
           )}
         </div>
       </section>
@@ -325,6 +338,21 @@ export default function Home() {
             >
               <Handshake className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ser parceiro
             </a>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-[#e8ece8] bg-[#f8fbf7] py-8" aria-labelledby="parceiros-destaque-title">
+        <div className="container max-w-7xl px-4">
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#228B22]">Parceiros em destaque</p>
+              <h2 id="parceiros-destaque-title" className="mt-1 text-2xl font-bold text-[#243128]">Rede ativa de apoio</h2>
+            </div>
+            <a href="#parceiros" className="text-sm font-semibold text-[#228B22] hover:underline">Ver seção completa</a>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {visiblePartners.slice(0, 3).map((partner) => <PartnerCard key={`preview-${partner.id}`} partner={partner} />)}
           </div>
         </div>
       </section>
