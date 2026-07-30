@@ -46,6 +46,7 @@ export default function Home() {
   const campaigns = (campaignsQuery.data ?? []) as PublishedCampaign[];
   const completedCampaigns = (completedQuery.data ?? []) as PublishedCampaign[];
   const partners = (partnersQuery.data ?? []) as PartnerItem[];
+  const visiblePartners = partners.length > 0 ? partners : getDemoPartners();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white pb-22 md:pb-24">
@@ -117,6 +118,21 @@ export default function Home() {
               <Stat value={String(statsQuery.data?.contributorsCount ?? 0)} label="Contribuidores confirmados" />
             </>
           )}
+        </div>
+      </section>
+
+      <section className="border-b border-[#e8ece8] bg-[#f8fbf7] py-8" aria-labelledby="parceiros-destaque-title">
+        <div className="container max-w-7xl px-4">
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#228B22]">Parceiros em destaque</p>
+              <h2 id="parceiros-destaque-title" className="mt-1 text-2xl font-bold text-[#243128]">Rede ativa de apoio</h2>
+            </div>
+            <a href="#parceiros" className="text-sm font-semibold text-[#228B22] hover:underline">Ver seção completa</a>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {visiblePartners.slice(0, 3).map((partner) => <PartnerCard key={`preview-${partner.id}`} partner={partner} />)}
+          </div>
         </div>
       </section>
 
@@ -262,23 +278,13 @@ export default function Home() {
           {partnersQuery.isError && (
             <Card className="border-white/15 bg-white/10 p-8 text-center text-white">
               <h3 className="text-xl font-semibold">Não foi possível carregar os parceiros</h3>
-              <p className="mt-2 text-white/70">Tente novamente em alguns instantes.</p>
+              <p className="mt-2 text-white/70">Mostrando uma prévia da rede de parceiros enquanto a conexão estabiliza.</p>
             </Card>
           )}
 
-          {!partnersQuery.isLoading && !partnersQuery.isError && partners.length === 0 && (
-            <Card className="border-dashed border-white/25 bg-white/5 p-10 text-center text-white">
-              <Handshake className="mx-auto h-11 w-11 text-[#b8dfb3]" aria-hidden="true" />
-              <h3 className="mt-4 text-2xl font-semibold">A rede de parceiros será apresentada aqui</h3>
-              <p className="mx-auto mt-2 max-w-2xl text-white/70">
-                Os nomes e as marcas aparecerão somente após cadastro e validação pela equipe responsável.
-              </p>
-            </Card>
-          )}
-
-          {partners.length > 0 && (
+          {!partnersQuery.isLoading && visiblePartners.length > 0 && (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {partners.map((partner) => <PartnerCard key={partner.id} partner={partner} />)}
+              {visiblePartners.map((partner) => <PartnerCard key={partner.id} partner={partner} />)}
             </div>
           )}
 
@@ -332,8 +338,6 @@ export default function Home() {
           <p className="text-sm text-white/60">© 2026 Parceiros do Bem</p>
         </div>
       </footer>
-
-      {partners.length > 0 && <PartnersTicker partners={partners} />}
     </div>
   );
 }
@@ -362,6 +366,56 @@ type PartnerItem = {
   testimonialText: string | null;
   website: string | null;
 };
+
+function getDemoPartners(): PartnerItem[] {
+  return [
+    {
+      id: -1,
+      name: "Predimais",
+      type: "company",
+      ownerName: "Saulo Goulart",
+      description: "Parceria de impacto social com mobilizacao comunitaria e apoio continuo as campanhas.",
+      logoUrl: "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?auto=format&fit=crop&w=900&q=80",
+      storePhotoUrl: "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=900&q=80",
+      ownerPhotoUrl: "https://images.unsplash.com/photo-1542204625-de293a2f0f9b?auto=format&fit=crop&w=900&q=80",
+      address: "Rua Central, 120 - Centro",
+      contactInfo: "(11) 99999-0101",
+      testimonialVideoUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      testimonialText: "A parceria abriu novas portas para apoiar quem realmente precisa.",
+      website: "https://www.parceriadobem.com.br",
+    },
+    {
+      id: -2,
+      name: "Voz da Esperanca",
+      type: "individual",
+      ownerName: "Luciana Alves",
+      description: "Locutora parceira que fortalece campanhas com comunicacao de alcance local.",
+      logoUrl: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?auto=format&fit=crop&w=900&q=80",
+      storePhotoUrl: null,
+      ownerPhotoUrl: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80",
+      address: "Sao Paulo - SP",
+      contactInfo: "@vozesperanca",
+      testimonialVideoUrl: null,
+      testimonialText: "Quando contamos historias reais, mais pessoas decidem contribuir.",
+      website: "https://www.instagram.com",
+    },
+    {
+      id: -3,
+      name: "Arte em Movimento",
+      type: "individual",
+      ownerName: "Rafael Nunes",
+      description: "Artista parceiro que mobiliza publico para campanhas de solidariedade.",
+      logoUrl: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=900&q=80",
+      storePhotoUrl: null,
+      ownerPhotoUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80",
+      address: "Rio de Janeiro - RJ",
+      contactInfo: "(21) 98888-0202",
+      testimonialVideoUrl: null,
+      testimonialText: "A arte aproxima pessoas e transforma causa em acao concreta.",
+      website: "https://www.youtube.com",
+    },
+  ];
+}
 
 function PartnerCard({ partner }: { partner: PartnerItem }) {
   const [logoFailed, setLogoFailed] = useState(false);
@@ -453,38 +507,5 @@ function PartnerCard({ partner }: { partner: PartnerItem }) {
         </a>
       )}
     </Card>
-  );
-}
-
-function PartnersTicker({ partners }: { partners: PartnerItem[] }) {
-  const loopPartners = [...partners, ...partners];
-
-  return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#3b4c46] bg-[#1f2c29]/95 backdrop-blur-sm">
-      <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 text-white">
-        <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.14em] text-[#c6d6c3]">Parceiros do bem</p>
-        <div className="relative min-w-0 flex-1 overflow-hidden">
-          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-[#1f2c29] to-transparent" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-[#1f2c29] to-transparent" />
-          <div className="partners-marquee-track flex w-max items-center gap-3 pr-3">
-            {loopPartners.map((partner, index) => {
-              const imageUrl = partner.logoUrl || partner.storePhotoUrl || partner.ownerPhotoUrl;
-              return (
-                <div key={`${partner.id}-${index}`} className="flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5">
-                  <div className="h-7 w-7 overflow-hidden rounded-full bg-white/20">
-                    {imageUrl ? (
-                      <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[10px] font-bold text-white/70">PB</div>
-                    )}
-                  </div>
-                  <span className="whitespace-nowrap text-sm font-medium text-white">{partner.name}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }

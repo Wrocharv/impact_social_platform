@@ -24,16 +24,88 @@ type PartnerRecord = {
   updatedAt: Date;
 };
 
+const defaultFallbackPartnerSeeds: Array<
+  Omit<PartnerRecord, "id" | "createdAt" | "updatedAt">
+> = [
+  {
+    name: "Predimais",
+    type: "company",
+    ownerName: "Saulo Goulart",
+    description:
+      "Parceria que conecta clientes, amigos e colaboradores para apoiar campanhas sociais recorrentes.",
+    logoUrl:
+      "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?auto=format&fit=crop&w=900&q=80",
+    storePhotoUrl:
+      "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=900&q=80",
+    ownerPhotoUrl:
+      "https://images.unsplash.com/photo-1542204625-de293a2f0f9b?auto=format&fit=crop&w=900&q=80",
+    address: "Rua Central, 120 - Centro",
+    contactInfo: "(11) 99999-0101",
+    testimonialVideoUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+    testimonialText:
+      "Nossa empresa cresceu quando decidiu crescer junto com a comunidade. Vale a pena participar.",
+    website: "https://www.parceriadobem.com.br",
+  },
+  {
+    name: "Voz da Esperança",
+    type: "individual",
+    ownerName: "Luciana Alves",
+    description:
+      "Locutora parceira que usa alcance em rádio e redes sociais para mobilizar novos doadores.",
+    logoUrl:
+      "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?auto=format&fit=crop&w=900&q=80",
+    storePhotoUrl: undefined,
+    ownerPhotoUrl:
+      "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80",
+    address: "São Paulo - SP",
+    contactInfo: "@vozesperanca",
+    testimonialVideoUrl: undefined,
+    testimonialText:
+      "Quando contamos histórias reais, muita gente decide ajudar. Essa ponte transforma vidas.",
+    website: "https://www.instagram.com",
+  },
+  {
+    name: "Arte em Movimento",
+    type: "individual",
+    ownerName: "Rafael Nunes",
+    description:
+      "Artista parceiro que realiza ações culturais para ampliar a visibilidade das campanhas.",
+    logoUrl:
+      "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=900&q=80",
+    storePhotoUrl: undefined,
+    ownerPhotoUrl:
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80",
+    address: "Rio de Janeiro - RJ",
+    contactInfo: "(21) 98888-0202",
+    testimonialVideoUrl: undefined,
+    testimonialText:
+      "A arte aproxima pessoas de causas urgentes. Fazer parte dessa rede foi uma escolha natural.",
+    website: "https://www.youtube.com",
+  },
+];
+
 const fallbackPartnersFile = path.resolve(process.cwd(), "server", ".partners-fallback.json");
 const fallbackPartners: PartnerRecord[] = loadPartnersFromDisk();
 
 function loadPartnersFromDisk(): PartnerRecord[] {
   try {
-    if (!existsSync(fallbackPartnersFile)) return [];
+    const toDefaultPartners = () => {
+      const now = new Date();
+      return defaultFallbackPartnerSeeds.map((partner, index) => ({
+        id: index + 1,
+        ...partner,
+        createdAt: now,
+        updatedAt: now,
+      }));
+    };
+
+    if (!existsSync(fallbackPartnersFile)) {
+      return toDefaultPartners();
+    }
 
     const raw = readFileSync(fallbackPartnersFile, "utf8");
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
+    if (!Array.isArray(parsed) || parsed.length === 0) return toDefaultPartners();
 
     return parsed.map((item) => ({
       ...item,

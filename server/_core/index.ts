@@ -34,6 +34,7 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
   const publicAppUrl = process.env.PUBLIC_APP_URL?.trim() || "https://www.parceriadobem.com.br";
+  const isDevelopment = process.env.NODE_ENV === "development";
 
   if (process.env.NODE_ENV !== "development") {
     app.use((req, res, next) => {
@@ -68,20 +69,30 @@ async function startServer() {
     })
   );
   // development mode uses Vite, production mode uses static files
-  if (process.env.NODE_ENV === "development") {
+  if (isDevelopment) {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
 
   const preferredPort = parseInt(process.env.PORT || "3000");
+  const strictPort = process.env.STRICT_PORT === "true";
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
+    if (strictPort) {
+      throw new Error(
+        `Port ${preferredPort} is busy. Run \"pnpm dev:clean\" or free this port before starting dev.`
+      );
+    }
+
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
   server.listen(port, () => {
+    if (isDevelopment) {
+      console.log(`Running in development mode (${process.cwd()})`);
+    }
     console.log(`Server running on http://localhost:${port}/`);
   });
 }
