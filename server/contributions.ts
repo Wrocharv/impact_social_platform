@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { campaignNeeds, campaigns, contributions } from "../drizzle/schema";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 
 const donorInfoSchema = z.object({
@@ -237,4 +237,105 @@ export const contributionsRouter = router({
       .orderBy(desc(contributions.createdAt))
       .limit(100);
   }),
+
+  getPendingCashValidations: adminProcedure
+    .input(z.object({ campaignId: z.number().int().positive().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
+      }
+
+      const conditions = [
+        eq(contributions.type, "financial"),
+        eq(contributions.status, "pending"),
+        eq(contributions.paymentMethod, "cash"),
+        eq(contributions.paymentStatusDetail, "awaiting_cash_confirmation"),
+      ];
+
+      if (input?.campaignId) {
+        conditions.push(eq(contributions.campaignId, input.campaignId));
+      }
+
+      return db
+        .select({
+          id: contributions.id,
+          campaignId: contributions.campaignId,
+          donorName: contributions.donorName,
+          donorWhatsapp: contributions.donorWhatsapp,
+          donorCity: contributions.donorCity,
+          amount: contributions.amount,
+          createdAt: contributions.createdAt,
+          paymentStatusDetail: contributions.paymentStatusDetail,
+        })
+        .from(contributions)
+        .where(and(...conditions))
+        .orderBy(desc(contributions.createdAt));
+    }),
+
+  reviewCashContribution: adminProcedure
+    .input(z.object({
+      contributionId: z.number().int().positive(),
+      decision: z.enum(["approve", "reject"]),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
+      }
+
+      const [contribution] = await db
+        .select({
+          id: contributions.id,
+          type: contributions.type,
+          status: contributions.status,
+          paymentMethod: contributions.paymentMethod,
+          paymentStatusDetail: contributions.paymentStatusDetail,
+        })
+        .from(contributions)
+        .where(eq(contributions.id, input.contributionId))
+        .limit(1);
+
+      if (!contribution) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Contribuição não encontrada." });
+      }
+
+      const isCashValidationPending =
+        contribution.type === "financial"
+        && contribution.status === "pending"
+        && contribution.paymentMethod === "cash"
+        && contribution.paymentStatusDetail === "awaiting_cash_confirmation";
+
+      if (!isCashValidationPending) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Esta contribuição não está pendente de validação presencial.",
+        });
+      }
+
+      if (input.decision === "approve") {
+        await db
+          .update(contributions)
+          .set({
+            status: "approved",
+            paymentStatusDetail: "cash_validated_in_person",
+            paidAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(contributions.id, input.contributionId));
+
+        return { success: true as const, status: "approved" as const };
+      }
+
+      await db
+        .update(contributions)
+        .set({
+          status: "rejected",
+          paymentStatusDetail: "cash_validation_rejected",
+          updatedAt: new Date(),
+        })
+        .where(eq(contributions.id, input.contributionId));
+
+      return { success: true as const, status: "rejected" as const };
+    }),
 });

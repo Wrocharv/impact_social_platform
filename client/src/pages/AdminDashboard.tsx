@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { AlertCircle, Building2, Edit2, ExternalLink, FileText, Handshake, Megaphone, PackagePlus, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Building2, CheckCircle2, Edit2, ExternalLink, FileText, Handshake, Megaphone, PackagePlus, Plus, Trash2, XCircle } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { isAdminUser } from "@/_core/hooks/adminAccess";
 import CampaignAccountabilityDialog from "@/components/admin/CampaignAccountabilityDialog";
@@ -88,6 +88,7 @@ export default function AdminDashboard() {
 
   const campaignsQuery = trpc.campaigns.getAll.useQuery(undefined, { enabled: isAdmin });
   const partnersQuery = trpc.partners.getAll.useQuery(undefined, { enabled: isAdmin });
+  const pendingCashQuery = trpc.contributions.getPendingCashValidations.useQuery(undefined, { enabled: isAdmin });
   const createCampaign = trpc.campaigns.create.useMutation({
     onSuccess: async () => {
       toast.success("Campanha criada com sucesso!");
@@ -144,6 +145,17 @@ export default function AdminDashboard() {
       await Promise.all([utils.partners.getAll.invalidate(), utils.partners.listPublished.invalidate()]);
     },
     onError: (error) => toast.error(error.message || "Erro ao remover parceiro"),
+  });
+  const reviewCashContribution = trpc.contributions.reviewCashContribution.useMutation({
+    onSuccess: async (result) => {
+      toast.success(result.status === "approved" ? "Contribuição em dinheiro validada." : "Contribuição em dinheiro rejeitada.");
+      await Promise.all([
+        pendingCashQuery.refetch(),
+        invalidateCampaignData(),
+        utils.contributions.getPublicDonors.invalidate(),
+      ]);
+    },
+    onError: (error) => toast.error(error.message || "Erro ao revisar contribuição em dinheiro"),
   });
 
   if (!user) return <DashboardLayout><div /></DashboardLayout>;
@@ -364,6 +376,66 @@ export default function AdminDashboard() {
                 </DialogContent>
               </Dialog>
             </div>
+
+            <Card className="p-5 md:p-6">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-[#243128]">Validação presencial de dinheiro</h3>
+                  <p className="text-sm text-[#66736a]">Contribuições em dinheiro só entram no total após validação manual de recebimento.</p>
+                </div>
+                <Badge variant="secondary">
+                  {pendingCashQuery.data?.length ?? 0} pendente(s)
+                </Badge>
+              </div>
+
+              {pendingCashQuery.isLoading ? (
+                <p className="text-sm text-[#66736a]">Carregando pendências...</p>
+              ) : pendingCashQuery.isError ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="text-sm text-[#b42318]">Não foi possível carregar as pendências de validação.</p>
+                  <Button variant="outline" size="sm" onClick={() => pendingCashQuery.refetch()}>Tentar novamente</Button>
+                </div>
+              ) : pendingCashQuery.data?.length ? (
+                <div className="space-y-3">
+                  {pendingCashQuery.data.map((item) => (
+                    <div key={item.id} className="rounded-lg border border-[#e1e6df] p-4">
+                      <div className="grid gap-2 text-sm text-[#4e5c53] sm:grid-cols-2 lg:grid-cols-4">
+                        <p><span className="font-semibold text-[#243128]">Contribuição:</span> #{item.id}</p>
+                        <p><span className="font-semibold text-[#243128]">Campanha:</span> #{item.campaignId}</p>
+                        <p><span className="font-semibold text-[#243128]">Doador:</span> {item.donorName || "Não informado"}</p>
+                        <p><span className="font-semibold text-[#243128]">Valor:</span> {formatCurrency(item.amount ?? 0)}</p>
+                      </div>
+                      <div className="mt-1 grid gap-2 text-sm text-[#4e5c53] sm:grid-cols-2">
+                        <p><span className="font-semibold text-[#243128]">WhatsApp:</span> {item.donorWhatsapp || "Não informado"}</p>
+                        <p><span className="font-semibold text-[#243128]">Cidade:</span> {item.donorCity || "Não informada"}</p>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          className="gap-2 bg-[#228B22] hover:bg-[#1a6b1a]"
+                          disabled={reviewCashContribution.isPending}
+                          onClick={() => reviewCashContribution.mutate({ contributionId: item.id, decision: "approve" })}
+                        >
+                          <CheckCircle2 className="h-4 w-4" /> Confirmar recebimento
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-2 border-red-300 text-red-700 hover:text-red-800"
+                          disabled={reviewCashContribution.isPending}
+                          onClick={() => reviewCashContribution.mutate({ contributionId: item.id, decision: "reject" })}
+                        >
+                          <XCircle className="h-4 w-4" /> Rejeitar validação
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-[#66736a]">Sem pendências de validação presencial no momento.</p>
+              )}
+            </Card>
+
             <div className="space-y-4">
               {campaignsQuery.isLoading ? <LoadingCard label="Carregando campanhas..." /> : campaignsQuery.isError ? <ErrorCard label="Não foi possível carregar as campanhas." onRetry={() => campaignsQuery.refetch()} /> : campaignsQuery.data?.length ? campaignsQuery.data.map((campaign) => (
                 <Card key={campaign.id} className="p-5 md:p-6">
