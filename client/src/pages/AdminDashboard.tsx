@@ -496,7 +496,7 @@ export default function AdminDashboard() {
                         {uploadingCampaignImage === "create" && <p className="text-xs text-[#66736a]">Enviando imagem...</p>}
                         {campaignForm.imageUrl && <p className="text-xs text-[#228B22] break-all">Arquivo enviado: {campaignForm.imageUrl}</p>}
                       </Field>
-                      <Field label="URL da imagem (opcional)"><Input type="url" value={campaignForm.imageUrl} onChange={(event) => setCampaignForm({ ...campaignForm, imageUrl: event.target.value })} placeholder="https://..." /></Field>
+                      <Field label="Imagem (opcional)"><Input value={campaignForm.imageUrl} onChange={(event) => setCampaignForm({ ...campaignForm, imageUrl: event.target.value })} placeholder="/obra-paredes.jpg ou https://..." /></Field>
                     </div>
                     <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={() => setIsCreateCampaignOpen(false)}>Cancelar</Button><Button type="submit" disabled={createCampaign.isPending}>{createCampaign.isPending ? "Criando..." : "Criar campanha"}</Button></div>
                   </form>
@@ -743,7 +743,7 @@ export default function AdminDashboard() {
                   {uploadingCampaignImage === "edit" && <p className="text-xs text-[#66736a]">Enviando imagem...</p>}
                   {campaignEditForm.imageUrl && <p className="text-xs text-[#228B22] break-all">Arquivo enviado: {campaignEditForm.imageUrl}</p>}
                 </Field>
-                <Field label="URL da imagem (opcional)"><Input type="url" value={campaignEditForm.imageUrl} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, imageUrl: event.target.value })} placeholder="https://..." /></Field>
+                <Field label="Imagem (opcional)"><Input value={campaignEditForm.imageUrl} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, imageUrl: event.target.value })} placeholder="/obra-paredes.jpg ou https://..." /></Field>
               </div>
               <p className="rounded-lg bg-[#fff8e6] p-3 text-sm text-[#70571a]">Campanhas pausadas ou arquivadas deixam de aparecer nas áreas públicas. Campanhas concluídas continuam disponíveis para prestação de contas.</p>
               <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={closeEditCampaignDialog}>Cancelar</Button><Button type="submit" disabled={updateCampaign.isPending}>{updateCampaign.isPending ? "Salvando..." : "Salvar alterações"}</Button></div>
