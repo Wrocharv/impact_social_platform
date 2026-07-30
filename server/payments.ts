@@ -181,6 +181,7 @@ export const paymentsRouter = router({
     .input(createPaymentPreferenceSchema)
     .mutation(async ({ input, ctx }) => {
       const enablePixDevFallback = process.env.ENABLE_PIX_DEV_FALLBACK === "true";
+      const enablePixOperationalFallback = process.env.ENABLE_PIX_OPERATIONAL_FALLBACK === "true";
       const isCashPayment = input.paymentMethod === "cash";
 
       const db = await getDb();
@@ -228,7 +229,7 @@ export const paymentsRouter = router({
             environment: preference.environment,
           };
         } catch (error) {
-          if (shouldUsePixOperationalFallback(input, error)) {
+          if (enablePixOperationalFallback && shouldUsePixOperationalFallback(input, error)) {
             const origin = requestOrigin(ctx.req);
             return {
               checkoutUrl: buildPaymentPendingUrl(origin),
@@ -373,7 +374,7 @@ export const paymentsRouter = router({
           environment: preference.environment,
         };
       } catch (error) {
-        if (shouldUsePixOperationalFallback(input, error)) {
+        if (enablePixOperationalFallback && shouldUsePixOperationalFallback(input, error)) {
           const origin = requestOrigin(ctx.req);
           return {
             checkoutUrl: buildPaymentPendingUrl(origin),

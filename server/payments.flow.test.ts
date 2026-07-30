@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
 const { getDbMock, createPreferenceMock } = vi.hoisted(() => ({
@@ -46,8 +46,15 @@ function createContext(): TrpcContext {
 }
 
 describe("payments.createPaymentPreference", () => {
+  const originalEnablePixOperationalFallback = process.env.ENABLE_PIX_OPERATIONAL_FALLBACK;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.ENABLE_PIX_OPERATIONAL_FALLBACK = originalEnablePixOperationalFallback;
+  });
+
+  afterAll(() => {
+    process.env.ENABLE_PIX_OPERATIONAL_FALLBACK = originalEnablePixOperationalFallback;
   });
 
   it("cria uma única contribuição pendente e associa a preferência", async () => {
@@ -227,6 +234,8 @@ describe("payments.createPaymentPreference", () => {
   });
 
   it("aplica fallback operacional quando PIX falha por credencial sem permissao", async () => {
+    process.env.ENABLE_PIX_OPERATIONAL_FALLBACK = "true";
+
     const { db, values, set } = createDb([
       { id: 7, title: "Casa da Viúva", status: "active" },
     ]);
