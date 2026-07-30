@@ -14,6 +14,97 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   });
 
+const DEFAULT_PRESENTATION_VIDEO_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+
+type PresentationVideoSource =
+  | { kind: "embed"; src: string; title: string }
+  | { kind: "file"; src: string; mimeType: string; title: string };
+
+function toPresentationVideoSource(rawValue: string): PresentationVideoSource {
+  const value = rawValue.trim();
+  const lowered = value.toLowerCase();
+
+  if (value.startsWith("/") || /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/.test(lowered)) {
+    const extension = lowered.match(/\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/)?.[1] ?? "mp4";
+    const mimeType = extension === "webm"
+      ? "video/webm"
+      : extension === "ogg"
+        ? "video/ogg"
+        : "video/mp4";
+
+    return {
+      kind: "file",
+      src: value,
+      mimeType,
+      title: "Vídeo de apresentação da plataforma",
+    };
+  }
+
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+
+    if (host.includes("youtu.be")) {
+      const id = url.pathname.replace(/^\//, "");
+      if (id) {
+        return {
+          kind: "embed",
+          src: `https://www.youtube.com/embed/${id}`,
+          title: "Vídeo de apresentação da plataforma",
+        };
+      }
+    }
+
+    if (host.includes("youtube.com")) {
+      if (url.pathname.startsWith("/embed/")) {
+        return {
+          kind: "embed",
+          src: url.toString(),
+          title: "Vídeo de apresentação da plataforma",
+        };
+      }
+
+      const id = url.searchParams.get("v");
+      if (id) {
+        return {
+          kind: "embed",
+          src: `https://www.youtube.com/embed/${id}`,
+          title: "Vídeo de apresentação da plataforma",
+        };
+      }
+    }
+
+    if (host.includes("instagram.com")) {
+      if (url.pathname.includes("/embed")) {
+        return {
+          kind: "embed",
+          src: url.toString(),
+          title: "Vídeo de apresentação da plataforma",
+        };
+      }
+
+      const parts = url.pathname.split("/").filter(Boolean);
+      const type = parts[0];
+      const id = parts[1];
+      if ((type === "reel" || type === "p" || type === "tv") && id) {
+        return {
+          kind: "embed",
+          src: `https://www.instagram.com/${type}/${id}/embed`,
+          title: "Vídeo de apresentação da plataforma",
+        };
+      }
+    }
+  } catch {
+    // Keep fallback below when URL parsing fails.
+  }
+
+  return {
+    kind: "embed",
+    src: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+    title: "Vídeo de apresentação da plataforma",
+  };
+}
+
 type PublishedCampaign = {
   id: number;
   title: string;
@@ -43,6 +134,10 @@ export default function Home() {
   const completedQuery = trpc.campaigns.listPublished.useQuery(completedInput);
   const statsQuery = trpc.campaigns.getPublicStats.useQuery();
   const partnersQuery = trpc.partners.listPublished.useQuery();
+  const presentationVideoSource = useMemo(() => {
+    const configured = (import.meta.env.VITE_HOME_PRESENTATION_VIDEO_URL || "").trim();
+    return toPresentationVideoSource(configured || DEFAULT_PRESENTATION_VIDEO_URL);
+  }, []);
   const campaigns = (campaignsQuery.data ?? []) as PublishedCampaign[];
   const completedCampaigns = (completedQuery.data ?? []) as PublishedCampaign[];
   const partners = (partnersQuery.data ?? []) as PartnerItem[];
@@ -127,17 +222,27 @@ export default function Home() {
 
           <div className="mx-auto mt-8 max-w-4xl overflow-hidden rounded-2xl border border-[#d7e2d7] bg-[#eaf1e8] shadow-sm">
             <div className="aspect-video w-full">
-              <iframe
-                className="h-full w-full"
-                src="https://www.youtube.com/embed/dQw4w9WgXcQ"
-                title="Vídeo de apresentação da plataforma"
-                loading="lazy"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                referrerPolicy="strict-origin-when-cross-origin"
-                allowFullScreen
-              />
+              {presentationVideoSource.kind === "file" ? (
+                <video className="h-full w-full bg-black" controls preload="metadata" playsInline>
+                  <source src={presentationVideoSource.src} type={presentationVideoSource.mimeType} />
+                  Seu navegador não suporta reprodução de vídeo.
+                </video>
+              ) : (
+                <iframe
+                  className="h-full w-full"
+                  src={presentationVideoSource.src}
+                  title={presentationVideoSource.title}
+                  loading="lazy"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                />
+              )}
             </div>
           </div>
+          <p className="mx-auto mt-3 max-w-4xl text-center text-xs text-[#647168]">
+            Aceita YouTube, Instagram (reel/post) e vídeo direto da raiz (ex.: /videos/apresentacao.mp4) via VITE_HOME_PRESENTATION_VIDEO_URL.
+          </p>
         </div>
       </section>
 
