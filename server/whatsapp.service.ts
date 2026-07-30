@@ -159,6 +159,7 @@ export const whatsappService = {
     description: string;
     category: string;
     goal: number;
+    raised?: number;
     longDescription?: string;
     imageUrl?: string;
   }) {
@@ -173,7 +174,7 @@ export const whatsappService = {
       longDescription: data.longDescription ?? data.description,
       category: data.category,
       goal: data.goal,
-      raised: 0,
+      raised: Math.max(0, Number(data.raised ?? 0)),
       status: "active",
       imageUrl: data.imageUrl ?? "/obra-paredes.jpg",
       createdBy: 1,
@@ -184,6 +185,33 @@ export const whatsappService = {
     fallbackCampaigns.push(campaign);
     persistFallbackCampaignsToDisk();
     return campaign;
+  },
+
+  updateFallbackCampaign(
+    id: number,
+    data: Partial<
+      Pick<
+        FallbackCampaign,
+        "title" | "description" | "longDescription" | "goal" | "raised" | "status" | "imageUrl"
+      >
+    >,
+  ) {
+    refreshFallbackCampaignsFromDisk();
+    const index = fallbackCampaigns.findIndex((campaign) => campaign.id === id);
+    if (index < 0) return null;
+
+    const current = fallbackCampaigns[index];
+    const next: FallbackCampaign = {
+      ...current,
+      ...data,
+      goal: data.goal !== undefined ? Math.max(0, Number(data.goal)) : current.goal,
+      raised: data.raised !== undefined ? Math.max(0, Number(data.raised)) : current.raised,
+      updatedAt: new Date(),
+    };
+
+    fallbackCampaigns[index] = next;
+    persistFallbackCampaignsToDisk();
+    return next;
   },
 
   resetFallbackCampaigns() {

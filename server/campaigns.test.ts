@@ -6,6 +6,7 @@ const { getDbMock, whatsappServiceMock } = vi.hoisted(() => ({
   whatsappServiceMock: {
     getFallbackCampaigns: vi.fn(() => []),
     createFallbackCampaign: vi.fn(),
+    updateFallbackCampaign: vi.fn(),
   },
 }));
 
@@ -79,7 +80,7 @@ function createListPublishedDb() {
     { id: 2, campaignId: 10, amount: 500, userId: null, donorEmail: "apoiador@example.com" },
     { id: 3, campaignId: 10, amount: 1_500, userId: 7, donorEmail: null },
   ];
-  const goalRows = [{ id: 10, goal: 10_000 }];
+  const goalRows = [{ id: 10, goal: 10_000, initialRaised: 0 }];
 
   let selectCall = 0;
   return {
@@ -108,14 +109,14 @@ function createListPublishedDb() {
 
 describe("deriveCampaignMetrics", () => {
   it("soma apenas valores não negativos e limita o progresso a 100%", () => {
-    const result = deriveCampaignMetrics(5_000, [
+    const result = deriveCampaignMetrics(5_000, 500, [
       { amount: 4_000, contributorKey: "user:1" },
       { amount: 2_000, contributorKey: "user:2" },
       { amount: -500, contributorKey: "user:3" },
     ]);
 
     expect(result).toEqual({
-      raised: 6_000,
+      raised: 6_500,
       remaining: 0,
       progress: 100,
       contributorsCount: 3,
@@ -123,7 +124,7 @@ describe("deriveCampaignMetrics", () => {
   });
 
   it("retorna métricas zeradas para uma campanha sem contribuições", () => {
-    expect(deriveCampaignMetrics(10_000, [])).toEqual({
+    expect(deriveCampaignMetrics(10_000, 0, [])).toEqual({
       raised: 0,
       remaining: 10_000,
       progress: 0,
@@ -144,9 +145,9 @@ describe("campaigns.listPublished", () => {
     const caller = appRouter.createCaller(createPublicContext());
 
     const result = await caller.campaigns.listPublished({ limit: 12 });
+    const persistedCampaign = result.find((campaign) => campaign.id === 10);
 
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
+    expect(persistedCampaign).toMatchObject({
       id: 10,
       raised: 3_500,
       remaining: 6_500,
@@ -182,7 +183,7 @@ describe("campaigns.listPublished", () => {
       status: "active",
     });
     expect(stats).toMatchObject({
-      activeCampaigns: 2,
+      activeCampaigns: 3,
       raised: 0,
       contributorsCount: 0,
     });

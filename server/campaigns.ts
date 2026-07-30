@@ -184,7 +184,8 @@ function getSyncTestCampaigns(input?: { status?: "active" | "completed"; query?:
 
 function mapFallbackCampaignToPublicShape(campaign: ReturnType<typeof whatsappService.getFallbackCampaigns>[number]) {
   const goal = Number(campaign.goal ?? 0);
-  const raised = Number(campaign.raised ?? 0);
+  const initialRaised = Math.max(0, Number(campaign.raised ?? 0));
+  const raised = initialRaised;
   const progress = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
 
   return {
@@ -199,6 +200,7 @@ function mapFallbackCampaignToPublicShape(campaign: ReturnType<typeof whatsappSe
     status: campaign.status ?? "active",
     createdAt: campaign.createdAt,
     updatedAt: campaign.updatedAt ?? campaign.createdAt,
+    initialRaised,
     raised,
     remaining: Math.max(0, goal - raised),
     progress,
@@ -248,11 +250,13 @@ type CampaignMetrics = {
 
 export function deriveCampaignMetrics(
   goal: number,
+  initialRaised: number,
   approvedContributions: Array<{ amount: number | null; contributorKey: string }>,
 ): CampaignMetrics {
-  const raised = approvedContributions.reduce((total, contribution) => {
+  const approvedRaised = approvedContributions.reduce((total, contribution) => {
     return total + Math.max(0, contribution.amount ?? 0);
   }, 0);
+  const raised = Math.max(0, initialRaised) + approvedRaised;
   const contributorKeys = new Set(
     approvedContributions.map((contribution) => contribution.contributorKey),
   );
@@ -318,14 +322,14 @@ async function loadCampaignMetrics(
   });
 
   const campaignRows = await db
-    .select({ id: campaigns.id, goal: campaigns.goal })
+    .select({ id: campaigns.id, goal: campaigns.goal, initialRaised: campaigns.raised })
     .from(campaigns)
     .where(inArray(campaigns.id, campaignIds));
 
   campaignRows.forEach((campaign) => {
     metrics.set(
       campaign.id,
-      deriveCampaignMetrics(campaign.goal, grouped.get(campaign.id) ?? []),
+      deriveCampaignMetrics(campaign.goal, campaign.initialRaised, grouped.get(campaign.id) ?? []),
     );
   });
 
@@ -338,6 +342,7 @@ const createCampaignSchema = z.object({
   longDescription: z.string().min(50, "Descrição longa deve ter pelo menos 50 caracteres"),
   category: z.enum(["moradia", "educacao", "saude", "alimentacao", "infraestrutura", "outro"]).optional().default("outro"),
   goal: z.number().int().positive("Meta deve ser um valor positivo"),
+  initialRaised: z.number().int().min(0).default(0),
   imageUrl: z.string().optional(),
 });
 
@@ -347,6 +352,7 @@ const updateCampaignSchema = z.object({
   description: z.string().min(20).optional(),
   longDescription: z.string().min(50).optional(),
   goal: z.number().int().positive().optional(),
+  initialRaised: z.number().int().min(0).optional(),
   status: z.enum(["active", "completed", "paused", "archived"]).optional(),
   imageUrl: z.string().nullable().optional(),
 }).refine(({ id: _id, ...changes }) => Object.values(changes).some((value) => value !== undefined), {
@@ -403,7 +409,13 @@ async function requireCampaign(
 export const campaignsRouter = router({
   getAll: protectedProcedure.query(async () => {
     const db = await getDb();
-    if (!db) throw new Error("Database not available");
+    if (!db) {
+      const fallbackCampaigns = getMappedFallbackCampaigns();
+      const demoCampaigns = getDemoCampaigns();
+      return dedupeCampaignsById([...fallbackCampaigns, ...demoCampaigns]).sort(
+        (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+      );
+    }
 
     const rows = await db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
     const metrics = await loadCampaignMetrics(
@@ -412,7 +424,8 @@ export const campaignsRouter = router({
     );
     return rows.map((campaign) => ({
       ...campaign,
-      ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, [])),
+      initialRaised: campaign.raised,
+      ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
     }));
   }),
 
@@ -457,7 +470,8 @@ export const campaignsRouter = router({
 
       const publishedRows = rows.map((campaign) => ({
         ...withCanonicalRecantoCover(campaign),
-        ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, [])),
+        initialRaised: campaign.raised,
+        ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
       }));
 
       return dedupeCampaignsById([
@@ -482,7 +496,7 @@ export const campaignsRouter = router({
     }
 
     const activeCampaigns = await db
-      .select({ id: campaigns.id, goal: campaigns.goal })
+      .select({ id: campaigns.id, goal: campaigns.goal, initialRaised: campaigns.raised })
       .from(campaigns)
       .where(eq(campaigns.status, "active"));
     const metrics = await loadCampaignMetrics(
@@ -493,7 +507,7 @@ export const campaignsRouter = router({
     return activeCampaigns.reduce(
       (summary, campaign) => {
         const campaignMetrics =
-          metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, []);
+          metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.initialRaised, []);
         summary.raised += campaignMetrics.raised;
         summary.contributorsCount += campaignMetrics.contributorsCount;
         return summary;
@@ -550,7 +564,7 @@ export const campaignsRouter = router({
         loadCampaignMetrics(db, [input.id]),
       ]);
       const campaignMetrics =
-        metrics.get(input.id) ?? deriveCampaignMetrics(campaign.goal, []);
+        metrics.get(input.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, []);
       const galleryImages = Array.from(
         new Set(
           [
@@ -565,6 +579,7 @@ export const campaignsRouter = router({
 
       return {
         ...canonicalizedCampaign,
+        initialRaised: campaign.raised,
         ...campaignMetrics,
         longDescription: isRecanto ? DEMO_CAMPAIGN.longDescription : campaign.longDescription,
         category: isRecanto ? DEMO_CAMPAIGN.category : campaign.category,
@@ -596,6 +611,7 @@ export const campaignsRouter = router({
           description: input.description,
           category: "outro",
           goal: input.goal,
+          raised: input.initialRaised,
           longDescription: input.longDescription,
           imageUrl: input.imageUrl,
         });
@@ -613,6 +629,7 @@ export const campaignsRouter = router({
         longDescription: input.longDescription,
         category: input.category,
         goal: input.goal,
+        raised: input.initialRaised,
         imageUrl: input.imageUrl,
         createdBy: userId,
         status: "active",
@@ -625,9 +642,28 @@ export const campaignsRouter = router({
     .input(updateCampaignSchema)
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database not available");
+      if (!db) {
+        const fallbackCampaign = whatsappService.updateFallbackCampaign(input.id, {
+          title: input.title,
+          description: input.description,
+          longDescription: input.longDescription,
+          goal: input.goal,
+          raised: input.initialRaised,
+          imageUrl: input.imageUrl ?? undefined,
+          status:
+            input.status === "active" || input.status === "completed"
+              ? input.status
+              : undefined,
+        });
 
-      const { id, ...updateData } = input;
+        if (!fallbackCampaign) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Campanha não encontrada" });
+        }
+
+        return { success: true, message: "Campanha atualizada com sucesso!" };
+      }
+
+      const { id, initialRaised, ...updateData } = input;
       await requireCampaign(db, id);
       const endDate = input.status
         ? input.status === "completed"
@@ -636,7 +672,7 @@ export const campaignsRouter = router({
         : undefined;
       await db
         .update(campaigns)
-        .set({ ...updateData, endDate, updatedAt: new Date() })
+        .set({ ...updateData, raised: initialRaised, endDate, updatedAt: new Date() })
         .where(eq(campaigns.id, id));
       return { success: true, message: "Campanha atualizada com sucesso!" };
     }),

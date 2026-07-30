@@ -37,6 +37,7 @@ const EMPTY_CAMPAIGN_EDIT_FORM = {
   description: "",
   longDescription: "",
   goal: "",
+  initialRaised: "",
   imageUrl: "",
   status: "active" as "active" | "completed" | "paused" | "archived",
 };
@@ -80,6 +81,7 @@ export default function AdminDashboard() {
     description: "",
     longDescription: "",
     goal: "",
+    initialRaised: "",
     imageUrl: "",
   });
   const [campaignEditForm, setCampaignEditForm] = useState(EMPTY_CAMPAIGN_EDIT_FORM);
@@ -95,7 +97,7 @@ export default function AdminDashboard() {
   const createCampaign = trpc.campaigns.create.useMutation({
     onSuccess: async () => {
       toast.success("Campanha criada com sucesso!");
-      setCampaignForm({ title: "", description: "", longDescription: "", goal: "", imageUrl: "" });
+      setCampaignForm({ title: "", description: "", longDescription: "", goal: "", initialRaised: "", imageUrl: "" });
       setIsCreateCampaignOpen(false);
       await invalidateCampaignData();
     },
@@ -235,6 +237,7 @@ export default function AdminDashboard() {
       description: campaign.description,
       longDescription: campaign.longDescription ?? "",
       goal: String(campaign.goal / 100).replace(".", ","),
+      initialRaised: String((("initialRaised" in campaign ? campaign.initialRaised : undefined) ?? campaign.raised) / 100).replace(".", ","),
       imageUrl: campaign.imageUrl ?? "",
       status: campaign.status,
     });
@@ -273,16 +276,29 @@ export default function AdminDashboard() {
 
   function handleCreateCampaign(event: React.FormEvent) {
     event.preventDefault();
-    const goal = Number(campaignForm.goal.replace(",", "."));
-    if (!Number.isFinite(goal) || goal <= 0) {
+    const goalInCents = parseCurrencyToCents(campaignForm.goal);
+    if (goalInCents === null || goalInCents <= 0) {
       toast.error("Informe uma meta válida");
       return;
     }
+
+    const initialRaisedInCents = parseCurrencyToCents(campaignForm.initialRaised);
+    if (initialRaisedInCents === null || initialRaisedInCents < 0) {
+      toast.error("Informe uma arrecadação inicial válida");
+      return;
+    }
+
+    if (initialRaisedInCents > goalInCents) {
+      toast.error("A arrecadação inicial não pode ser maior que a meta");
+      return;
+    }
+
     createCampaign.mutate({
       title: campaignForm.title,
       description: campaignForm.description,
       longDescription: campaignForm.longDescription,
-      goal: Math.round(goal * 100),
+      goal: goalInCents,
+      initialRaised: initialRaisedInCents,
       imageUrl: campaignForm.imageUrl || undefined,
     });
   }
@@ -290,17 +306,30 @@ export default function AdminDashboard() {
   function handleUpdateCampaign(event: React.FormEvent) {
     event.preventDefault();
     if (!editingCampaignId) return;
-    const goal = Number(campaignEditForm.goal.replace(",", "."));
-    if (!Number.isFinite(goal) || goal <= 0) {
+    const goalInCents = parseCurrencyToCents(campaignEditForm.goal);
+    if (goalInCents === null || goalInCents <= 0) {
       toast.error("Informe uma meta válida");
       return;
     }
+
+    const initialRaisedInCents = parseCurrencyToCents(campaignEditForm.initialRaised);
+    if (initialRaisedInCents === null || initialRaisedInCents < 0) {
+      toast.error("Informe uma arrecadação inicial válida");
+      return;
+    }
+
+    if (initialRaisedInCents > goalInCents) {
+      toast.error("A arrecadação inicial não pode ser maior que a meta");
+      return;
+    }
+
     updateCampaign.mutate({
       id: editingCampaignId,
       title: campaignEditForm.title,
       description: campaignEditForm.description,
       longDescription: campaignEditForm.longDescription,
-      goal: Math.round(goal * 100),
+      goal: goalInCents,
+      initialRaised: initialRaisedInCents,
       imageUrl: campaignEditForm.imageUrl || null,
       status: campaignEditForm.status,
     });
@@ -418,7 +447,10 @@ export default function AdminDashboard() {
                     <Field label="Descrição curta *"><Textarea value={campaignForm.description} onChange={(event) => setCampaignForm({ ...campaignForm, description: event.target.value })} required minLength={20} rows={2} /></Field>
                     <Field label="Descrição longa *"><Textarea value={campaignForm.longDescription} onChange={(event) => setCampaignForm({ ...campaignForm, longDescription: event.target.value })} required minLength={50} rows={5} /></Field>
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label="Meta (R$) *"><Input inputMode="decimal" value={campaignForm.goal} onChange={(event) => setCampaignForm({ ...campaignForm, goal: event.target.value })} required /></Field>
+                      <Field label="Meta (R$) *"><Input inputMode="decimal" value={campaignForm.goal} onChange={(event) => setCampaignForm({ ...campaignForm, goal: event.target.value })} required placeholder="Ex.: 50.000,00" /></Field>
+                      <Field label="Arrecadação inicial (R$)"><Input inputMode="decimal" value={campaignForm.initialRaised} onChange={(event) => setCampaignForm({ ...campaignForm, initialRaised: event.target.value })} placeholder="Ex.: 12.350,90" /></Field>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
                       <Field label="URL da imagem"><Input type="url" value={campaignForm.imageUrl} onChange={(event) => setCampaignForm({ ...campaignForm, imageUrl: event.target.value })} placeholder="https://..." /></Field>
                     </div>
                     <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={() => setIsCreateCampaignOpen(false)}>Cancelar</Button><Button type="submit" disabled={createCampaign.isPending}>{createCampaign.isPending ? "Criando..." : "Criar campanha"}</Button></div>
@@ -619,7 +651,10 @@ export default function AdminDashboard() {
               <Field label="Descrição curta *"><Textarea value={campaignEditForm.description} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, description: event.target.value })} required minLength={20} rows={2} /></Field>
               <Field label="Descrição longa *"><Textarea value={campaignEditForm.longDescription} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, longDescription: event.target.value })} required minLength={50} rows={5} /></Field>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Meta (R$) *"><Input inputMode="decimal" value={campaignEditForm.goal} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, goal: event.target.value })} required /></Field>
+                <Field label="Meta (R$) *"><Input inputMode="decimal" value={campaignEditForm.goal} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, goal: event.target.value })} required placeholder="Ex.: 50.000,00" /></Field>
+                <Field label="Arrecadação inicial (R$)"><Input inputMode="decimal" value={campaignEditForm.initialRaised} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, initialRaised: event.target.value })} placeholder="Ex.: 12.350,90" /></Field>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Status *"><Select value={campaignEditForm.status} onValueChange={(status: typeof campaignEditForm.status) => setCampaignEditForm({ ...campaignEditForm, status })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Ativa</SelectItem><SelectItem value="paused">Pausada</SelectItem><SelectItem value="completed">Concluída</SelectItem><SelectItem value="archived">Arquivada</SelectItem></SelectContent></Select></Field>
               </div>
               <Field label="URL da imagem"><Input type="url" value={campaignEditForm.imageUrl} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, imageUrl: event.target.value })} placeholder="https://..." /></Field>
@@ -732,6 +767,25 @@ function Metric({ label, value, accent = false }: { label: string; value: string
 function formatCurrency(value: number) { return (value / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 function StatusBadge({ status }: { status: string }) { const labels: Record<string, string> = { active: "Ativa", completed: "Concluída", paused: "Pausada", archived: "Arquivada" }; return <Badge variant="secondary">{labels[status] ?? status}</Badge>; }
 function parseMediaUrlsInput(value: string) { return value.split(/[\n,]/).map((url) => url.trim()).filter(Boolean); }
+
+function parseCurrencyToCents(value: string): number | null {
+  const normalized = value.trim();
+  if (!normalized) return 0;
+
+  const onlyAllowed = normalized.replace(/\s/g, "");
+  if (!/^[-+]?\d{1,3}(\.\d{3})*(,\d{0,2})?$|^[-+]?\d+(,\d{0,2})?$|^[-+]?\d+(\.\d{0,2})?$/.test(onlyAllowed)) {
+    return null;
+  }
+
+  const hasComma = onlyAllowed.includes(",");
+  const normalizedNumber = hasComma
+    ? onlyAllowed.replace(/\./g, "").replace(",", ".")
+    : onlyAllowed;
+  const parsed = Number(normalizedNumber);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+
+  return Math.round(parsed * 100);
+}
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
