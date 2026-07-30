@@ -106,11 +106,28 @@ function getReadableErrorMessage(error: unknown) {
   return "Não foi possível iniciar o checkout. Tente novamente.";
 }
 
+function normalizeForMatch(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 function isMercadoPagoUnauthorized(error: unknown) {
   if (!error || typeof error !== "object") return false;
   const maybeCode = (error as { code?: unknown }).code;
   const maybeStatus = (error as { status?: unknown }).status;
-  return maybeCode === "PA_UNAUTHORIZED_RESULT_FROM_POLICIES" || maybeStatus === 403;
+  const rawMessage = getReadableErrorMessage(error);
+  const message = normalizeForMatch(rawMessage);
+
+  return (
+    maybeCode === "PA_UNAUTHORIZED_RESULT_FROM_POLICIES" ||
+    maybeStatus === 403 ||
+    message.includes("unauthorized") ||
+    message.includes("forbidden") ||
+    message.includes("credencial do mercado pago invalida") ||
+    message.includes("sem permissao para criar pix")
+  );
 }
 
 function isMercadoPagoNotConfigured(error: unknown) {
@@ -120,6 +137,11 @@ function isMercadoPagoNotConfigured(error: unknown) {
 
 function shouldUsePixDevFallback(error: unknown) {
   return isMercadoPagoUnauthorized(error) || isMercadoPagoNotConfigured(error);
+}
+
+function shouldUsePixOperationalFallback(input: { paymentMethod?: "pix" | "card" | "boleto" | "cash" }, error: unknown) {
+  if (input.paymentMethod !== "pix") return false;
+  return isMercadoPagoUnauthorized(error);
 }
 
 function buildContributionConfirmationUrl(input: {
@@ -182,6 +204,23 @@ export const paymentsRouter = router({
             environment: preference.environment,
           };
         } catch (error) {
+          if (shouldUsePixOperationalFallback(input, error)) {
+            const origin = requestOrigin(ctx.req);
+            const fallbackCampaignTitle = input.campaignTitle?.trim() || `Campanha ${input.campaignId}`;
+            return {
+              checkoutUrl: buildContributionConfirmationUrl({
+                baseUrl: origin,
+                campaignId: input.campaignId,
+                campaignTitle: fallbackCampaignTitle,
+                donorName: input.donorName?.trim() || "Doador",
+                amountCents: input.amount,
+              }),
+              contributionId: undefined,
+              preferenceId: "pix-credential-fallback",
+              environment: "test" as const,
+            };
+          }
+
           if (!ENV.isProduction && enablePixDevFallback && shouldUsePixDevFallback(error)) {
             const origin = requestOrigin(ctx.req);
             const fallbackCampaignTitle = input.campaignTitle?.trim() || `Campanha ${input.campaignId}`;
@@ -315,6 +354,22 @@ export const paymentsRouter = router({
           environment: preference.environment,
         };
       } catch (error) {
+        if (shouldUsePixOperationalFallback(input, error)) {
+          const origin = requestOrigin(ctx.req);
+          return {
+            checkoutUrl: buildContributionConfirmationUrl({
+              baseUrl: origin,
+              campaignId: campaign.id,
+              campaignTitle: campaign.title,
+              donorName: donorName || "Doador",
+              amountCents: input.amount,
+            }),
+            contributionId: undefined,
+            preferenceId: "pix-credential-fallback",
+            environment: "test" as const,
+          };
+        }
+
         if (!ENV.isProduction && enablePixDevFallback && shouldUsePixDevFallback(error)) {
           const origin = requestOrigin(ctx.req);
           return {

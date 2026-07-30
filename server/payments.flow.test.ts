@@ -224,6 +224,34 @@ describe("payments.createPaymentPreference", () => {
     });
   });
 
+  it("aplica fallback operacional quando PIX falha por credencial sem permissao", async () => {
+    const { db, values, set } = createDb([
+      { id: 7, title: "Casa da Viúva", status: "active" },
+    ]);
+    getDbMock.mockResolvedValue(db);
+    createPreferenceMock.mockRejectedValueOnce(
+      new Error("Credencial do Mercado Pago invalida ou sem permissao para criar PIX."),
+    );
+
+    const caller = appRouter.createCaller(createContext());
+    const result = await caller.payments.createPaymentPreference({
+      campaignId: 7,
+      amount: 5_000,
+      donorEmail: "doador@example.com",
+      donorName: "Maria",
+      donorWhatsapp: "11999999999",
+      donorCity: "São Paulo",
+      allowPublicDisplay: false,
+      paymentMethod: "pix",
+    });
+
+    expect(values).toHaveBeenCalledTimes(1);
+    expect(createPreferenceMock).toHaveBeenCalledTimes(1);
+    expect(set).not.toHaveBeenCalled();
+    expect(result.preferenceId).toBe("pix-credential-fallback");
+    expect(result.checkoutUrl).toContain("/contribute/confirmation");
+  });
+
   it("recusa checkout para campanha inexistente ou inativa", async () => {
     const { db, values } = createDb([]);
     getDbMock.mockResolvedValue(db);
