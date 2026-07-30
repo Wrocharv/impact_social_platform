@@ -227,29 +227,13 @@ export default function Home() {
           </div>
 
           <div className="mx-auto mt-8 max-w-4xl overflow-hidden rounded-2xl border border-[#d7e2d7] bg-[#eaf1e8] shadow-sm">
-            <div className={presentationVideoSource.kind === "embed" && presentationVideoSource.provider === "instagram"
-              ? "mx-auto w-full max-w-[420px]"
-              : "w-full"}
-            >
+            <div className="w-full">
               {presentationVideoSource.kind === "file" ? (
                 <div className="aspect-video w-full">
                   <video className="h-full w-full bg-black" controls preload="metadata" playsInline>
                     <source src={presentationVideoSource.src} type={presentationVideoSource.mimeType} />
                     Seu navegador não suporta reprodução de vídeo.
                   </video>
-                </div>
-              ) : presentationVideoSource.provider === "instagram" ? (
-                <div className="relative aspect-[9/16] w-full overflow-hidden rounded-xl bg-black">
-                  <iframe
-                    className="h-full w-full"
-                    style={{ height: "calc(100% + 56px)", marginBottom: "-56px" }}
-                    src={presentationVideoSource.src}
-                    title={presentationVideoSource.title}
-                    loading="lazy"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    referrerPolicy="strict-origin-when-cross-origin"
-                    allowFullScreen
-                  />
                 </div>
               ) : (
                 <div className="aspect-video w-full">
@@ -266,21 +250,6 @@ export default function Home() {
               )}
             </div>
           </div>
-          {presentationVideoSource.kind === "embed" && presentationVideoSource.provider === "instagram" && (
-            <div className="mt-3 text-center">
-              <a
-                href={presentationVideoSource.src.replace("/embed", "")}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="inline-flex items-center gap-2 text-sm font-semibold text-[#1f6f37] hover:underline"
-              >
-                Ver no Instagram <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              </a>
-            </div>
-          )}
-          <p className="mx-auto mt-3 max-w-4xl text-center text-xs text-[#647168]">
-            Aceita YouTube, Instagram (reel/post) e vídeo direto da raiz (ex.: /videos/apresentacao.mp4) via VITE_HOME_PRESENTATION_VIDEO_URL.
-          </p>
         </div>
       </section>
 
@@ -447,7 +416,7 @@ export default function Home() {
             <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#18221e] p-3 md:p-4">
               <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-[#18221e] to-transparent" />
               <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-[#18221e] to-transparent" />
-              <div className="partner-marquee-track flex w-max gap-3 hover:[animation-play-state:paused]">
+              <div className="partner-marquee-track flex w-max gap-3">
                 {scrollingPartners.map((partner, index) => (
                   <PartnerTickerItem key={`${partner.id}-${index}`} partner={partner} />
                 ))}
