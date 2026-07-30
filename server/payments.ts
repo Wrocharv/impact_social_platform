@@ -113,6 +113,15 @@ function isMercadoPagoUnauthorized(error: unknown) {
   return maybeCode === "PA_UNAUTHORIZED_RESULT_FROM_POLICIES" || maybeStatus === 403;
 }
 
+function isMercadoPagoNotConfigured(error: unknown) {
+  const message = getReadableErrorMessage(error).toLowerCase();
+  return message.includes("mercado_pago_access_token") || message.includes("não configurado") || message.includes("nao configurado");
+}
+
+function shouldUsePixDevFallback(error: unknown) {
+  return isMercadoPagoUnauthorized(error) || isMercadoPagoNotConfigured(error);
+}
+
 export const paymentsRouter = router({
   createPaymentPreference: publicProcedure
     .input(createPaymentPreferenceSchema)
@@ -143,7 +152,7 @@ export const paymentsRouter = router({
             environment: preference.environment,
           };
         } catch (error) {
-          if (!ENV.isProduction && enablePixDevFallback && isMercadoPagoUnauthorized(error)) {
+          if (!ENV.isProduction && enablePixDevFallback && shouldUsePixDevFallback(error)) {
             const origin = requestOrigin(ctx.req);
             const fallbackCampaignTitle = input.campaignTitle?.trim() || `Campanha ${input.campaignId}`;
             return {
@@ -232,7 +241,7 @@ export const paymentsRouter = router({
           environment: preference.environment,
         };
       } catch (error) {
-        if (!ENV.isProduction && enablePixDevFallback && isMercadoPagoUnauthorized(error)) {
+        if (!ENV.isProduction && enablePixDevFallback && shouldUsePixDevFallback(error)) {
           const origin = requestOrigin(ctx.req);
           return {
             checkoutUrl: `${origin}/contribute/confirmation?type=financial&campaign=${encodeURIComponent(campaign.title)}&campaignId=${campaign.id}&donor=${encodeURIComponent(donorName || "Doador")}&amount=${input.amount}`,
