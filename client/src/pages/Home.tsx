@@ -46,7 +46,11 @@ export default function Home() {
   const campaigns = (campaignsQuery.data ?? []) as PublishedCampaign[];
   const completedCampaigns = (completedQuery.data ?? []) as PublishedCampaign[];
   const partners = (partnersQuery.data ?? []) as PartnerItem[];
-  const visiblePartners = partners.length > 0 ? partners : getDemoPartners();
+  const validPartners = partners.filter((partner) => {
+    const name = partner.name.trim().toLowerCase();
+    return name.length > 1 && !name.includes("localhost") && !name.includes("127.0.0.1");
+  });
+  const visiblePartners = validPartners.length > 0 ? validPartners : getDemoPartners();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white pb-22 md:pb-24">
