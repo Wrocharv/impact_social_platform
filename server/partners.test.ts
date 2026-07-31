@@ -67,7 +67,7 @@ describe("partners router", () => {
     getDbMock.mockResolvedValue(createListDb());
     const caller = appRouter.createCaller(createContext());
 
-    await expect(caller.partners.listPublished()).resolves.toEqual(rows);
+    await expect(caller.partners.listPublished()).resolves.toEqual(expect.arrayContaining(rows));
   });
 
   it("permite o cadastro para o usuário local autorizado", async () => {

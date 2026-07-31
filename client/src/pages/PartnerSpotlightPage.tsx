@@ -102,6 +102,26 @@ function getCustomPartnerBanner(name?: string | null) {
   return null;
 }
 
+function getCustomPartnerLogo(name?: string | null) {
+  if (!name) return null;
+
+  const normalizedName = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+  if (normalizedName.includes("predimais")) {
+    return "/partners/predimais.jpeg";
+  }
+
+  if (normalizedName.includes("multipla escolha")) {
+    return "/partners/multipla-escolha.png";
+  }
+
+  return null;
+}
+
 function getCustomPartnerVideo(name?: string | null) {
   if (!name) return null;
 
@@ -153,47 +173,73 @@ export default function PartnerSpotlightPage() {
   const customVideoUrl = getCustomPartnerVideo(partner.name);
   const videoSource = toPartnerVideoSource(customVideoUrl || partner.testimonialVideoUrl);
   const customBannerUrl = getCustomPartnerBanner(partner.name);
+  const customLogoUrl = getCustomPartnerLogo(partner.name);
   const showFullWidthBanner = Boolean(customBannerUrl);
-  const featuredImage = customBannerUrl || partner.logoUrl;
+  const featuredImage = customBannerUrl || customLogoUrl || partner.logoUrl;
 
   return (
     <div className="min-h-screen bg-[#f7faf6] text-[#233127]">
       <PublicHeader />
 
-      <section className="relative overflow-hidden border-b border-[#dfe7dd] bg-gradient-to-br from-[#163a27] via-[#22563b] to-[#2e6f4a] py-14 text-white md:py-20">
-        <div className="container max-w-6xl px-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#cce8d6]">Parceiro em destaque</p>
-          <h1 className="mt-3 max-w-3xl text-4xl font-bold leading-tight md:text-5xl">{partner.name}</h1>
-          <p className="mt-4 max-w-2xl text-lg text-white/85">
-            {partner.description || "Parceiro da rede Parceiros do Bem, apoiando campanhas sociais com presença e divulgação."}
-          </p>
-          <div className="mt-7 flex flex-wrap gap-3">
-            {partner.website && (
-              <a href={partner.website} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-white px-4 font-semibold text-[#1e4c34] hover:bg-[#eef8f0]">
-                <ExternalLink className="h-4 w-4" /> Site oficial
-              </a>
-            )}
-            {whatsappUrl && (
-              <a href={whatsappUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/55 px-4 font-semibold text-white hover:bg-white/10">
-                <MessageCircle className="h-4 w-4" /> WhatsApp
-              </a>
-            )}
-            {instagramUrl && (
-              <a href={instagramUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/55 px-4 font-semibold text-white hover:bg-white/10">
-                <Instagram className="h-4 w-4" /> Instagram
-              </a>
-            )}
+      {!showFullWidthBanner && (
+        <section className="overflow-hidden border-b border-[#dfe7dd] bg-gradient-to-br from-[#163a27] via-[#22563b] to-[#2e6f4a] py-14 text-white md:py-20">
+          <div className="container max-w-6xl px-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#cce8d6]">Parceiro em destaque</p>
+            <h1 className="mt-3 max-w-3xl text-4xl font-bold leading-tight md:text-5xl">{partner.name}</h1>
+            <p className="mt-4 max-w-2xl text-lg text-white/85">
+              {partner.description || "Parceiro da rede Parceiros do Bem, apoiando campanhas sociais com presença e divulgação."}
+            </p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              {partner.website && (
+                <a href={partner.website} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-white px-4 font-semibold text-[#1e4c34] hover:bg-[#eef8f0]">
+                  <ExternalLink className="h-4 w-4" /> Site oficial
+                </a>
+              )}
+              {whatsappUrl && (
+                <a href={whatsappUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/55 px-4 font-semibold text-white hover:bg-white/10">
+                  <MessageCircle className="h-4 w-4" /> WhatsApp
+                </a>
+              )}
+              {instagramUrl && (
+                <a href={instagramUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/55 px-4 font-semibold text-white hover:bg-white/10">
+                  <Instagram className="h-4 w-4" /> Instagram
+                </a>
+              )}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {showFullWidthBanner && (
-        <section className="w-full overflow-hidden border-b border-[#dfe7dd] bg-[#0f2b1d]">
+        <section className="relative w-full overflow-hidden border-b border-[#dfe7dd] bg-[#0f2b1d]">
           <img
             src={encodeURI(customBannerUrl ?? "")}
             alt={`Banner de ${partner.name}`}
-            className="h-[320px] w-full object-cover object-center md:h-[520px]"
+            className="h-[280px] w-full object-cover object-center md:h-[440px]"
           />
+          <div className="absolute inset-0 z-10 flex items-end bg-gradient-to-t from-black/70 via-black/30 to-transparent">
+            <div className="container w-full max-w-6xl px-4 pb-4 md:pb-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#d8efe1]">Parceiro em destaque</p>
+              <h1 className="mt-2 max-w-3xl text-2xl font-bold leading-tight text-white md:text-4xl">{partner.name}</h1>
+              <div className="mt-4 flex flex-wrap gap-3 rounded-2xl bg-white/85 p-3 shadow-lg backdrop-blur-sm md:inline-flex">
+                {partner.website && (
+                  <a href={partner.website} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#1e4c34] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#173b29]">
+                    <ExternalLink className="h-4 w-4" /> Site oficial
+                  </a>
+                )}
+                {whatsappUrl && (
+                  <a href={whatsappUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#1e4c34]/20 bg-white px-4 text-sm font-semibold text-[#1e4c34] shadow-sm transition hover:bg-[#eef8f0]">
+                    <MessageCircle className="h-4 w-4" /> WhatsApp
+                  </a>
+                )}
+                {instagramUrl && (
+                  <a href={instagramUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#1e4c34]/20 bg-white px-4 text-sm font-semibold text-[#1e4c34] shadow-sm transition hover:bg-[#eef8f0]">
+                    <Instagram className="h-4 w-4" /> Instagram
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
         </section>
       )}
 
@@ -215,15 +261,7 @@ export default function PartnerSpotlightPage() {
               <p className="mt-1 text-sm text-[#3f5347]"><strong>Contato:</strong> {partner.contactInfo}</p>
             )}
           </div>
-          {showFullWidthBanner ? (
-            <div className="rounded-xl border border-[#dce6da] bg-[#eef4ec] p-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#4f6656]">Destaque visual</p>
-              <h3 className="mt-2 text-xl font-bold text-[#223126]">Múltipla Escolha em evidência</h3>
-              <p className="mt-3 leading-relaxed text-[#4a5e51]">
-                O banner foi colocado em largura total para valorizar a marca e evitar miniaturas visuais na área principal.
-              </p>
-            </div>
-          ) : (
+          {showFullWidthBanner ? null : (
             <div className="rounded-xl bg-[#eef4ec] p-4">
               {featuredImage ? (
                 <img
