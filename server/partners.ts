@@ -33,7 +33,7 @@ const defaultFallbackPartnerSeeds: Array<
   Omit<PartnerRecord, "id" | "createdAt" | "updatedAt">
 > = [
   {
-    name: "Predimais",
+    name: "A PREDIMAIS",
     type: "company",
     ownerName: "Saulo Goulart",
     description:
@@ -70,22 +70,19 @@ const defaultFallbackPartnerSeeds: Array<
     website: "https://www.instagram.com",
   },
   {
-    name: "Arte em Movimento",
-    type: "individual",
-    ownerName: "Rafael Nunes",
+    name: "Múltipla Escolha",
+    type: "company",
+    ownerName: "Lucas Daniel Sardinha",
     description:
-      "Artista parceiro que realiza ações culturais para ampliar a visibilidade das campanhas.",
-    logoUrl:
-      "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=900&q=80",
-    storePhotoUrl: undefined,
-    ownerPhotoUrl:
-      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80",
-    address: "Rio de Janeiro - RJ",
-    contactInfo: "(21) 98888-0202",
+      "Pedras que transformam ambientes. Na Múltipla Escolha, trabalhamos com mármores e granitos para bancadas, lavatórios, escadas, revestimentos e projetos sob medida, com qualidade e excelente acabamento.",
+    logoUrl: "/partners/multipla-escolha.png",
+    storePhotoUrl: "/partners/multipla-escolha.png",
+    ownerPhotoUrl: undefined,
+    address: "",
+    contactInfo: "(64) 3621-2018",
     testimonialVideoUrl: undefined,
-    testimonialText:
-      "A arte aproxima pessoas de causas urgentes. Fazer parte dessa rede foi uma escolha natural.",
-    website: "https://www.youtube.com",
+    testimonialText: "Resp.: Lucas Daniel Sardinha",
+    website: undefined,
   },
 ];
 
