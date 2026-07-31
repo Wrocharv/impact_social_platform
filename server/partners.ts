@@ -22,9 +22,12 @@ type PartnerRecord = {
   testimonialVideoUrl?: string | null;
   testimonialText?: string | null;
   website?: string | null;
+  isLocalOnly?: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
+
+const LOCAL_PARTNER_ID_OFFSET = 1_000_000;
 
 const defaultFallbackPartnerSeeds: Array<
   Omit<PartnerRecord, "id" | "createdAt" | "updatedAt">
@@ -84,10 +87,61 @@ const defaultFallbackPartnerSeeds: Array<
       "A arte aproxima pessoas de causas urgentes. Fazer parte dessa rede foi uma escolha natural.",
     website: "https://www.youtube.com",
   },
+  {
+    name: "Múltipla Escolha",
+    type: "company",
+    ownerName: "Lucas Daniel Sardinha",
+    description:
+      "Pedras que transformam ambientes. Na Múltipla Escolha, trabalhamos com mármores e granitos para bancadas, lavatórios, escadas, revestimentos e projetos sob medida, com qualidade e excelente acabamento.",
+    logoUrl: "/partners/multipla-escolha.png",
+    storePhotoUrl: "/partners/multipla-escolha.png",
+    ownerPhotoUrl: undefined,
+    address: "",
+    contactInfo: "(64) 3621-2018",
+    testimonialVideoUrl: undefined,
+    testimonialText: "Resp.: Lucas Daniel Sardinha",
+    website: undefined,
+  },
 ];
 
 const fallbackPartnersFile = path.resolve(process.cwd(), "server", ".partners-fallback.json");
+const defaultSeedNames = new Set(defaultFallbackPartnerSeeds.map((partner) => partner.name.trim().toLowerCase()));
 const fallbackPartners: PartnerRecord[] = loadPartnersFromDisk();
+
+function normalizePartnerKey(partner: Pick<PartnerRecord, "name" | "website">) {
+  const name = partner.name.trim().toLowerCase();
+  const website = (partner.website ?? "").trim().toLowerCase();
+  return `${name}|${website}`;
+}
+
+function toDisplayLocalPartner(partner: PartnerRecord): PartnerRecord {
+  return {
+    ...partner,
+    id: LOCAL_PARTNER_ID_OFFSET + partner.id,
+  };
+}
+
+function fromDisplayLocalPartnerId(id: number) {
+  if (id < LOCAL_PARTNER_ID_OFFSET) return null;
+  return id - LOCAL_PARTNER_ID_OFFSET;
+}
+
+function getLocalOnlyFallbackPartners() {
+  return fallbackPartners.filter((partner) => partner.isLocalOnly);
+}
+
+function mergeDbWithLocalFallback(dbPartners: PartnerRecord[]) {
+  const dbKeys = new Set(dbPartners.map((partner) => normalizePartnerKey(partner)));
+  const localPartners = getLocalOnlyFallbackPartners()
+    .filter((partner) => !dbKeys.has(normalizePartnerKey(partner)))
+    .map((partner) => toDisplayLocalPartner(partner));
+
+  return [...dbPartners, ...localPartners].sort((a, b) => {
+    const byName = a.name.localeCompare(b.name);
+    if (byName !== 0) return byName;
+    return a.id - b.id;
+  });
+}
 
 function loadPartnersFromDisk(): PartnerRecord[] {
   try {
@@ -109,11 +163,16 @@ function loadPartnersFromDisk(): PartnerRecord[] {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) return toDefaultPartners();
 
-    const hydrated = parsed.map((item) => ({
-      ...item,
-      createdAt: new Date(item.createdAt),
-      updatedAt: new Date(item.updatedAt),
-    })) as PartnerRecord[];
+    const hydrated = parsed.map((item) => {
+      const normalizedName = String(item?.name ?? "").trim().toLowerCase();
+      const isLocalOnly = Boolean(item?.isLocalOnly) || !defaultSeedNames.has(normalizedName);
+      return {
+        ...item,
+        isLocalOnly,
+        createdAt: new Date(item.createdAt),
+        updatedAt: new Date(item.updatedAt),
+      };
+    }) as PartnerRecord[];
 
     const meaningful = hydrated.filter((partner) => {
       const normalizedName = partner.name?.trim().toLowerCase() || "";
@@ -167,6 +226,7 @@ function createFallbackPartner(input: Omit<PartnerRecord, "id" | "createdAt" | "
   const partner: PartnerRecord = {
     id: nextId,
     ...input,
+    isLocalOnly: true,
     createdAt: now,
     updatedAt: now,
   };
@@ -334,10 +394,11 @@ export const partnersRouter = router({
     }
 
     try {
-      return await db
+      const dbPartners = await db
         .select()
         .from(partners)
         .orderBy(asc(partners.name), asc(partners.id));
+      return mergeDbWithLocalFallback(dbPartners as PartnerRecord[]);
     } catch (error) {
       console.warn("[Partners] Falling back to local data in listPublished:", error);
       return getFallbackPartners().sort((a, b) => a.name.localeCompare(b.name));
@@ -347,6 +408,11 @@ export const partnersRouter = router({
   getPublicById: publicProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ input }) => {
+      const localId = fromDisplayLocalPartnerId(input.id);
+      if (localId !== null) {
+        return getLocalOnlyFallbackPartners().find((partner) => partner.id === localId) ?? null;
+      }
+
       const db = await getDb();
       if (!db) {
         return getFallbackPartners().find((partner) => partner.id === input.id) ?? null;
@@ -358,7 +424,8 @@ export const partnersRouter = router({
         .where(eq(partners.id, input.id))
         .limit(1);
 
-      return partner ?? null;
+      if (partner) return partner;
+      return getLocalOnlyFallbackPartners().find((item) => item.id === input.id) ?? null;
     }),
 
   getAll: adminProcedure.query(async () => {
@@ -368,10 +435,11 @@ export const partnersRouter = router({
     }
 
     try {
-      return await db
+      const dbPartners = await db
         .select()
         .from(partners)
         .orderBy(asc(partners.name), asc(partners.id));
+      return mergeDbWithLocalFallback(dbPartners as PartnerRecord[]);
     } catch (error) {
       console.warn("[Partners] Falling back to local data in getAll:", error);
       return getFallbackPartners().sort((a, b) => a.name.localeCompare(b.name));
@@ -407,6 +475,16 @@ export const partnersRouter = router({
   update: adminProcedure
     .input(updatePartnerSchema)
     .mutation(async ({ input }) => {
+      const localId = fromDisplayLocalPartnerId(input.id);
+      if (localId !== null) {
+        const { id: _displayId, ...values } = input;
+        const updated = updateFallbackPartner(localId, values);
+        if (!updated) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Parceiro não encontrado." });
+        }
+        return { success: true, message: "Parceiro atualizado com sucesso!" };
+      }
+
       const db = await getDb();
       if (!db) {
         const { id, ...values } = input;
@@ -425,6 +503,15 @@ export const partnersRouter = router({
   delete: adminProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
+      const localId = fromDisplayLocalPartnerId(input.id);
+      if (localId !== null) {
+        const deleted = deleteFallbackPartner(localId);
+        if (!deleted) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Parceiro não encontrado." });
+        }
+        return { success: true, message: "Parceiro removido com sucesso!" };
+      }
+
       const db = await getDb();
       if (!db) {
         const deleted = deleteFallbackPartner(input.id);
