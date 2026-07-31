@@ -478,12 +478,17 @@ export const campaignsRouter = router({
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) {
-        const demoCampaigns = getDemoCampaigns(input?.status);
         const mappedFallback = getMappedFallbackCampaigns({
           status: input?.status,
           query: input?.query,
         });
-        return dedupeCampaignsById([...demoCampaigns, ...mappedFallback]).slice(0, input?.limit ?? 12);
+
+        if (mappedFallback.length > 0) {
+          return dedupeCampaignsById(mappedFallback).slice(0, input?.limit ?? 12);
+        }
+
+        const demoCampaigns = getDemoCampaigns(input?.status);
+        return dedupeCampaignsById(demoCampaigns).slice(0, input?.limit ?? 12);
       }
 
       const statusCondition = input?.status
@@ -516,10 +521,10 @@ export const campaignsRouter = router({
   getPublicStats: publicProcedure.query(async () => {
     const db = await getDb();
     if (!db) {
-      const mergedActiveCampaigns = dedupeCampaignsById([
-        ...getDemoCampaigns("active"),
-        ...getMappedFallbackCampaigns({ status: "active" }),
-      ]);
+      const mappedActiveFallback = getMappedFallbackCampaigns({ status: "active" });
+      const mergedActiveCampaigns = mappedActiveFallback.length > 0
+        ? dedupeCampaignsById(mappedActiveFallback)
+        : dedupeCampaignsById(getDemoCampaigns("active"));
 
       return {
         activeCampaigns: mergedActiveCampaigns.length,

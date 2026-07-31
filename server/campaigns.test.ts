@@ -183,7 +183,7 @@ describe("campaigns.listPublished", () => {
       status: "active",
     });
     expect(stats).toMatchObject({
-      activeCampaigns: 3,
+      activeCampaigns: 1,
       raised: 0,
       contributorsCount: 0,
     });
