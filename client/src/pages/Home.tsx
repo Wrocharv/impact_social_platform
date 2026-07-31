@@ -141,12 +141,7 @@ export default function Home() {
   const campaigns = (campaignsQuery.data ?? []) as PublishedCampaign[];
   const completedCampaigns = (completedQuery.data ?? []) as PublishedCampaign[];
   const partners = (partnersQuery.data ?? []) as PartnerItem[];
-  const validPartners = partners.filter((partner) => {
-    const name = partner.name.trim().toLowerCase();
-    return name.length > 1 && !name.includes("localhost") && !name.includes("127.0.0.1");
-  });
-  const visiblePartners = validPartners.length > 0 ? validPartners : getDemoPartners();
-  const scrollingPartners = visiblePartners.length > 1 ? [...visiblePartners, ...visiblePartners] : visiblePartners;
+  const visiblePartners = getPredimaisShowcasePartners();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white pb-22 md:pb-24">
@@ -416,14 +411,10 @@ export default function Home() {
           )}
 
           {!partnersQuery.isLoading && visiblePartners.length > 0 && (
-            <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#18221e] p-3 md:p-4">
-              <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-[#18221e] to-transparent" />
-              <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-[#18221e] to-transparent" />
-              <div className="partner-marquee-track flex w-max gap-3">
-                {scrollingPartners.map((partner, index) => (
-                  <PartnerTickerItem key={`${partner.id}-${index}`} partner={partner} />
-                ))}
-              </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {visiblePartners.map((partner) => (
+                <PartnerShowcaseBanner key={partner.id} partner={partner} />
+              ))}
             </div>
           )}
         </div>
@@ -544,6 +535,56 @@ function getDemoPartners(): PartnerItem[] {
   ];
 }
 
+function getPredimaisShowcasePartners(): PartnerItem[] {
+  return [
+    {
+      id: 1,
+      name: "Predimais",
+      type: "company",
+      ownerName: "Saulo Goulart",
+      description: "Parceria que conecta clientes, amigos e colaboradores para apoiar campanhas sociais recorrentes.",
+      logoUrl: "/partners/predimais.jpeg",
+      storePhotoUrl: "/partners/predimais-fachada.jpeg",
+      ownerPhotoUrl: "/partners/predimais-interior.jpeg",
+      address: "Rua Central, 120 - Centro",
+      contactInfo: "(11) 99999-0101",
+      testimonialVideoUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      testimonialText: "Nossa empresa cresceu quando decidiu crescer junto com a comunidade. Vale a pena participar.",
+      website: "https://www.parceriadobem.com.br",
+    },
+    {
+      id: 2,
+      name: "Predimais",
+      type: "company",
+      ownerName: "Saulo Goulart",
+      description: "Imagem da fachada da unidade parceira.",
+      logoUrl: "/partners/predimais-fachada.jpeg",
+      storePhotoUrl: "/partners/predimais-fachada.jpeg",
+      ownerPhotoUrl: "/partners/predimais-interior.jpeg",
+      address: "Rua Central, 120 - Centro",
+      contactInfo: "(11) 99999-0101",
+      testimonialVideoUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      testimonialText: "A parceria abriu novas portas para apoiar quem realmente precisa.",
+      website: "https://www.parceriadobem.com.br",
+    },
+    {
+      id: 3,
+      name: "Múltipla Escolha",
+      type: "company",
+      ownerName: "Lucas Sardinha",
+      description: "Parceiro que mobiliza apoio para campanhas com presença local e comunicação direta.",
+      logoUrl: "/partners/multipla-escolha.png",
+      storePhotoUrl: "/partners/multipla-escolha.png",
+      ownerPhotoUrl: "/partners/multipla-escolha.png",
+      address: "Rua Central, 120 - Centro",
+      contactInfo: "(11) 99999-0101",
+      testimonialVideoUrl: null,
+      testimonialText: "A rede de parceiros ajuda a causa a chegar mais longe com credibilidade.",
+      website: "https://www.parceriadobem.com.br",
+    },
+  ];
+}
+
 function PartnerTickerItem({ partner }: { partner: PartnerItem }) {
   const linkHref = partner.id > 0 ? `/partner/${partner.id}` : "#parceiros";
 
@@ -565,6 +606,33 @@ function PartnerTickerItem({ partner }: { partner: PartnerItem }) {
       </div>
       <div className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#1f6f37]">
         Abrir vitrine do parceiro <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+      </div>
+    </Link>
+  );
+}
+
+function PartnerShowcaseBanner({ partner }: { partner: PartnerItem }) {
+  const linkHref = partner.id > 0 ? `/partner/${partner.id}` : "#parceiros";
+  const bannerImage = partner.logoUrl || partner.storePhotoUrl || partner.ownerPhotoUrl;
+
+  return (
+    <Link
+      href={linkHref}
+      className="group relative overflow-hidden rounded-none border border-white/10 bg-[#f3f8f1] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <div className="aspect-[18/10] w-full overflow-hidden bg-[#15211a]">
+        {bannerImage ? (
+          <img
+            src={encodeURI(bannerImage)}
+            alt={`Banner de ${partner.name}`}
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-[#e7efe4] text-[#5a7d5f]">
+            <Handshake className="h-10 w-10" aria-hidden="true" />
+          </div>
+        )}
       </div>
     </Link>
   );
