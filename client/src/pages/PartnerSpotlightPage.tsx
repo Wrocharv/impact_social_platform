@@ -115,6 +115,10 @@ function getCustomPartnerVideo(name?: string | null) {
     return "/Parceiros/WhatsApp Video 2026-07-28 at 15.37.04.mp4";
   }
 
+  if (normalizedName.includes("multipla escolha")) {
+    return "/Parceiros/Video_Multipla_Escolha.MOV";
+  }
+
   return null;
 }
 
