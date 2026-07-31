@@ -614,6 +614,7 @@ function PartnerTickerItem({ partner }: { partner: PartnerItem }) {
 function PartnerShowcaseBanner({ partner }: { partner: PartnerItem }) {
   const linkHref = partner.id > 0 ? `/partner/${partner.id}` : "#parceiros";
   const bannerImage = partner.logoUrl || partner.storePhotoUrl || partner.ownerPhotoUrl;
+  const shouldContainBanner = bannerImage?.includes("multipla-escolha.png") ?? false;
 
   return (
     <Link
@@ -625,7 +626,9 @@ function PartnerShowcaseBanner({ partner }: { partner: PartnerItem }) {
           <img
             src={encodeURI(bannerImage)}
             alt={`Banner de ${partner.name}`}
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+            className={`h-full w-full transition duration-300 group-hover:scale-[1.03] ${
+              shouldContainBanner ? "object-contain bg-white p-2" : "object-cover"
+            }`}
             loading="lazy"
           />
         ) : (
