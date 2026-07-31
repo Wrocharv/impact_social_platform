@@ -102,18 +102,6 @@ function getCustomPartnerBanner(name?: string | null) {
   return null;
 }
 
-function isMultiplaEscolha(name?: string | null) {
-  if (!name) return false;
-
-  const normalizedName = name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-
-  return normalizedName.includes("multipla escolha");
-}
-
 function getCustomPartnerVideo(name?: string | null) {
   if (!name) return null;
 
@@ -165,7 +153,7 @@ export default function PartnerSpotlightPage() {
   const customVideoUrl = getCustomPartnerVideo(partner.name);
   const videoSource = toPartnerVideoSource(customVideoUrl || partner.testimonialVideoUrl);
   const customBannerUrl = getCustomPartnerBanner(partner.name);
-  const showFullWidthBanner = isMultiplaEscolha(partner.name) && customBannerUrl;
+  const showFullWidthBanner = Boolean(customBannerUrl);
   const featuredImage = customBannerUrl || partner.logoUrl;
 
   return (
@@ -202,7 +190,7 @@ export default function PartnerSpotlightPage() {
       {showFullWidthBanner && (
         <section className="w-full overflow-hidden border-b border-[#dfe7dd] bg-[#0f2b1d]">
           <img
-            src={encodeURI(customBannerUrl)}
+            src={encodeURI(customBannerUrl ?? "")}
             alt={`Banner de ${partner.name}`}
             className="h-[320px] w-full object-cover object-center md:h-[520px]"
           />
