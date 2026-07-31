@@ -102,6 +102,18 @@ function getCustomPartnerBanner(name?: string | null) {
   return null;
 }
 
+function isMultiplaEscolha(name?: string | null) {
+  if (!name) return false;
+
+  const normalizedName = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+  return normalizedName.includes("multipla escolha");
+}
+
 function getCustomPartnerVideo(name?: string | null) {
   if (!name) return null;
 
@@ -153,6 +165,7 @@ export default function PartnerSpotlightPage() {
   const customVideoUrl = getCustomPartnerVideo(partner.name);
   const videoSource = toPartnerVideoSource(customVideoUrl || partner.testimonialVideoUrl);
   const customBannerUrl = getCustomPartnerBanner(partner.name);
+  const showFullWidthBanner = isMultiplaEscolha(partner.name) && customBannerUrl;
   const featuredImage = customBannerUrl || partner.logoUrl;
 
   return (
@@ -186,8 +199,18 @@ export default function PartnerSpotlightPage() {
         </div>
       </section>
 
+      {showFullWidthBanner && (
+        <section className="w-full overflow-hidden border-b border-[#dfe7dd] bg-[#0f2b1d]">
+          <img
+            src={encodeURI(customBannerUrl)}
+            alt={`Banner de ${partner.name}`}
+            className="h-[320px] w-full object-cover object-center md:h-[520px]"
+          />
+        </section>
+      )}
+
       <main className="container max-w-6xl space-y-8 px-4 py-10 md:py-14">
-        <Card className="grid gap-6 border-[#dce6da] p-6 md:grid-cols-[1.1fr_1fr] md:p-8">
+        <Card className={`grid gap-6 border-[#dce6da] p-6 md:p-8 ${showFullWidthBanner ? "md:grid-cols-1" : "md:grid-cols-[1.1fr_1fr]"}`}>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#4f6656]">Apresentação</p>
             <h2 className="mt-2 text-2xl font-bold text-[#223126]">Conheça este parceiro</h2>
@@ -204,33 +227,43 @@ export default function PartnerSpotlightPage() {
               <p className="mt-1 text-sm text-[#3f5347]"><strong>Contato:</strong> {partner.contactInfo}</p>
             )}
           </div>
-          <div className="rounded-xl bg-[#eef4ec] p-4">
-            {featuredImage ? (
-              <img
-                src={encodeURI(featuredImage)}
-                alt={customBannerUrl ? `Banner de ${partner.name}` : `Logomarca de ${partner.name}`}
-                className={`w-full rounded-lg ${customBannerUrl ? "h-40 object-cover" : "h-32 object-contain bg-white p-3"}`}
-              />
-            ) : (
-              <div className="flex h-32 items-center justify-center rounded-lg bg-white text-[#66806f]"><Handshake className="h-8 w-8" /></div>
-            )}
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="overflow-hidden rounded-lg bg-white">
-                {partner.storePhotoUrl ? (
-                  <img src={partner.storePhotoUrl} alt={`Foto da loja de ${partner.name}`} className="h-28 w-full object-cover" />
-                ) : (
-                  <div className="flex h-28 items-center justify-center text-xs text-[#6f8176]"><Store className="mr-1 h-4 w-4" /> Loja</div>
-                )}
-              </div>
-              <div className="overflow-hidden rounded-lg bg-white">
-                {partner.ownerPhotoUrl ? (
-                  <img src={partner.ownerPhotoUrl} alt={`Foto do responsável de ${partner.name}`} className="h-28 w-full object-cover" />
-                ) : (
-                  <div className="flex h-28 items-center justify-center text-xs text-[#6f8176]">Responsável</div>
-                )}
+          {showFullWidthBanner ? (
+            <div className="rounded-xl border border-[#dce6da] bg-[#eef4ec] p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#4f6656]">Destaque visual</p>
+              <h3 className="mt-2 text-xl font-bold text-[#223126]">Múltipla Escolha em evidência</h3>
+              <p className="mt-3 leading-relaxed text-[#4a5e51]">
+                O banner foi colocado em largura total para valorizar a marca e evitar miniaturas visuais na área principal.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl bg-[#eef4ec] p-4">
+              {featuredImage ? (
+                <img
+                  src={encodeURI(featuredImage)}
+                  alt={customBannerUrl ? `Banner de ${partner.name}` : `Logomarca de ${partner.name}`}
+                  className={`w-full rounded-lg ${customBannerUrl ? "h-40 object-cover" : "h-32 object-contain bg-white p-3"}`}
+                />
+              ) : (
+                <div className="flex h-32 items-center justify-center rounded-lg bg-white text-[#66806f]"><Handshake className="h-8 w-8" /></div>
+              )}
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="overflow-hidden rounded-lg bg-white">
+                  {partner.storePhotoUrl ? (
+                    <img src={partner.storePhotoUrl} alt={`Foto da loja de ${partner.name}`} className="h-28 w-full object-cover" />
+                  ) : (
+                    <div className="flex h-28 items-center justify-center text-xs text-[#6f8176]"><Store className="mr-1 h-4 w-4" /> Loja</div>
+                  )}
+                </div>
+                <div className="overflow-hidden rounded-lg bg-white">
+                  {partner.ownerPhotoUrl ? (
+                    <img src={partner.ownerPhotoUrl} alt={`Foto do responsável de ${partner.name}`} className="h-28 w-full object-cover" />
+                  ) : (
+                    <div className="flex h-28 items-center justify-center text-xs text-[#6f8176]">Responsável</div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </Card>
 
         <Card className="border-[#dce6da] p-6 md:p-8">
