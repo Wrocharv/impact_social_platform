@@ -55,6 +55,26 @@ function toEmbedVideoUrl(url?: string | null) {
   }
 }
 
+function getCustomPartnerBanner(name?: string | null) {
+  if (!name) return null;
+
+  const normalizedName = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+  if (normalizedName.includes("predimais")) {
+    return "/Parceiros/Banner_APredimais_Saulo_Goulart.png";
+  }
+
+  if (normalizedName.includes("multipla escolha")) {
+    return "/Parceiros/Banner_MultiplaEscolha_LucasSardinha.png";
+  }
+
+  return null;
+}
+
 export default function PartnerSpotlightPage() {
   const [, params] = useRoute("/partner/:id");
   const partnerId = Number(params?.id ?? 0);
@@ -84,6 +104,8 @@ export default function PartnerSpotlightPage() {
   const whatsappUrl = normalizeWhatsapp(partner.contactInfo);
   const instagramUrl = normalizeInstagram(partner);
   const embeddedVideoUrl = toEmbedVideoUrl(partner.testimonialVideoUrl);
+  const customBannerUrl = getCustomPartnerBanner(partner.name);
+  const featuredImage = customBannerUrl || partner.logoUrl;
 
   return (
     <div className="min-h-screen bg-[#f7faf6] text-[#233127]">
@@ -135,8 +157,12 @@ export default function PartnerSpotlightPage() {
             )}
           </div>
           <div className="rounded-xl bg-[#eef4ec] p-4">
-            {partner.logoUrl ? (
-              <img src={partner.logoUrl} alt={`Logomarca de ${partner.name}`} className="h-32 w-full rounded-lg object-contain bg-white p-3" />
+            {featuredImage ? (
+              <img
+                src={encodeURI(featuredImage)}
+                alt={customBannerUrl ? `Banner de ${partner.name}` : `Logomarca de ${partner.name}`}
+                className={`w-full rounded-lg ${customBannerUrl ? "h-40 object-cover" : "h-32 object-contain bg-white p-3"}`}
+              />
             ) : (
               <div className="flex h-32 items-center justify-center rounded-lg bg-white text-[#66806f]"><Handshake className="h-8 w-8" /></div>
             )}
