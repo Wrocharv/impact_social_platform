@@ -39,11 +39,11 @@ const defaultFallbackPartnerSeeds: Array<
     description:
       "Parceria que conecta clientes, amigos e colaboradores para apoiar campanhas sociais recorrentes.",
     logoUrl:
-      "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?auto=format&fit=crop&w=900&q=80",
+      "/partners/predimais.jpeg",
     storePhotoUrl:
-      "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=900&q=80",
+      "/partners/predimais-fachada.jpeg",
     ownerPhotoUrl:
-      "https://images.unsplash.com/photo-1542204625-de293a2f0f9b?auto=format&fit=crop&w=900&q=80",
+      "/partners/predimais-interior.jpeg",
     address: "Rua Central, 120 - Centro",
     contactInfo: "(11) 99999-0101",
     testimonialVideoUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
@@ -86,21 +86,6 @@ const defaultFallbackPartnerSeeds: Array<
     testimonialText:
       "A arte aproxima pessoas de causas urgentes. Fazer parte dessa rede foi uma escolha natural.",
     website: "https://www.youtube.com",
-  },
-  {
-    name: "Múltipla Escolha",
-    type: "company",
-    ownerName: "Lucas Daniel Sardinha",
-    description:
-      "Pedras que transformam ambientes. Na Múltipla Escolha, trabalhamos com mármores e granitos para bancadas, lavatórios, escadas, revestimentos e projetos sob medida, com qualidade e excelente acabamento.",
-    logoUrl: "/partners/multipla-escolha.png",
-    storePhotoUrl: "/partners/multipla-escolha.png",
-    ownerPhotoUrl: undefined,
-    address: "",
-    contactInfo: "(64) 3621-2018",
-    testimonialVideoUrl: undefined,
-    testimonialText: "Resp.: Lucas Daniel Sardinha",
-    website: undefined,
   },
 ];
 
@@ -418,14 +403,19 @@ export const partnersRouter = router({
         return getFallbackPartners().find((partner) => partner.id === input.id) ?? null;
       }
 
-      const [partner] = await db
-        .select()
-        .from(partners)
-        .where(eq(partners.id, input.id))
-        .limit(1);
+      try {
+        const [partner] = await db
+          .select()
+          .from(partners)
+          .where(eq(partners.id, input.id))
+          .limit(1);
 
-      if (partner) return partner;
-      return getLocalOnlyFallbackPartners().find((item) => item.id === input.id) ?? null;
+        if (partner) return partner;
+        return getLocalOnlyFallbackPartners().find((item) => item.id === input.id) ?? null;
+      } catch (error) {
+        console.warn("[Partners] Falling back to local data in getPublicById:", error);
+        return getFallbackPartners().find((partner) => partner.id === input.id) ?? null;
+      }
     }),
 
   getAll: adminProcedure.query(async () => {
