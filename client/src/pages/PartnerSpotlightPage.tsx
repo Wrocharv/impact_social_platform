@@ -5,6 +5,10 @@ import { trpc } from "@/lib/trpc";
 import { ExternalLink, Handshake, Instagram, MessageCircle, Store } from "lucide-react";
 import { Link, useRoute } from "wouter";
 
+type PartnerVideoSource =
+  | { kind: "embed"; src: string }
+  | { kind: "file"; src: string; mimeType: string };
+
 function normalizeWhatsapp(value?: string | null) {
   if (!value) return null;
   const digits = value.replace(/\D/g, "");
@@ -55,6 +59,29 @@ function toEmbedVideoUrl(url?: string | null) {
   }
 }
 
+function toPartnerVideoSource(url?: string | null): PartnerVideoSource | null {
+  if (!url) return null;
+
+  const trimmedUrl = url.trim();
+  if (!trimmedUrl) return null;
+
+  if (/\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(trimmedUrl)) {
+    const lower = trimmedUrl.toLowerCase();
+    const mimeType = lower.includes(".webm")
+      ? "video/webm"
+      : lower.includes(".ogg")
+        ? "video/ogg"
+        : "video/mp4";
+
+    return { kind: "file", src: trimmedUrl, mimeType };
+  }
+
+  const embedded = toEmbedVideoUrl(trimmedUrl);
+  if (!embedded) return null;
+
+  return { kind: "embed", src: embedded };
+}
+
 function getCustomPartnerBanner(name?: string | null) {
   if (!name) return null;
 
@@ -70,6 +97,22 @@ function getCustomPartnerBanner(name?: string | null) {
 
   if (normalizedName.includes("multipla escolha")) {
     return "/Parceiros/Banner_MultiplaEscolha_LucasSardinha.png";
+  }
+
+  return null;
+}
+
+function getCustomPartnerVideo(name?: string | null) {
+  if (!name) return null;
+
+  const normalizedName = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+  if (normalizedName === "a predimais" || normalizedName.includes("predimais")) {
+    return "/Parceiros/WhatsApp Video 2026-07-28 at 15.37.04.mp4";
   }
 
   return null;
@@ -103,7 +146,8 @@ export default function PartnerSpotlightPage() {
 
   const whatsappUrl = normalizeWhatsapp(partner.contactInfo);
   const instagramUrl = normalizeInstagram(partner);
-  const embeddedVideoUrl = toEmbedVideoUrl(partner.testimonialVideoUrl);
+  const customVideoUrl = getCustomPartnerVideo(partner.name);
+  const videoSource = toPartnerVideoSource(customVideoUrl || partner.testimonialVideoUrl);
   const customBannerUrl = getCustomPartnerBanner(partner.name);
   const featuredImage = customBannerUrl || partner.logoUrl;
 
@@ -196,7 +240,7 @@ export default function PartnerSpotlightPage() {
           </div>
         </Card>
 
-        {embeddedVideoUrl && (
+        {videoSource && (
           <Card className="border-[#dce6da] p-6 md:p-8">
             <h3 className="text-xl font-bold text-[#223126]">Vídeo de apresentação do parceiro</h3>
             <p className="mt-2 text-[#4a5e51]">
@@ -204,15 +248,22 @@ export default function PartnerSpotlightPage() {
             </p>
             <div className="mt-4 overflow-hidden rounded-xl border border-[#dce6da] bg-[#f1f6ef]">
               <div className="aspect-video w-full">
-                <iframe
-                  className="h-full w-full"
-                  src={embeddedVideoUrl}
-                  title={`Video de apresentacao de ${partner.name}`}
-                  loading="lazy"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  allowFullScreen
-                />
+                {videoSource.kind === "embed" ? (
+                  <iframe
+                    className="h-full w-full"
+                    src={videoSource.src}
+                    title={`Video de apresentacao de ${partner.name}`}
+                    loading="lazy"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                  />
+                ) : (
+                  <video className="h-full w-full" controls preload="metadata">
+                    <source src={encodeURI(videoSource.src)} type={videoSource.mimeType} />
+                    Seu navegador não suporta reprodução de vídeo.
+                  </video>
+                )}
               </div>
             </div>
           </Card>
