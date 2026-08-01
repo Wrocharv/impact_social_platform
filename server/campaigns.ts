@@ -14,6 +14,154 @@ import { getDb } from "./db";
 import { storagePut } from "./storage";
 import { whatsappService } from "./whatsapp.service";
 
+const DEMO_CAMPAIGN = {
+  id: 1,
+  title: "Construção Hotel Recanto de Paz",
+  description: "Apoie a construção do Hotel Recanto de Paz com materiais e contribuições para a obra.",
+  longDescription:
+    "A campanha apresenta uma obra real, com evolução de etapas, atualizações de fotos e necessidades concretas de materiais. Apoie a construção do Hotel Recanto de Paz em cada fase.",
+  category: "outro" as const,
+  goal: 0,
+  imageUrl: "/obra-paredes.jpg",
+  createdBy: 1,
+  status: "active" as const,
+  createdAt: new Date("2026-07-29T10:00:00.000Z"),
+  updatedAt: new Date("2026-07-29T10:00:00.000Z"),
+  raised: 0,
+  remaining: 0,
+  progress: 0,
+  contributorsCount: 0,
+  galleryImages: [
+    "/obra-paredes.jpg",
+    "/obra-lavanderia.jpg",
+    "/obra-drone.png",
+    "/render-hotel.jpg",
+    "/render-quarto.jpg",
+  ],
+  needs: [
+    {
+      id: 1,
+      campaignId: 1,
+      type: "material" as const,
+      name: "Cimento",
+      description: "Materiais essenciais para a fase inicial da construção.",
+      quantity: "200 sacos",
+      priority: "high" as const,
+      fulfilled: 30,
+      createdAt: new Date("2026-07-20T10:00:00.000Z"),
+      updatedAt: new Date("2026-07-20T10:00:00.000Z"),
+    },
+  ],
+  updates: [
+    {
+      id: 1,
+      campaignId: 1,
+      title: "Fundação iniciada",
+      description:
+        "A equipe já concluiu a marcação do terreno e iniciou a concretagem das fundações. O próximo passo será o assentamento de blocos e a chegada de mais materiais de construção.",
+      phase: "before" as const,
+      createdAt: new Date("2026-07-20T10:00:00.000Z"),
+      imageUrls: [
+        "/obra-drone.png",
+      ],
+      videoUrls: [],
+      images: [
+        "/obra-drone.png",
+      ],
+    },
+    {
+      id: 2,
+      campaignId: 1,
+      title: "Estrutura em andamento",
+      description:
+        "Já temos as primeiras divisórias e o contorno da obra visíveis. Cada nova foto mostrará a evolução real do Hotel Recanto de Paz e a contribuição dos apoiadores.",
+      phase: "during" as const,
+      createdAt: new Date("2026-07-21T11:00:00.000Z"),
+      imageUrls: [
+        "/obra-lavanderia.jpg",
+      ],
+      videoUrls: [],
+      images: [
+        "/obra-lavanderia.jpg",
+      ],
+    },
+    {
+      id: 3,
+      campaignId: 1,
+      title: "Obra avançando para a fase final",
+      description:
+        "O projeto está caminhando para a etapa de fechamento e acabamento. Esta atualização mostra como a obra evoluiu desde a fundação até as primeiras instalações relevantes.",
+      phase: "after" as const,
+      createdAt: new Date("2026-07-22T12:00:00.000Z"),
+      imageUrls: [
+        "/obra-paredes.jpg",
+      ],
+      videoUrls: [],
+      images: [
+        "/obra-paredes.jpg",
+      ],
+    },
+  ],
+  documents: [],
+};
+
+function isCanonicalRecantoCampaign(campaign: { id: number; title?: string | null }) {
+  return campaign.id === DEMO_CAMPAIGN.id || (typeof campaign.title === "string" && /recanto de paz/i.test(campaign.title));
+}
+
+function withCanonicalRecantoCover<T extends { id: number; title: string; imageUrl: string | null }>(campaign: T): T {
+  if (!isCanonicalRecantoCampaign(campaign)) return campaign;
+  return {
+    ...campaign,
+    imageUrl: DEMO_CAMPAIGN.imageUrl,
+  };
+}
+
+function shouldZeroCanonicalRecantoForLocal() {
+  return process.env.NODE_ENV !== "production";
+}
+
+function withLocalZeroedCanonicalRecanto<T extends {
+  id: number;
+  title: string;
+  goal?: number;
+  raised?: number;
+  initialRaised?: number;
+  remaining?: number;
+  progress?: number;
+  contributorsCount?: number;
+}>(campaign: T): T {
+  if (!shouldZeroCanonicalRecantoForLocal()) return campaign;
+  if (!isCanonicalRecantoCampaign(campaign)) return campaign;
+
+  return {
+    ...campaign,
+    goal: 0,
+    raised: 0,
+    initialRaised: 0,
+    remaining: 0,
+    progress: 0,
+    contributorsCount: 0,
+  };
+}
+
+function getDemoCampaigns(status?: "active" | "completed") {
+  const demoCampaigns = [DEMO_CAMPAIGN].filter((campaign) => {
+    return !status || campaign.status === status;
+  });
+
+  if (demoCampaigns.length > 0) {
+    return demoCampaigns;
+  }
+
+  return [];
+}
+
+function getDemoCampaignById(id: number) {
+  if (id === DEMO_CAMPAIGN.id) return DEMO_CAMPAIGN;
+  return null;
+}
+
 function mapFallbackCampaignToPublicShape(campaign: ReturnType<typeof whatsappService.getFallbackCampaigns>[number]) {
   const goal = Number(campaign.goal ?? 0);
   const initialRaised = Math.max(0, Number(campaign.raised ?? 0));
@@ -71,8 +219,7 @@ function dedupeCampaignsById<T extends { id: number }>(rows: T[]): T[] {
 }
 
 function isInternalLocalSeedCampaign(campaign: { id: number; title: string }) {
-  if (campaign.id >= 100000) return true;
-  return campaign.title.trim().toLowerCase() === "campanha local inicial";
+  return campaign.id >= 100000 && campaign.title.trim().toLowerCase() === "campanha local inicial";
 }
 
 const PUBLIC_STATUSES = ["active", "completed"] as const;
@@ -412,9 +559,18 @@ export const campaignsRouter = router({
           query: input?.query,
         }).filter((campaign) => !isInternalLocalSeedCampaign(campaign));
 
-        return dedupeCampaignsById(mappedFallback)
-          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
-          .slice(0, input?.limit ?? 12);
+        const normalizedQuery = input?.query?.trim().toLowerCase();
+        const demoCampaigns = getDemoCampaigns(input?.status).filter((campaign) => {
+          if (!normalizedQuery) return true;
+          return campaign.title.toLowerCase().includes(normalizedQuery);
+        });
+
+        const mergedCampaigns = dedupeCampaignsById([
+          ...mappedFallback,
+          ...demoCampaigns,
+        ]).sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+
+        return mergedCampaigns.slice(0, input?.limit ?? 12);
       }
 
       const statusCondition = input?.status
@@ -435,11 +591,13 @@ export const campaignsRouter = router({
         rows.map((campaign) => campaign.id),
       );
 
-      const publishedRows = rows.map((campaign) => ({
-        ...campaign,
-        initialRaised: campaign.raised,
-        ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
-      }));
+      const publishedRows = rows.map((campaign) =>
+        withLocalZeroedCanonicalRecanto({
+          ...withCanonicalRecantoCover(campaign),
+          initialRaised: campaign.raised,
+          ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
+        }),
+      );
 
       return dedupeCampaignsById(publishedRows).slice(0, input?.limit ?? 12);
     }),
@@ -449,7 +607,10 @@ export const campaignsRouter = router({
     if (!db) {
       const mappedActiveFallback = getMappedFallbackCampaigns({ status: "active" })
         .filter((campaign) => !isInternalLocalSeedCampaign(campaign));
-      const mergedActiveCampaigns = dedupeCampaignsById(mappedActiveFallback);
+      const mergedActiveCampaigns = dedupeCampaignsById([
+        ...mappedActiveFallback,
+        ...getDemoCampaigns("active"),
+      ]);
 
       return {
         activeCampaigns: mergedActiveCampaigns.length,
@@ -469,6 +630,10 @@ export const campaignsRouter = router({
 
     return activeCampaigns.reduce(
       (summary, campaign) => {
+        if (shouldZeroCanonicalRecantoForLocal() && isCanonicalRecantoCampaign(campaign)) {
+          return summary;
+        }
+
         const campaignMetrics =
           metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.initialRaised, []);
         summary.raised += campaignMetrics.raised;
@@ -488,6 +653,9 @@ export const campaignsRouter = router({
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) {
+        const demoCampaign = getDemoCampaignById(input.id);
+        if (demoCampaign) return demoCampaign;
+
         const fallbackCampaign = getMappedFallbackCampaigns().find((campaign) => campaign.id === input.id);
         return fallbackCampaign ?? null;
       }
@@ -555,6 +723,8 @@ export const campaignsRouter = router({
         ),
       );
 
+      const canonicalizedCampaign = withCanonicalRecantoCover(campaign);
+      const isRecanto = isCanonicalRecantoCampaign(campaign);
       const materialProgressByNeed = new Map<number, { offeredQuantity: number; offeredValueCents: number }>();
 
       materialContributions.forEach((row) => {
@@ -587,19 +757,27 @@ export const campaignsRouter = router({
         };
       });
 
-      return {
-        ...campaign,
+      return withLocalZeroedCanonicalRecanto({
+        ...canonicalizedCampaign,
         initialRaised: campaign.raised,
         ...campaignMetrics,
-        updates: updates.map((update) => ({
-          ...update,
-          images: parseMediaUrls(update.imageUrls),
-          videos: parseMediaUrls(update.videoUrls),
-        })),
-        needs: needsWithProgress,
+        longDescription: isRecanto ? DEMO_CAMPAIGN.longDescription : campaign.longDescription,
+        category: isRecanto ? DEMO_CAMPAIGN.category : campaign.category,
+        updates: isRecanto
+          ? DEMO_CAMPAIGN.updates.map((update) => ({
+              ...update,
+              images: [...update.images],
+              videos: [],
+            }))
+          : updates.map((update) => ({
+              ...update,
+              images: parseMediaUrls(update.imageUrls),
+              videos: parseMediaUrls(update.videoUrls),
+            })),
+        needs: isRecanto ? DEMO_CAMPAIGN.needs : needsWithProgress,
         documents,
-        galleryImages,
-      };
+        galleryImages: isRecanto ? [...DEMO_CAMPAIGN.galleryImages] : galleryImages,
+      });
     }),
 
   create: adminProcedure
@@ -616,9 +794,8 @@ export const campaignsRouter = router({
           raised: input.initialRaised,
           longDescription: input.longDescription,
           imageUrl: input.imageUrl,
-          status: "paused",
         });
-        return { success: true, message: "Campanha criada como rascunho (pausada)." };
+        return { success: true, message: "Campanha criada com sucesso!" };
       }
 
       const userId = ctx.user?.id;
@@ -635,7 +812,7 @@ export const campaignsRouter = router({
         raised: input.initialRaised,
         imageUrl: input.imageUrl,
         createdBy: userId,
-        status: "paused",
+        status: "active",
       });
 
       let createdCampaignId = Number((insertResult as { insertId?: number }).insertId ?? 0);
@@ -665,7 +842,7 @@ export const campaignsRouter = router({
         );
       }
 
-      return { success: true, message: "Campanha criada como rascunho (pausada)." };
+      return { success: true, message: "Campanha criada com sucesso!" };
     }),
 
   update: adminProcedure
@@ -681,10 +858,7 @@ export const campaignsRouter = router({
           raised: input.initialRaised,
           imageUrl: input.imageUrl ?? undefined,
           status:
-            input.status === "active"
-            || input.status === "completed"
-            || input.status === "paused"
-            || input.status === "archived"
+            input.status === "active" || input.status === "completed"
               ? input.status
               : undefined,
         });
