@@ -11,7 +11,7 @@ type FallbackCampaign = {
   category: string;
   goal: number;
   raised: number;
-  status: "active" | "completed";
+  status: "active" | "completed" | "paused" | "archived";
   imageUrl?: string;
   createdBy?: number;
   createdAt: Date;
@@ -162,6 +162,7 @@ export const whatsappService = {
     raised?: number;
     longDescription?: string;
     imageUrl?: string;
+    status?: "active" | "completed" | "paused" | "archived";
   }) {
     const highestExistingId = fallbackCampaigns.length > 0
       ? Math.max(...fallbackCampaigns.map((campaign) => campaign.id))
@@ -176,7 +177,7 @@ export const whatsappService = {
       category: data.category,
       goal: data.goal,
       raised: Math.max(0, Number(data.raised ?? 0)),
-      status: "active",
+      status: data.status ?? "paused",
       imageUrl: data.imageUrl ?? "/obra-paredes.jpg",
       createdBy: 1,
       createdAt: new Date(),
