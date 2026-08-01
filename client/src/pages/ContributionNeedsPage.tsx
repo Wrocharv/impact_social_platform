@@ -2,6 +2,7 @@ import PublicHeader from "@/components/PublicHeader";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
+import { useDonorStorage } from "@/hooks/useDonorStorage";
 import { ChevronLeft, Heart, Package } from "lucide-react";
 import { Link, useRoute } from "wouter";
 
@@ -48,6 +49,7 @@ const sortNeeds = (needs: NeedItem[]) =>
 export default function ContributionNeedsPage() {
   const [, params] = useRoute("/contribute/items/:id");
   const campaignId = Number(params?.id ?? 0);
+  const { isLoaded, currentDonor } = useDonorStorage();
 
   const campaignQuery = trpc.campaigns.getById.useQuery(
     { id: campaignId },
@@ -97,6 +99,7 @@ export default function ContributionNeedsPage() {
   }
 
   const needs = sortNeeds((campaign.needs ?? []) as NeedItem[]);
+  const hasSingleRegistration = isLoaded && !!currentDonor;
 
   return (
     <div className="min-h-screen bg-[#f8faf7]">
@@ -108,7 +111,20 @@ export default function ContributionNeedsPage() {
 
         <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#228B22]">{campaign.title}</p>
         <h1 className="mt-2 text-3xl font-bold text-[#2d2d2d] md:text-4xl">Veja o que estamos precisando</h1>
-        <p className="mt-3 text-[#656565]">Escolha um item da lista para ajudar com material. Se preferir, faça doação em dinheiro apenas na etapa de pagamento.</p>
+        <p className="mt-3 text-[#656565]">Escolha um item da lista para ajudar com material. Se preferir, a doação em dinheiro será feita no banco na etapa final.</p>
+
+        {!hasSingleRegistration && (
+          <Card className="mt-6 border-[#dbe7d8] bg-[#f5faf4] p-5">
+            <p className="text-sm font-semibold text-[#2d2d2d]">Cadastro único obrigatório</p>
+            <p className="mt-1 text-sm text-[#5b655c]">Antes de escolher item ou valor em dinheiro, faça seu cadastro uma única vez para registrar corretamente sua contribuição.</p>
+            <Link
+              href={`/contribute/wizard/${campaignId}?entry=needs`}
+              className="mt-4 inline-flex min-h-11 items-center justify-center rounded-md bg-[#228B22] px-4 font-semibold text-white transition hover:bg-[#1b711b]"
+            >
+              Fazer cadastro único
+            </Link>
+          </Card>
+        )}
 
         <Card className="mt-7 overflow-hidden">
           <div className="overflow-x-auto">
@@ -128,12 +144,21 @@ export default function ContributionNeedsPage() {
                     <td className="px-4 py-3 text-[#4d5e4f]">{need.quantity || "A definir"}</td>
                     <td className="px-4 py-3 text-[#4d5e4f]">{need.fulfilled ?? 0}% atendido</td>
                     <td className="px-4 py-3">
-                      <Link
-                        href={`/contribute/wizard/${campaignId}?type=material&needId=${need.id}`}
-                        className="inline-flex min-h-10 items-center rounded-md bg-[#228B22] px-4 font-semibold text-white transition hover:bg-[#1b711b]"
-                      >
-                        <Package className="mr-2 h-4 w-4" aria-hidden="true" /> Oferecer este item
-                      </Link>
+                      {hasSingleRegistration ? (
+                        <Link
+                          href={`/contribute/wizard/${campaignId}?type=material&needId=${need.id}`}
+                          className="inline-flex min-h-10 items-center rounded-md bg-[#228B22] px-4 font-semibold text-white transition hover:bg-[#1b711b]"
+                        >
+                          <Package className="mr-2 h-4 w-4" aria-hidden="true" /> Oferecer este item
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/contribute/wizard/${campaignId}?entry=needs`}
+                          className="inline-flex min-h-10 items-center rounded-md border border-[#228B22] px-4 font-semibold text-[#228B22] transition hover:bg-[#228B22]/5"
+                        >
+                          Fazer cadastro para liberar
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 )) : (
@@ -147,10 +172,16 @@ export default function ContributionNeedsPage() {
         </Card>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <Link href={`/checkout/${campaignId}`} className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#1f3d2b] px-5 font-semibold text-white transition hover:bg-[#163021]">
-            <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Fazer doação em dinheiro
-          </Link>
-          <Link href={`/contribute/wizard/${campaignId}`} className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-5 font-semibold text-[#228B22] hover:bg-[#228B22]/5">
+          {hasSingleRegistration ? (
+            <Link href={`/contribute/wizard/${campaignId}?type=financial`} className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#1f3d2b] px-5 font-semibold text-white transition hover:bg-[#163021]">
+              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Doar valor em dinheiro
+            </Link>
+          ) : (
+            <Link href={`/contribute/wizard/${campaignId}?entry=needs`} className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#1f3d2b] px-5 font-semibold text-[#1f3d2b] transition hover:bg-[#1f3d2b]/5">
+              Fazer cadastro único para doar
+            </Link>
+          )}
+          <Link href={`/contribute/wizard/${campaignId}?type=material`} className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-5 font-semibold text-[#228B22] hover:bg-[#228B22]/5">
             Abrir formulário completo
           </Link>
         </div>

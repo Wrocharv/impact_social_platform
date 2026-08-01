@@ -98,8 +98,11 @@ export default function ContributionWizardPage() {
     { enabled: Number.isInteger(campaignId) && campaignId > 0 },
   );
 
-  const initialType = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("type") : null;
-  const initialNeedId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("needId") : null;
+  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const initialType = searchParams?.get("type") ?? null;
+  const initialNeedId = searchParams?.get("needId") ?? null;
+  const entryMode = searchParams?.get("entry") ?? null;
+  const isSingleRegistrationFlow = entryMode === "needs";
 
   const [step, setStep] = useState<Step>("type");
   const [lastLookupKey, setLastLookupKey] = useState("");
@@ -260,6 +263,18 @@ export default function ContributionWizardPage() {
     if (step === "type" && isValid.type) {
       setStep("donor-info");
     } else if (step === "donor-info" && isValid.donorInfo) {
+      if (isSingleRegistrationFlow && state.type === null) {
+        saveDonor({
+          donorName: state.donorName,
+          donorWhatsapp: state.donorWhatsapp,
+          donorEmail: state.donorEmail,
+          donorCity: state.donorCity,
+          donorChurch: state.donorChurch,
+        });
+        toast.success("Cadastro único concluído. Agora escolha como ajudar na lista.");
+        setLocation(`/contribute/items/${campaignId}`);
+        return;
+      }
       setStep("details");
     } else if (step === "details" && isValid.details) {
       if (state.type === "financial") {
@@ -362,7 +377,14 @@ export default function ContributionWizardPage() {
               
               {/* Progress Indicator */}
               <div className="mt-6 flex items-center justify-between">
-                {state.type === "financial" ? (
+                {isSingleRegistrationFlow && state.type === null ? (
+                  <>
+                    <div className="flex flex-1 items-center gap-2">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "donor-info" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>1</div>
+                      <span className={`text-xs font-medium ${step === "donor-info" ? "text-blue-600" : "text-gray-600"}`}>Cadastro</span>
+                    </div>
+                  </>
+                ) : state.type === "financial" ? (
                   <>
                     <div className="flex flex-1 items-center gap-2">
                       <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "type" || step === "donor-info" || step === "details" || step === "payment" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>1</div>
@@ -425,7 +447,7 @@ export default function ContributionWizardPage() {
               )}
 
               {/* STEP 1: Tipo de Contribuição */}
-              {step === "type" && (
+              {step === "type" && !isSingleRegistrationFlow && (
                 <div className="space-y-4">
                   <p className="text-sm text-gray-600 mb-6">Escolha o tipo de ajuda que você deseja oferecer:</p>
                   <div className="grid gap-3">
@@ -468,7 +490,11 @@ export default function ContributionWizardPage() {
               {/* STEP 2: Dados do Doador */}
               {step === "donor-info" && (
                 <div className="space-y-4">
-                  <p className="text-sm text-gray-600 mb-6">Preencha seus dados para que possamos entrar em contato:</p>
+                  <p className="text-sm text-gray-600 mb-6">
+                    {isSingleRegistrationFlow && state.type === null
+                      ? "Faça seu cadastro único para liberar a lista de materiais e a opção de doação em dinheiro."
+                      : "Preencha seus dados para que possamos entrar em contato:"}
+                  </p>
                   
                   {currentDonor && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
@@ -586,7 +612,13 @@ export default function ContributionWizardPage() {
                   <div className="flex gap-3 pt-4">
                     <Button
                       variant="outline"
-                      onClick={() => setStep("type")}
+                      onClick={() => {
+                        if (isSingleRegistrationFlow && state.type === null) {
+                          setLocation(`/campaign/${campaignId}`);
+                          return;
+                        }
+                        setStep("type");
+                      }}
                       disabled={loading}
                       className="flex-1"
                     >
@@ -597,7 +629,7 @@ export default function ContributionWizardPage() {
                       disabled={!isValid.donorInfo || loading}
                       className="flex-1 bg-blue-600 hover:bg-blue-700"
                     >
-                      Próximo →
+                      {isSingleRegistrationFlow && state.type === null ? "Ir para lista de itens →" : "Próximo →"}
                     </Button>
                   </div>
                 </div>
