@@ -55,6 +55,8 @@ const EMPTY_NEED_FORM = {
   name: "",
   description: "",
   quantity: "",
+  targetQuantityExact: "",
+  unitValue: "",
   priority: "medium" as "high" | "medium" | "low",
 };
 
@@ -364,12 +366,27 @@ export default function AdminDashboard() {
   function handleCreateCampaignNeed(event: React.FormEvent) {
     event.preventDefault();
     if (!selectedCampaign) return;
+
+    const targetQuantityExact = Number.parseInt(campaignNeedForm.targetQuantityExact, 10);
+    if (!Number.isInteger(targetQuantityExact) || targetQuantityExact <= 0) {
+      toast.error("Informe uma meta exata válida (número inteiro maior que zero)");
+      return;
+    }
+
+    const unitValueCents = parseCurrencyToCents(campaignNeedForm.unitValue);
+    if (unitValueCents === null || unitValueCents <= 0) {
+      toast.error("Informe um valor unitário válido");
+      return;
+    }
+
     createCampaignNeed.mutate({
       campaignId: selectedCampaign.id,
       type: campaignNeedForm.type,
       name: campaignNeedForm.name,
       description: campaignNeedForm.description || undefined,
-      quantity: campaignNeedForm.quantity,
+      quantity: campaignNeedForm.quantity || undefined,
+      targetQuantityExact,
+      unitValueCents,
       priority: campaignNeedForm.priority,
     });
   }
@@ -812,7 +829,11 @@ export default function AdminDashboard() {
                 <Field label="Prioridade *"><Select value={campaignNeedForm.priority} onValueChange={(priority: typeof campaignNeedForm.priority) => setCampaignNeedForm({ ...campaignNeedForm, priority })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="high">Alta</SelectItem><SelectItem value="medium">Média</SelectItem><SelectItem value="low">Baixa</SelectItem></SelectContent></Select></Field>
               </div>
               <Field label="Nome *"><Input value={campaignNeedForm.name} onChange={(event) => setCampaignNeedForm({ ...campaignNeedForm, name: event.target.value })} required minLength={3} /></Field>
-              <Field label="Quantidade *"><Input value={campaignNeedForm.quantity} onChange={(event) => setCampaignNeedForm({ ...campaignNeedForm, quantity: event.target.value })} required placeholder="Ex.: 20 sacos ou 2 voluntários" /></Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Meta exata (unidades) *"><Input type="number" min={1} step={1} value={campaignNeedForm.targetQuantityExact} onChange={(event) => setCampaignNeedForm({ ...campaignNeedForm, targetQuantityExact: event.target.value })} required placeholder="Ex.: 3700" /></Field>
+                <Field label="Valor unitário (R$) *"><Input inputMode="decimal" value={campaignNeedForm.unitValue} onChange={(event) => setCampaignNeedForm({ ...campaignNeedForm, unitValue: event.target.value })} required placeholder="Ex.: 1,80" /></Field>
+              </div>
+              <Field label="Quantidade textual (opcional)"><Input value={campaignNeedForm.quantity} onChange={(event) => setCampaignNeedForm({ ...campaignNeedForm, quantity: event.target.value })} placeholder="Ex.: 3.700 unidades" /></Field>
               <Field label="Descrição"><Textarea value={campaignNeedForm.description} onChange={(event) => setCampaignNeedForm({ ...campaignNeedForm, description: event.target.value })} rows={4} /></Field>
               <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={closeCampaignNeedDialog}>Cancelar</Button><Button type="submit" disabled={createCampaignNeed.isPending}>{createCampaignNeed.isPending ? "Salvando..." : "Cadastrar necessidade"}</Button></div>
             </form>

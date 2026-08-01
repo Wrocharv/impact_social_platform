@@ -82,11 +82,14 @@ const offerSchema = z.object({
   description: z.string().trim().min(3).max(3000),
   ...donorInfoSchema.shape,
   campaignNeedId: z.number().int().positive().optional(),
+  quantityExact: z.number().int().positive().optional(),
   quantity: z.string().trim().max(255).optional(),
   deliveryMethod: z.enum(["pickup", "deliver", "mail", "other"]).optional(),
   numberOfInstallments: z.number().int().min(2).max(24).optional(),
   materialDeliveryFrequency: z.enum(["unique", "weekly", "biweekly", "monthly"]).optional(),
 });
+
+const TRACKED_MATERIAL_STATUSES = ["pending", "approved", "completed"] as const;
 
 async function assertActiveCampaign(campaignId: number) {
   const db = await getDb();
@@ -113,12 +116,22 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
   const db = await assertActiveCampaign(input.campaignId);
 
   let description = input.description;
+  let estimatedAmount: number | undefined;
   if (type === "material") {
     const segments: string[] = [input.description];
 
     if (input.campaignNeedId) {
+      if (!input.quantityExact) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Informe a quantidade exata ofertada." });
+      }
+
       const [need] = await db
-        .select({ name: campaignNeeds.name, quantity: campaignNeeds.quantity })
+        .select({
+          name: campaignNeeds.name,
+          quantity: campaignNeeds.quantity,
+          targetQuantityExact: campaignNeeds.targetQuantityExact,
+          unitValueCents: campaignNeeds.unitValueCents,
+        })
         .from(campaignNeeds)
         .where(and(eq(campaignNeeds.id, input.campaignNeedId), eq(campaignNeeds.campaignId, input.campaignId)))
         .limit(1);
@@ -127,9 +140,38 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
         throw new TRPCError({ code: "NOT_FOUND", message: "Necessidade da campanha não encontrada" });
       }
 
+      if (need.targetQuantityExact && need.targetQuantityExact > 0) {
+        const offeredRows = await db
+          .select({ quantityExact: contributions.quantityExact })
+          .from(contributions)
+          .where(
+            and(
+              eq(contributions.campaignId, input.campaignId),
+              eq(contributions.type, "material"),
+              eq(contributions.campaignNeedId, input.campaignNeedId),
+              inArray(contributions.status, TRACKED_MATERIAL_STATUSES),
+            ),
+          );
+
+        const alreadyOffered = offeredRows.reduce((sum, row) => sum + Math.max(0, row.quantityExact ?? 0), 0);
+        const remaining = Math.max(0, need.targetQuantityExact - alreadyOffered);
+
+        if (input.quantityExact > remaining) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Quantidade ofertada excede o saldo restante deste item (${remaining}).`,
+          });
+        }
+      }
+
       if (need.name) segments.push(`Necessidade: ${need.name}`);
-      const resolvedQuantity = input.quantity?.trim() || need.quantity?.trim();
+      const resolvedQuantity = String(input.quantityExact);
       if (resolvedQuantity) segments.push(`Quantidade: ${resolvedQuantity}`);
+      if (need.unitValueCents && need.unitValueCents > 0) {
+        estimatedAmount = input.quantityExact * need.unitValueCents;
+        segments.push(`Valor unitário: R$ ${(need.unitValueCents / 100).toFixed(2).replace(".", ",")}`);
+        segments.push(`Valor estimado: R$ ${(estimatedAmount / 100).toFixed(2).replace(".", ",")}`);
+      }
     } else if (input.quantity?.trim()) {
       segments.push(`Quantidade: ${input.quantity.trim()}`);
     }
@@ -149,6 +191,9 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
     donorChurch: input.donorChurch,
     allowPublicDisplay: Boolean(input.allowPublicDisplay),
     deliveryMethod: type === "material" ? input.deliveryMethod : undefined,
+    campaignNeedId: type === "material" ? input.campaignNeedId : undefined,
+    quantityExact: type === "material" ? input.quantityExact : undefined,
+    estimatedAmount: type === "material" ? estimatedAmount : undefined,
     numberOfInstallments: input.numberOfInstallments,
     materialDeliveryFrequency: type === "material" ? input.materialDeliveryFrequency : undefined,
     status: "pending",

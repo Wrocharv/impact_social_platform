@@ -17,18 +17,18 @@ import { whatsappService } from "./whatsapp.service";
 const DEMO_CAMPAIGN = {
   id: 1,
   title: "Construção Hotel Recanto de Paz",
-  description: "Apoie a construção do Hotel Recanto de Paz com materiais e contribuições para a obra. [Verificacao 30/07]",
+  description: "Apoie a construção do Hotel Recanto de Paz com materiais e contribuições para a obra.",
   longDescription:
-    "A campanha apresenta uma obra real, com evolução de etapas, atualizações de fotos e necessidades concretas de materiais. Apoie a construção do Hotel Recanto de Paz em cada fase. [Verificacao 30/07]",
+    "A campanha apresenta uma obra real, com evolução de etapas, atualizações de fotos e necessidades concretas de materiais. Apoie a construção do Hotel Recanto de Paz em cada fase.",
   category: "outro" as const,
-  goal: 10_000_00,
+  goal: 0,
   imageUrl: "/obra-paredes.jpg",
   createdBy: 1,
   status: "active" as const,
-  createdAt: new Date("2026-07-20T10:00:00.000Z"),
-  updatedAt: new Date("2026-07-20T10:00:00.000Z"),
+  createdAt: new Date("2026-07-29T10:00:00.000Z"),
+  updatedAt: new Date("2026-07-29T10:00:00.000Z"),
   raised: 0,
-  remaining: 10_000_00,
+  remaining: 0,
   progress: 0,
   contributorsCount: 0,
   galleryImages: [
@@ -105,8 +105,8 @@ const DEMO_CAMPAIGN = {
   documents: [],
 };
 
-function isCanonicalRecantoCampaign(campaign: { id: number; title: string }) {
-  return campaign.id === DEMO_CAMPAIGN.id || /recanto de paz/i.test(campaign.title);
+function isCanonicalRecantoCampaign(campaign: { id: number; title?: string | null }) {
+  return campaign.id === DEMO_CAMPAIGN.id || (typeof campaign.title === "string" && /recanto de paz/i.test(campaign.title));
 }
 
 function withCanonicalRecantoCover<T extends { id: number; title: string; imageUrl: string | null }>(campaign: T): T {
@@ -114,6 +114,34 @@ function withCanonicalRecantoCover<T extends { id: number; title: string; imageU
   return {
     ...campaign,
     imageUrl: DEMO_CAMPAIGN.imageUrl,
+  };
+}
+
+function shouldZeroCanonicalRecantoForLocal() {
+  return process.env.NODE_ENV !== "production";
+}
+
+function withLocalZeroedCanonicalRecanto<T extends {
+  id: number;
+  title: string;
+  goal?: number;
+  raised?: number;
+  initialRaised?: number;
+  remaining?: number;
+  progress?: number;
+  contributorsCount?: number;
+}>(campaign: T): T {
+  if (!shouldZeroCanonicalRecantoForLocal()) return campaign;
+  if (!isCanonicalRecantoCampaign(campaign)) return campaign;
+
+  return {
+    ...campaign,
+    goal: 0,
+    raised: 0,
+    initialRaised: 0,
+    remaining: 0,
+    progress: 0,
+    contributorsCount: 0,
   };
 }
 
@@ -190,8 +218,13 @@ function dedupeCampaignsById<T extends { id: number }>(rows: T[]): T[] {
   return deduped;
 }
 
+function isInternalLocalSeedCampaign(campaign: { id: number; title: string }) {
+  return campaign.id >= 100000 && campaign.title.trim().toLowerCase() === "campanha local inicial";
+}
+
 const PUBLIC_STATUSES = ["active", "completed"] as const;
 const APPROVED_CONTRIBUTION_STATUSES = ["approved", "completed"] as const;
+const TRACKED_MATERIAL_STATUSES = ["pending", "approved", "completed"] as const;
 
 type CampaignMetrics = {
   raised: number;
@@ -330,7 +363,9 @@ const createCampaignNeedSchema = z.object({
   type: z.enum(["material", "labor", "equipment", "other"]),
   name: z.string().min(3),
   description: z.string().optional(),
-  quantity: z.string().min(1),
+  quantity: z.string().min(1).optional(),
+  targetQuantityExact: z.number().int().positive("Meta exata deve ser maior que zero"),
+  unitValueCents: z.number().int().positive("Valor unitário deve ser maior que zero"),
   priority: z.enum(["high", "medium", "low"]).default("medium"),
 });
 
@@ -481,14 +516,20 @@ export const campaignsRouter = router({
         const mappedFallback = getMappedFallbackCampaigns({
           status: input?.status,
           query: input?.query,
+        }).filter((campaign) => !isInternalLocalSeedCampaign(campaign));
+
+        const normalizedQuery = input?.query?.trim().toLowerCase();
+        const demoCampaigns = getDemoCampaigns(input?.status).filter((campaign) => {
+          if (!normalizedQuery) return true;
+          return campaign.title.toLowerCase().includes(normalizedQuery);
         });
 
-        if (mappedFallback.length > 0) {
-          return dedupeCampaignsById(mappedFallback).slice(0, input?.limit ?? 12);
-        }
+        const mergedCampaigns = dedupeCampaignsById([
+          ...mappedFallback,
+          ...demoCampaigns,
+        ]).sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
 
-        const demoCampaigns = getDemoCampaigns(input?.status);
-        return dedupeCampaignsById(demoCampaigns).slice(0, input?.limit ?? 12);
+        return mergedCampaigns.slice(0, input?.limit ?? 12);
       }
 
       const statusCondition = input?.status
@@ -509,11 +550,13 @@ export const campaignsRouter = router({
         rows.map((campaign) => campaign.id),
       );
 
-      const publishedRows = rows.map((campaign) => ({
-        ...withCanonicalRecantoCover(campaign),
-        initialRaised: campaign.raised,
-        ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
-      }));
+      const publishedRows = rows.map((campaign) =>
+        withLocalZeroedCanonicalRecanto({
+          ...withCanonicalRecantoCover(campaign),
+          initialRaised: campaign.raised,
+          ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
+        }),
+      );
 
       return dedupeCampaignsById(publishedRows).slice(0, input?.limit ?? 12);
     }),
@@ -521,10 +564,12 @@ export const campaignsRouter = router({
   getPublicStats: publicProcedure.query(async () => {
     const db = await getDb();
     if (!db) {
-      const mappedActiveFallback = getMappedFallbackCampaigns({ status: "active" });
-      const mergedActiveCampaigns = mappedActiveFallback.length > 0
-        ? dedupeCampaignsById(mappedActiveFallback)
-        : dedupeCampaignsById(getDemoCampaigns("active"));
+      const mappedActiveFallback = getMappedFallbackCampaigns({ status: "active" })
+        .filter((campaign) => !isInternalLocalSeedCampaign(campaign));
+      const mergedActiveCampaigns = dedupeCampaignsById([
+        ...mappedActiveFallback,
+        ...getDemoCampaigns("active"),
+      ]);
 
       return {
         activeCampaigns: mergedActiveCampaigns.length,
@@ -544,6 +589,10 @@ export const campaignsRouter = router({
 
     return activeCampaigns.reduce(
       (summary, campaign) => {
+        if (shouldZeroCanonicalRecantoForLocal() && isCanonicalRecantoCampaign(campaign)) {
+          return summary;
+        }
+
         const campaignMetrics =
           metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.initialRaised, []);
         summary.raised += campaignMetrics.raised;
@@ -583,7 +632,7 @@ export const campaignsRouter = router({
       const campaign = result[0];
       if (!campaign) return null;
 
-      const [updates, needs, documents, metrics] = await Promise.all([
+      const [updates, needs, documents, metrics, materialContributions] = await Promise.all([
         db
           .select()
           .from(campaignUpdates)
@@ -600,6 +649,20 @@ export const campaignsRouter = router({
           .where(eq(transparencyDocuments.campaignId, input.id))
           .orderBy(desc(transparencyDocuments.uploadedAt)),
         loadCampaignMetrics(db, [input.id]),
+        db
+          .select({
+            campaignNeedId: contributions.campaignNeedId,
+            quantityExact: contributions.quantityExact,
+            estimatedAmount: contributions.estimatedAmount,
+          })
+          .from(contributions)
+          .where(
+            and(
+              eq(contributions.campaignId, input.id),
+              eq(contributions.type, "material"),
+              inArray(contributions.status, TRACKED_MATERIAL_STATUSES),
+            ),
+          ),
       ]);
       const campaignMetrics =
         metrics.get(input.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, []);
@@ -614,8 +677,39 @@ export const campaignsRouter = router({
 
       const canonicalizedCampaign = withCanonicalRecantoCover(campaign);
       const isRecanto = isCanonicalRecantoCampaign(campaign);
+      const materialProgressByNeed = new Map<number, { offeredQuantity: number; offeredValueCents: number }>();
 
-      return {
+      materialContributions.forEach((row) => {
+        if (!row.campaignNeedId) return;
+        const current = materialProgressByNeed.get(row.campaignNeedId) ?? { offeredQuantity: 0, offeredValueCents: 0 };
+        current.offeredQuantity += Math.max(0, row.quantityExact ?? 0);
+        current.offeredValueCents += Math.max(0, row.estimatedAmount ?? 0);
+        materialProgressByNeed.set(row.campaignNeedId, current);
+      });
+
+      const needsWithProgress = needs.map((need) => {
+        const progress = materialProgressByNeed.get(need.id) ?? { offeredQuantity: 0, offeredValueCents: 0 };
+        const targetQuantityExact = Math.max(0, need.targetQuantityExact ?? 0);
+        const remainingQuantity = Math.max(0, targetQuantityExact - progress.offeredQuantity);
+        const unitValueCents = Math.max(0, need.unitValueCents ?? 0);
+        const fallbackOfferedValue = progress.offeredQuantity * unitValueCents;
+        const offeredValueCents = progress.offeredValueCents > 0 ? progress.offeredValueCents : fallbackOfferedValue;
+        const remainingValueCents = remainingQuantity * unitValueCents;
+        const fulfilledPercent = targetQuantityExact > 0
+          ? Math.min(100, Math.round((progress.offeredQuantity / targetQuantityExact) * 100))
+          : 0;
+
+        return {
+          ...need,
+          fulfilled: fulfilledPercent,
+          offeredQuantity: progress.offeredQuantity,
+          remainingQuantity,
+          offeredValueCents,
+          remainingValueCents,
+        };
+      });
+
+      return withLocalZeroedCanonicalRecanto({
         ...canonicalizedCampaign,
         initialRaised: campaign.raised,
         ...campaignMetrics,
@@ -632,10 +726,10 @@ export const campaignsRouter = router({
               images: parseMediaUrls(update.imageUrls),
               videos: parseMediaUrls(update.videoUrls),
             })),
-        needs: isRecanto ? DEMO_CAMPAIGN.needs : needs,
+        needs: isRecanto ? DEMO_CAMPAIGN.needs : needsWithProgress,
         documents,
         galleryImages: isRecanto ? [...DEMO_CAMPAIGN.galleryImages] : galleryImages,
-      };
+      });
     }),
 
   create: adminProcedure
@@ -776,7 +870,10 @@ export const campaignsRouter = router({
       if (!db) throw new Error("Database not available");
 
       await requireCampaign(db, input.campaignId);
-      await db.insert(campaignNeeds).values(input);
+      await db.insert(campaignNeeds).values({
+        ...input,
+        quantity: input.quantity ?? `${input.targetQuantityExact} unidades`,
+      });
       return { success: true, message: "Necessidade criada com sucesso!" };
     }),
 

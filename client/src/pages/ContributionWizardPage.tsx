@@ -24,7 +24,14 @@ type NeedItem = {
   name: string;
   quantity: string | null;
   priority: "high" | "medium" | "low";
+  targetQuantityExact?: number | null;
+  unitValueCents?: number | null;
+  offeredQuantity?: number | null;
+  remainingQuantity?: number | null;
 };
+
+const formatCurrency = (valueInCents: number) =>
+  (valueInCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 const PREFERRED_KEYWORDS = ["TIJOLO", "CIMENTO", "AREIA", "JANELA"];
 
@@ -239,6 +246,7 @@ export default function ContributionWizardPage() {
         : state.type === "material"
           ? state.materialDescription.trim().length >= 3 &&
             state.deliveryMethod !== null &&
+            (!state.materialNeedId || Number.parseInt(state.materialQuantity || "", 10) > 0) &&
             (state.materialDeliveryFrequency === "unique" || state.numberOfInstallments === undefined)
           : state.volunteerDescription.trim().length >= 10,
     payment: state.paymentMethod !== null,
@@ -299,6 +307,10 @@ export default function ContributionWizardPage() {
       });
 
       if (state.type === "material") {
+        const quantityExact = state.materialNeedId
+          ? Number.parseInt(state.materialQuantity || "", 10)
+          : undefined;
+
         await createMaterial.mutateAsync({
           campaignId,
           campaignNeedId: state.materialNeedId,
@@ -310,6 +322,7 @@ export default function ContributionWizardPage() {
           donorChurch: state.donorChurch,
           allowPublicDisplay: state.allowPublicDisplay ?? false,
           quantity: state.materialQuantity || undefined,
+          quantityExact: quantityExact && quantityExact > 0 ? quantityExact : undefined,
           deliveryMethod: state.deliveryMethod || undefined,
           numberOfInstallments: state.materialDeliveryFrequency === "unique" ? undefined : state.numberOfInstallments,
           materialDeliveryFrequency: state.materialDeliveryFrequency,
@@ -358,6 +371,13 @@ export default function ContributionWizardPage() {
 
   const campaign = campaignQuery.data;
   const campaignNeeds = sortNeeds((campaign?.needs ?? []) as NeedItem[]);
+  const selectedNeed = campaignNeeds.find((need) => need.id === state.materialNeedId);
+  const selectedNeedUnitValueCents = selectedNeed?.unitValueCents ?? 0;
+  const selectedNeedRemaining = selectedNeed?.remainingQuantity ?? 0;
+  const selectedNeedQuantityExact = Number.parseInt(state.materialQuantity || "", 10);
+  const selectedNeedEstimatedAmount = selectedNeedUnitValueCents > 0 && selectedNeedQuantityExact > 0
+    ? selectedNeedUnitValueCents * selectedNeedQuantityExact
+    : 0;
   const loading = createMaterial.isPending || createVolunteer.isPending || createPayment.isPending;
 
   return (
@@ -439,7 +459,8 @@ export default function ContributionWizardPage() {
                     {campaignNeeds.map((need) => (
                       <div key={need.id} className="rounded-md border border-[#e1e8df] bg-white px-3 py-2 text-sm">
                         <span className="font-semibold text-[#2d2d2d]">{normalizeNeedLabel(need.name)}</span>
-                        <span className="text-[#5f6f61]">: {need.quantity || "A DEFINIR"}</span>
+                        <span className="text-[#5f6f61]">: {need.targetQuantityExact ?? 0} un.</span>
+                        <span className="text-[#6f7e71]"> · {formatCurrency(need.unitValueCents ?? 0)}/un.</span>
                       </div>
                     ))}
                   </div>
@@ -737,11 +758,21 @@ export default function ContributionWizardPage() {
                             <SelectContent className="bg-white border border-gray-200 shadow-lg">
                               {campaignNeeds.map((need) => (
                                 <SelectItem key={need.id} value={String(need.id)}>
-                                  {need.name}{need.quantity ? `: ${need.quantity}` : ""}
+                                  {need.name}: {need.targetQuantityExact ?? 0} un. ({formatCurrency(need.unitValueCents ?? 0)}/un.)
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
+                        </div>
+                      )}
+
+                      {selectedNeed && (
+                        <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
+                          <p className="font-semibold">Saldo do item selecionado</p>
+                          <p>Faltam {selectedNeedRemaining} unidades.</p>
+                          {selectedNeedEstimatedAmount > 0 && (
+                            <p>Valor estimado da sua oferta: {formatCurrency(selectedNeedEstimatedAmount)}</p>
+                          )}
                         </div>
                       )}
 
@@ -758,13 +789,21 @@ export default function ContributionWizardPage() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade (opcional)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Quantidade exata {state.materialNeedId ? "*" : "(opcional)"}
+                        </label>
                         <Input
-                          placeholder="Ex: 100 unidades, 5 caixas, etc."
+                          type="number"
+                          min={1}
+                          step={1}
+                          placeholder="Ex: 100"
                           value={state.materialQuantity}
                           onChange={(e) => setState({ ...state, materialQuantity: e.target.value })}
                           disabled={loading}
                         />
+                        {state.materialNeedId && Number.parseInt(state.materialQuantity || "", 10) <= 0 && (
+                          <p className="mt-1 text-xs text-red-500">Informe a quantidade exata que você vai entregar.</p>
+                        )}
                       </div>
 
                       <div>

@@ -11,8 +11,17 @@ type NeedItem = {
   name: string;
   quantity: string | null;
   priority: "high" | "medium" | "low";
+  targetQuantityExact?: number | null;
+  unitValueCents?: number | null;
+  offeredQuantity?: number | null;
+  remainingQuantity?: number | null;
+  offeredValueCents?: number | null;
+  remainingValueCents?: number | null;
   fulfilled?: number | null;
 };
+
+const formatCurrency = (valueInCents: number) =>
+  (valueInCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 const PREFERRED_KEYWORDS = ["TIJOLO", "CIMENTO", "AREIA", "JANELA"];
 
@@ -111,7 +120,7 @@ export default function ContributionNeedsPage() {
 
         <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#228B22]">{campaign.title}</p>
         <h1 className="mt-2 text-3xl font-bold text-[#2d2d2d] md:text-4xl">Veja o que estamos precisando</h1>
-        <p className="mt-3 text-[#656565]">Escolha um item da lista para ajudar com material. Se preferir, a doação em dinheiro será feita no banco na etapa final.</p>
+        <p className="mt-3 text-[#656565]">Escolha um item da lista para ajudar com material. Cada oferta calcula automaticamente o valor equivalente e o saldo restante.</p>
 
         {!hasSingleRegistration && (
           <Card className="mt-6 border-[#dbe7d8] bg-[#f5faf4] p-5">
@@ -132,8 +141,11 @@ export default function ContributionNeedsPage() {
               <thead className="bg-[#eef3ec] text-[#2d2d2d]">
                 <tr>
                   <th className="px-4 py-3 font-semibold">ITEM</th>
-                  <th className="px-4 py-3 font-semibold">NOSSA META</th>
-                  <th className="px-4 py-3 font-semibold">QUANTIDADE</th>
+                  <th className="px-4 py-3 font-semibold">META EXATA</th>
+                  <th className="px-4 py-3 font-semibold">VALOR UNITÁRIO</th>
+                  <th className="px-4 py-3 font-semibold">JÁ OFERTADO</th>
+                  <th className="px-4 py-3 font-semibold">FALTAM</th>
+                  <th className="px-4 py-3 font-semibold">VALOR EQUIVALENTE</th>
                   <th className="px-4 py-3 font-semibold">AÇÃO</th>
                 </tr>
               </thead>
@@ -141,8 +153,14 @@ export default function ContributionNeedsPage() {
                 {needs.length > 0 ? needs.map((need) => (
                   <tr key={need.id} className="border-t border-[#e2e9df]">
                     <td className="px-4 py-3 font-semibold text-[#2d2d2d]">{normalizeNeedLabel(need.name)}</td>
-                    <td className="px-4 py-3 text-[#4d5e4f]">{need.quantity || "A definir"}</td>
-                    <td className="px-4 py-3 text-[#4d5e4f]">{need.fulfilled ?? 0}% atendido</td>
+                    <td className="px-4 py-3 text-[#4d5e4f]">{need.targetQuantityExact ?? 0}</td>
+                    <td className="px-4 py-3 text-[#4d5e4f]">{formatCurrency(need.unitValueCents ?? 0)}</td>
+                    <td className="px-4 py-3 text-[#4d5e4f]">{need.offeredQuantity ?? 0}</td>
+                    <td className="px-4 py-3 text-[#4d5e4f]">{need.remainingQuantity ?? Math.max(0, (need.targetQuantityExact ?? 0) - (need.offeredQuantity ?? 0))}</td>
+                    <td className="px-4 py-3 text-[#4d5e4f]">
+                      <div className="font-medium">{formatCurrency(need.offeredValueCents ?? 0)}</div>
+                      <div className="text-xs text-[#6f7e71]">Saldo: {formatCurrency(need.remainingValueCents ?? 0)}</div>
+                    </td>
                     <td className="px-4 py-3">
                       {hasSingleRegistration ? (
                         <Link
@@ -163,7 +181,7 @@ export default function ContributionNeedsPage() {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-[#656565]">A lista de necessidades está sendo atualizada.</td>
+                    <td colSpan={8} className="px-4 py-8 text-center text-[#656565]">A lista de necessidades está sendo atualizada.</td>
                   </tr>
                 )}
               </tbody>

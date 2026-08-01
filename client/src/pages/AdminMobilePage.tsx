@@ -43,6 +43,8 @@ export default function AdminMobilePage() {
     name: "",
     description: "",
     quantity: "",
+    targetQuantityExact: "",
+    unitValue: "",
     priority: "high" as any,
   });
 
@@ -73,7 +75,7 @@ export default function AdminMobilePage() {
   const createNeedMutation = trpc.campaigns.createNeed.useMutation({
     onSuccess: async () => {
       toast.success("✅ Necessidade registrada!");
-      setNeedForm({ campaignId: "", type: "material", name: "", description: "", quantity: "", priority: "high" });
+      setNeedForm({ campaignId: "", type: "material", name: "", description: "", quantity: "", targetQuantityExact: "", unitValue: "", priority: "high" });
       await campaignsQuery.refetch();
     },
     onError: (err) => toast.error(`❌ ${err.message}`),
@@ -234,7 +236,27 @@ export default function AdminMobilePage() {
                         />
                         <div className="grid grid-cols-2 gap-2">
                           <Input
-                            placeholder="Quantidade (ex: 200 sacos)"
+                            placeholder="Meta exata (ex: 3700)"
+                            type="number"
+                            min={1}
+                            value={needForm.campaignId === campaign.id ? needForm.targetQuantityExact : ""}
+                            onChange={(e) => {
+                              setNeedForm({ ...needForm, campaignId: campaign.id, targetQuantityExact: e.target.value });
+                            }}
+                            className="text-sm"
+                          />
+                          <Input
+                            placeholder="Valor unit. (ex: 1,80)"
+                            value={needForm.campaignId === campaign.id ? needForm.unitValue : ""}
+                            onChange={(e) => {
+                              setNeedForm({ ...needForm, campaignId: campaign.id, unitValue: e.target.value });
+                            }}
+                            className="text-sm"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            placeholder="Quantidade textual (opcional)"
                             value={needForm.campaignId === campaign.id ? needForm.quantity : ""}
                             onChange={(e) => {
                               setNeedForm({ ...needForm, campaignId: campaign.id, quantity: e.target.value });
@@ -254,8 +276,11 @@ export default function AdminMobilePage() {
                         </div>
                         <Button
                           onClick={() => {
-                            if (!needForm.name || !needForm.description || !needForm.quantity) {
-                              toast.error("Preencha todos os campos");
+                            const targetQuantityExact = Number.parseInt(needForm.targetQuantityExact, 10);
+                            const unitValueCents = parseCurrencyToCents(needForm.unitValue);
+
+                            if (!needForm.name || !needForm.description || !targetQuantityExact || targetQuantityExact <= 0 || !unitValueCents || unitValueCents <= 0) {
+                              toast.error("Preencha nome, descrição, meta exata e valor unitário");
                               return;
                             }
                             createNeedMutation.mutate({
@@ -263,7 +288,9 @@ export default function AdminMobilePage() {
                               type: needForm.type,
                               name: needForm.name,
                               description: needForm.description,
-                              quantity: needForm.quantity,
+                              quantity: needForm.quantity || undefined,
+                              targetQuantityExact,
+                              unitValueCents,
                               priority: needForm.priority,
                             });
                           }}
@@ -383,4 +410,18 @@ export default function AdminMobilePage() {
       </div>
     </div>
   );
+}
+
+function parseCurrencyToCents(value: string): number | null {
+  const normalized = value.trim();
+  if (!normalized) return null;
+  const onlyAllowed = normalized.replace(/\s/g, "");
+  if (!/^[-+]?\d{1,3}(\.\d{3})*(,\d{0,2})?$|^[-+]?\d+(,\d{0,2})?$|^[-+]?\d+(\.\d{0,2})?$/.test(onlyAllowed)) {
+    return null;
+  }
+  const hasComma = onlyAllowed.includes(",");
+  const normalizedNumber = hasComma ? onlyAllowed.replace(/\./g, "").replace(",", ".") : onlyAllowed;
+  const parsed = Number(normalizedNumber);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.round(parsed * 100);
 }

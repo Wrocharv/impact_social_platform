@@ -77,6 +77,9 @@ export const contributions = mysqlTable("contributions", {
   paymentId: varchar("paymentId", { length: 80 }).unique(),
   paymentStatusDetail: varchar("paymentStatusDetail", { length: 255 }),
   paymentMethod: varchar("paymentMethod", { length: 100 }),
+  campaignNeedId: int("campaignNeedId"),
+  quantityExact: int("quantityExact"),
+  estimatedAmount: int("estimatedAmount"), // Para material: valor estimado em centavos (quantidade x valor unitario)
   validatedBy: int("validatedBy"),
   validatedAt: timestamp("validatedAt"),
   validationNote: text("validationNote"),
@@ -225,6 +228,8 @@ export const campaignNeeds = mysqlTable("campaignNeeds", {
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   quantity: varchar("quantity", { length: 100 }), // Ex: "100 kg", "50 unidades"
+  targetQuantityExact: int("targetQuantityExact"), // Ex: 3700 unidades exatas
+  unitValueCents: int("unitValueCents"), // Ex: 180 = R$ 1,80 por unidade
   priority: mysqlEnum("priority", ["high", "medium", "low"]).default("medium").notNull(),
   fulfilled: int("fulfilled").default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
