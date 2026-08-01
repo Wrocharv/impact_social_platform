@@ -7,8 +7,10 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import CampaignDetail from "./pages/CampaignDetail";
 import ContributionPage from "./pages/ContributionPage";
+import ContributionChoicePage from "./pages/ContributionChoicePage";
 import ContributionWizardPage from "./pages/ContributionWizardPage";
 import ContributionNeedsPage from "./pages/ContributionNeedsPage";
+import ContributionVipPage from "./pages/ContributionVipPage";
 import ContributionConfirmationPage from "./pages/ContributionConfirmationPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminMobilePage from "./pages/AdminMobilePage";
@@ -31,6 +33,8 @@ function Router() {
       <Route path={"/campaign/:id"} component={CampaignDetail} />
       <Route path={"/partner/:id"} component={PartnerSpotlightPage} />
       <Route path={"/donors"} component={DonorsPage} />
+      <Route path={"/contribute/help/:id"} component={ContributionChoicePage} />
+      <Route path={"/contribute/vip/:id"} component={ContributionVipPage} />
       <Route path={"/contribute/wizard/:id"} component={ContributionWizardPage} />
       <Route path={"/contribute/items/:id"} component={ContributionNeedsPage} />
       <Route path={"/contribute/confirmation"} component={ContributionConfirmationPage} />

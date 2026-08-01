@@ -60,9 +60,8 @@ const trpcClient = trpc.createClient({
         } catch {
           // sessionStorage unavailable
         }
-        // Local-dev bypass: send admin email header so the server can
-        // authenticate without a real session cookie.
-        if (import.meta.env.DEV) {
+        // Local-dev bypass (opt-in): only send the admin header when explicitly enabled.
+        if (import.meta.env.DEV && import.meta.env.VITE_ENABLE_LOCAL_DEV_AUTH === "1") {
           return { "x-dev-admin": "gospeltv@gmail.com" };
         }
         return {};

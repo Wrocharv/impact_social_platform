@@ -90,7 +90,7 @@ describe("contributions.createMaterialContribution", () => {
       description: "Quero doar cimento para a obra.",
       donorEmail: "doa@example.org",
       campaignNeedId: 11,
-      quantity: "20 sacos",
+      quantityExact: 20,
     });
 
     expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({
@@ -100,8 +100,73 @@ describe("contributions.createMaterialContribution", () => {
       description: expect.stringContaining("Necessidade: Cimento"),
     }));
     expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({
-      description: expect.stringContaining("Quantidade: 20 sacos"),
+      description: expect.stringContaining("Quantidade: 20"),
     }));
+  });
+
+  it("permite nova oferta do mesmo doador quando ainda há saldo", async () => {
+    const insertValues = vi.fn().mockResolvedValue({});
+    const selectResults = [
+      [{ id: 7 }],
+      [{ id: 11, name: "Cimento", targetQuantityExact: null, unitValueCents: null }],
+      [{ id: 999, donorEmail: "doa@example.org", donorWhatsapp: "11999990000" }],
+    ];
+
+    getDbMock.mockResolvedValue({
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: vi.fn().mockImplementation(async () => selectResults.shift() ?? []),
+          }),
+        }),
+      })),
+      insert: vi.fn(() => ({ values: insertValues })),
+    });
+
+    const caller = appRouter.createCaller(createPublicContext());
+
+    await expect(caller.contributions.createMaterialContribution({
+      campaignId: 7,
+      description: "Quero doar cimento para a obra.",
+      donorEmail: "doa@example.org",
+      donorWhatsapp: "11999990000",
+      campaignNeedId: 11,
+      quantityExact: 20,
+    })).resolves.toMatchObject({ success: true });
+
+    expect(insertValues).toHaveBeenCalledTimes(1);
+  });
+
+  it("permite oferta com WhatsApp em máscara diferente quando há saldo", async () => {
+    const insertValues = vi.fn().mockResolvedValue({});
+    const selectResults = [
+      [{ id: 7 }],
+      [{ id: 11, name: "Cimento", targetQuantityExact: null, unitValueCents: null }],
+      [{ id: 555, donorEmail: null, donorWhatsapp: "11 99999-0000" }],
+    ];
+
+    getDbMock.mockResolvedValue({
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: vi.fn().mockImplementation(async () => selectResults.shift() ?? []),
+          }),
+        }),
+      })),
+      insert: vi.fn(() => ({ values: insertValues })),
+    });
+
+    const caller = appRouter.createCaller(createPublicContext());
+
+    await expect(caller.contributions.createMaterialContribution({
+      campaignId: 7,
+      description: "Quero doar cimento para a obra.",
+      donorWhatsapp: "(11) 99999-0000",
+      campaignNeedId: 11,
+      quantityExact: 20,
+    })).resolves.toMatchObject({ success: true });
+
+    expect(insertValues).toHaveBeenCalledTimes(1);
   });
 });
 

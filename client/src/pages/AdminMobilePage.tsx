@@ -26,6 +26,7 @@ export default function AdminMobilePage() {
     longDescription: "",
     category: "outro" as any,
     goal: "",
+    vipApartmentAmount: "120.000,00",
     imageUrl: "",
   });
 
@@ -56,7 +57,7 @@ export default function AdminMobilePage() {
   const createCampaignMutation = trpc.campaigns.create.useMutation({
     onSuccess: async () => {
       toast.success("✅ Campanha criada!");
-      setCampaignForm({ title: "", description: "", longDescription: "", category: "outro", goal: "", imageUrl: "" });
+      setCampaignForm({ title: "", description: "", longDescription: "", category: "outro", goal: "", vipApartmentAmount: "120.000,00", imageUrl: "" });
       setActiveTab("campaigns");
       await campaignsQuery.refetch();
     },
@@ -373,6 +374,16 @@ export default function AdminMobilePage() {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">Valor VIP apartamento (R$)</label>
+                  <Input
+                    placeholder="120.000,00"
+                    value={campaignForm.vipApartmentAmount}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, vipApartmentAmount: e.target.value })}
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
                   <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">URL da Imagem</label>
                   <Input
                     placeholder="/obra-paredes.jpg"
@@ -388,11 +399,19 @@ export default function AdminMobilePage() {
                       toast.error("Preencha todos os campos obrigatórios");
                       return;
                     }
+
+                    const vipApartmentAmountCents = parseCurrencyToCents(campaignForm.vipApartmentAmount);
+                    if (!vipApartmentAmountCents || vipApartmentAmountCents <= 0) {
+                      toast.error("Informe um valor VIP válido");
+                      return;
+                    }
+
                     createCampaignMutation.mutate({
                       title: campaignForm.title,
                       description: campaignForm.description,
                       longDescription: campaignForm.longDescription,
                       goal: Math.round(Number(campaignForm.goal) * 100),
+                      vipApartmentAmountCents,
                       imageUrl: campaignForm.imageUrl || "/obra-paredes.jpg",
                       category: campaignForm.category,
                     });

@@ -10,7 +10,7 @@ export type TrpcContext = {
 };
 
 const LOCAL_DEV_USER: User = {
-  id: 0,
+  id: 1,
   openId: "local:gospeltv@gmail.com",
   name: "Administrador local",
   email: "gospeltv@gmail.com",
@@ -33,13 +33,15 @@ export async function createContext(
     user = null;
   }
 
-  // Dev-mode fallback: when no authenticated user and the request carries the
-  // X-Dev-Admin header with the expected email, use a hard-coded admin user.
-  // This header is only honoured in non-production environments.
-  if (!user && !ENV.isProduction) {
+  // Dev-mode fallback (opt-in): only when explicitly enabled and the request
+  // carries a valid X-Dev-Admin header.
+  if (!user && !ENV.isProduction && process.env.ENABLE_LOCAL_DEV_AUTH === "1") {
+    const devFallbackEmail = ENV.adminEmails[0] ?? LOCAL_DEV_USER.email ?? "gospeltv@gmail.com";
     const devHeader = opts.req.headers["x-dev-admin"];
     const email = typeof devHeader === "string" ? devHeader.trim().toLowerCase() : "";
     if (email && ENV.adminEmails.includes(email)) {
+      user = { ...LOCAL_DEV_USER, email };
+    } else if (email && email === devFallbackEmail) {
       user = { ...LOCAL_DEV_USER, email };
     }
   }

@@ -10,9 +10,22 @@ type FallbackCampaign = {
   longDescription?: string;
   category: string;
   goal: number;
+  vipApartmentAmountCents?: number;
   raised: number;
   status: "active" | "completed";
   imageUrl?: string;
+  needs?: Array<{
+    id: number;
+    campaignId: number;
+    type: "material" | "labor" | "equipment" | "other";
+    name: string;
+    description?: string;
+    quantity: string;
+    targetQuantityExact?: number | null;
+    unitValueCents?: number | null;
+    priority: "high" | "medium" | "low";
+    fulfilled?: number | null;
+  }>;
   createdBy?: number;
   createdAt: Date;
   updatedAt?: Date;
@@ -159,9 +172,19 @@ export const whatsappService = {
     description: string;
     category: string;
     goal: number;
+    vipApartmentAmountCents?: number;
     raised?: number;
     longDescription?: string;
     imageUrl?: string;
+    needs?: Array<{
+      type: "material" | "labor" | "equipment" | "other";
+      name: string;
+      description?: string;
+      quantity: string;
+      targetQuantityExact?: number;
+      unitValueCents?: number;
+      priority?: "high" | "medium" | "low";
+    }>;
   }) {
     const highestExistingId = fallbackCampaigns.length > 0
       ? Math.max(...fallbackCampaigns.map((campaign) => campaign.id))
@@ -175,9 +198,22 @@ export const whatsappService = {
       longDescription: data.longDescription ?? data.description,
       category: data.category,
       goal: data.goal,
+      vipApartmentAmountCents: Math.max(1, Number(data.vipApartmentAmountCents ?? 12_000_000)),
       raised: Math.max(0, Number(data.raised ?? 0)),
       status: "active",
       imageUrl: data.imageUrl ?? "/obra-paredes.jpg",
+      needs: (data.needs ?? []).map((need, index) => ({
+        id: Date.now() + index,
+        campaignId: nextId,
+        type: need.type,
+        name: need.name,
+        description: need.description,
+        quantity: need.quantity,
+        targetQuantityExact: need.targetQuantityExact ?? null,
+        unitValueCents: need.unitValueCents ?? null,
+        priority: need.priority ?? "medium",
+        fulfilled: 0,
+      })),
       createdBy: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -193,7 +229,7 @@ export const whatsappService = {
     data: Partial<
       Pick<
         FallbackCampaign,
-        "title" | "description" | "longDescription" | "goal" | "raised" | "status" | "imageUrl"
+        "title" | "description" | "longDescription" | "goal" | "vipApartmentAmountCents" | "raised" | "status" | "imageUrl"
       >
     >,
   ) {
@@ -206,6 +242,9 @@ export const whatsappService = {
       ...current,
       ...data,
       goal: data.goal !== undefined ? Math.max(0, Number(data.goal)) : current.goal,
+      vipApartmentAmountCents: data.vipApartmentAmountCents !== undefined
+        ? Math.max(1, Number(data.vipApartmentAmountCents))
+        : current.vipApartmentAmountCents,
       raised: data.raised !== undefined ? Math.max(0, Number(data.raised)) : current.raised,
       updatedAt: new Date(),
     };
@@ -213,6 +252,51 @@ export const whatsappService = {
     fallbackCampaigns[index] = next;
     persistFallbackCampaignsToDisk();
     return next;
+  },
+
+  addFallbackCampaignNeed(
+    campaignId: number,
+    need: {
+      type: "material" | "labor" | "equipment" | "other";
+      name: string;
+      description?: string;
+      quantity: string;
+      targetQuantityExact?: number;
+      unitValueCents?: number;
+      priority?: "high" | "medium" | "low";
+    },
+  ) {
+    refreshFallbackCampaignsFromDisk();
+    const campaignIndex = fallbackCampaigns.findIndex((campaign) => campaign.id === campaignId);
+    if (campaignIndex < 0) return null;
+
+    const currentCampaign = fallbackCampaigns[campaignIndex];
+    const currentNeeds = currentCampaign.needs ?? [];
+    const maxExistingNeedId = fallbackCampaigns
+      .flatMap((campaign) => campaign.needs ?? [])
+      .reduce((max, item) => Math.max(max, item.id), 0);
+
+    const nextNeed = {
+      id: Math.max(maxExistingNeedId + 1, Date.now()),
+      campaignId,
+      type: need.type,
+      name: need.name,
+      description: need.description,
+      quantity: need.quantity,
+      targetQuantityExact: need.targetQuantityExact ?? null,
+      unitValueCents: need.unitValueCents ?? null,
+      priority: need.priority ?? "medium",
+      fulfilled: 0,
+    };
+
+    fallbackCampaigns[campaignIndex] = {
+      ...currentCampaign,
+      needs: [...currentNeeds, nextNeed],
+      updatedAt: new Date(),
+    };
+
+    persistFallbackCampaignsToDisk();
+    return nextNeed;
   },
 
   deleteFallbackCampaign(id: number) {

@@ -56,7 +56,7 @@ export function useAuth(options?: UseAuthOptions) {
       JSON.stringify(meQuery.data)
     );
 
-    const localDevUser = import.meta.env.DEV
+    const localDevUser = import.meta.env.DEV && import.meta.env.VITE_ENABLE_LOCAL_DEV_AUTH === "1"
       ? {
           id: 1,
           openId: "local:gospeltv@gmail.com",

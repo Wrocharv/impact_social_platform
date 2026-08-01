@@ -1,0 +1,2 @@
+ALTER TABLE campaigns
+  ADD COLUMN vipApartmentAmountCents INT NOT NULL DEFAULT 12000000;

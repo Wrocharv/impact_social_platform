@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
+import { addLocalNeedProgress, readLocalNeedProgressForCampaign, readLocalNeedsForCampaign } from "@/lib/localNeeds";
 import { AlertCircle, ChevronLeft, Heart, Package, Users, DollarSign, Zap } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -17,7 +18,9 @@ type RecurrenceType = "unique" | "installments";
 type InstallmentFrequency = "weekly" | "biweekly" | "monthly";
 type DeliveryMethod = "pickup" | "deliver" | "mail" | "other";
 type DeliveryFrequency = "unique" | "weekly" | "biweekly" | "monthly";
-type Step = "type" | "donor-info" | "details" | "payment" | "confirmation";
+type MaterialSettlementMode = "in_kind" | "cash_equivalent";
+type MaterialDonationType = "detailed" | "avulsa" | "other";
+type Step = "type" | "donor-info" | "vip-showcase" | "details" | "payment" | "confirmation";
 
 type NeedItem = {
   id: number;
@@ -28,10 +31,38 @@ type NeedItem = {
   unitValueCents?: number | null;
   offeredQuantity?: number | null;
   remainingQuantity?: number | null;
+  offeredValueCents?: number | null;
+  remainingValueCents?: number | null;
 };
 
 const formatCurrency = (valueInCents: number) =>
   (valueInCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const toEmbedVideoUrl = (rawUrl: string) => {
+  try {
+    const url = new URL(rawUrl);
+    const host = url.hostname.toLowerCase();
+
+    if (host.includes("youtu.be")) {
+      const id = url.pathname.replace("/", "").trim();
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+
+    if (host.includes("youtube.com")) {
+      const id = url.searchParams.get("v")?.trim();
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+
+    if (host.includes("vimeo.com")) {
+      const id = url.pathname.split("/").filter(Boolean)[0];
+      return id ? `https://player.vimeo.com/video/${id}` : null;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+};
 
 const PREFERRED_KEYWORDS = ["TIJOLO", "CIMENTO", "AREIA", "JANELA"];
 
@@ -65,6 +96,34 @@ const sortNeeds = (needs: NeedItem[]) =>
     return normalizeNeedLabel(a.name).localeCompare(normalizeNeedLabel(b.name), "pt-BR");
   });
 
+const HOTEL_CAMPAIGN_ID = 100001;
+const DEFAULT_VIP_APARTMENT_AMOUNT_CENTS = 120_000_00;
+const DEFAULT_VIP_MEDIA_VIDEO_URL = "/89343f15-ccb1-4937-b353-a3cbb5f23bd6.mp4";
+const DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL = "/Parceiros/WhatsApp Video 2026-07-28 at 15.37.04.mp4";
+const DEFAULT_VIP_MEDIA_IMAGES = ["/render-quarto.jpg", "/render-hotel.jpg", "/obra-lavanderia.jpg"];
+const HOTEL_NEEDS_FALLBACK: NeedItem[] = [
+  {
+    id: 2,
+    name: "TIJOLO",
+    quantity: "12000",
+    priority: "high",
+    targetQuantityExact: 12000,
+    unitValueCents: 120,
+    offeredQuantity: 0,
+    remainingQuantity: 12000,
+  },
+  {
+    id: 1,
+    name: "CIMENTO",
+    quantity: "200",
+    priority: "high",
+    targetQuantityExact: 200,
+    unitValueCents: 4500,
+    offeredQuantity: 0,
+    remainingQuantity: 200,
+  },
+];
+
 interface WizardState {
   type: ContributionType | null;
   donorName: string;
@@ -82,9 +141,11 @@ interface WizardState {
   // Material
   materialNeedId?: number;
   materialDescription: string;
+  materialDonationType: MaterialDonationType;
   materialQuantity: string;
   materialDeliveryFrequency: DeliveryFrequency;
   deliveryMethod: DeliveryMethod | null;
+  materialSettlementMode: MaterialSettlementMode | null;
   // Voluntário
   volunteerDescription: string;
   // Pagamento
@@ -108,11 +169,23 @@ export default function ContributionWizardPage() {
   const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
   const initialType = searchParams?.get("type") ?? null;
   const initialNeedId = searchParams?.get("needId") ?? null;
+  const initialQuantity = searchParams?.get("quantity") ?? null;
+  const initialGo = searchParams?.get("go") ?? null;
+  const initialOffer = searchParams?.get("offer") ?? null;
+  const initialAmount = searchParams?.get("amount") ?? null;
   const entryMode = searchParams?.get("entry") ?? null;
   const isSingleRegistrationFlow = entryMode === "needs";
+  const isVipDirectPaymentFlow = initialType === "financial" && initialOffer === "apartment" && initialGo === "payment";
 
-  const [step, setStep] = useState<Step>("type");
+  const [step, setStep] = useState<Step>(() => {
+    if (isSingleRegistrationFlow && !initialType) return "donor-info";
+    if (initialType === "financial" && initialOffer === "apartment") return "donor-info";
+    return "type";
+  });
   const [lastLookupKey, setLastLookupKey] = useState("");
+  const [vipMediaReviewed, setVipMediaReviewed] = useState(false);
+  const [vipVideoIndex, setVipVideoIndex] = useState(0);
+  const [vipVideoFailed, setVipVideoFailed] = useState(false);
   const [state, setState] = useState<WizardState>({
     type: null,
     donorName: "",
@@ -125,9 +198,11 @@ export default function ContributionWizardPage() {
     startDate: new Date().toISOString().split("T")[0],
     materialNeedId: undefined,
     materialDescription: "",
+    materialDonationType: "detailed",
     materialQuantity: "",
     materialDeliveryFrequency: "unique",
     deliveryMethod: null,
+    materialSettlementMode: null,
     volunteerDescription: "",
     paymentMethod: null,
   });
@@ -149,16 +224,52 @@ export default function ContributionWizardPage() {
   useEffect(() => {
     if (!initialType && !initialNeedId) return;
 
+    const parsedQuantity = initialQuantity ? Number.parseInt(initialQuantity, 10) : undefined;
+    const parsedAmount = initialAmount ? Number.parseFloat(initialAmount) : undefined;
+    const hasInitialQuantity = Boolean(parsedQuantity && parsedQuantity > 0);
+    const hasInitialAmount = Boolean(parsedAmount && parsedAmount >= 1);
+    const shouldOpenSettlement = initialGo === "settlement";
+
     setState((prev) => ({
       ...prev,
       type: initialType === "financial" || initialType === "material" || initialType === "volunteer" ? initialType : prev.type,
       materialNeedId: initialNeedId ? Number(initialNeedId) : prev.materialNeedId,
+      materialQuantity: hasInitialQuantity ? String(parsedQuantity) : prev.materialQuantity,
+      amount: initialType === "financial" && hasInitialAmount ? parsedAmount : prev.amount,
+      materialSettlementMode: initialType === "material" && shouldOpenSettlement
+        ? (prev.materialSettlementMode ?? "in_kind")
+        : prev.materialSettlementMode,
     }));
 
     if (initialType === "material" || initialType === "financial" || initialType === "volunteer") {
-      setStep("donor-info");
+      if (initialType === "material" && shouldOpenSettlement && hasInitialQuantity && isLoaded && currentDonor) {
+        setStep("confirmation");
+        return;
+      }
+
+      if (isVipDirectPaymentFlow && isLoaded && currentDonor) {
+        setStep("payment");
+        return;
+      }
+
+      // Se o cadastro único já foi feito neste dispositivo, entra direto em detalhes.
+      if (isLoaded && currentDonor) {
+        setStep("details");
+      } else {
+        setStep("donor-info");
+      }
     }
-  }, [initialType, initialNeedId]);
+  }, [
+    initialType,
+    initialNeedId,
+    initialQuantity,
+    initialGo,
+    initialAmount,
+    initialOffer,
+    isLoaded,
+    currentDonor,
+    isVipDirectPaymentFlow,
+  ]);
 
   useEffect(() => {
     if (step !== "donor-info") return;
@@ -233,6 +344,116 @@ export default function ContributionWizardPage() {
   const createVolunteer = trpc.contributions.createVolunteerContribution.useMutation();
   const createPayment = trpc.payments.createPaymentPreference.useMutation();
 
+  const campaign = campaignQuery.data;
+  const vipApartmentAmountCents = (campaign && "vipApartmentAmountCents" in campaign && typeof campaign.vipApartmentAmountCents === "number")
+    ? campaign.vipApartmentAmountCents
+    : DEFAULT_VIP_APARTMENT_AMOUNT_CENTS;
+  const campaignNeedsRaw = sortNeeds((campaign?.needs ?? []) as NeedItem[]);
+  const localCampaignNeedsRaw = sortNeeds(readLocalNeedsForCampaign(campaignId) as NeedItem[]);
+  const localNeedProgress = readLocalNeedProgressForCampaign(campaignId);
+  const mergedCampaignNeedsMap = new Map<number, NeedItem>();
+  [...campaignNeedsRaw, ...localCampaignNeedsRaw].forEach((need) => {
+    const progress = localNeedProgress.get(need.id);
+    const baseOfferedQuantity = Math.max(0, need.offeredQuantity ?? 0);
+    const baseOfferedValueCents = Math.max(0, need.offeredValueCents ?? 0);
+    const targetQuantity = Math.max(0, need.targetQuantityExact ?? 0);
+    const unitValueCents = Math.max(0, need.unitValueCents ?? 0);
+    const offeredQuantity = baseOfferedQuantity + Math.max(0, progress?.offeredQuantity ?? 0);
+    const offeredValueCents = baseOfferedValueCents + Math.max(0, progress?.offeredValueCents ?? 0);
+    const remainingQuantity = Math.max(0, targetQuantity - offeredQuantity);
+    const remainingValueCents = Math.max(0, remainingQuantity * unitValueCents);
+
+    mergedCampaignNeedsMap.set(need.id, {
+      ...need,
+      offeredQuantity,
+      offeredValueCents,
+      remainingQuantity,
+      remainingValueCents,
+    });
+  });
+  const campaignNeedsMerged = sortNeeds(Array.from(mergedCampaignNeedsMap.values()));
+  const campaignNeeds = campaignNeedsMerged.length > 0
+    ? campaignNeedsMerged
+    : (campaignId === HOTEL_CAMPAIGN_ID ? HOTEL_NEEDS_FALLBACK : []);
+  const selectedNeed = campaignNeeds.find((need) => need.id === state.materialNeedId);
+  const materialDonationTypeLabel =
+    state.materialDonationType === "detailed"
+      ? "DOACAO DETALHADA"
+      : state.materialDonationType === "avulsa"
+        ? "DOACAO AVULSA"
+        : "OUTRA DOACAO";
+  const effectiveMaterialDescription = selectedNeed
+    ? normalizeNeedLabel(selectedNeed.name)
+    : state.materialDescription.trim();
+  const effectiveMaterialSubmissionDescription = `${materialDonationTypeLabel} | ${effectiveMaterialDescription}`;
+  const selectedNeedRemaining = Math.max(0, selectedNeed?.remainingQuantity ?? 0);
+  const selectedNeedUnitValueCents = selectedNeed?.unitValueCents ?? 0;
+  const selectedNeedTargetQuantity = Math.max(0, selectedNeed?.targetQuantityExact ?? 0);
+  const selectedNeedQuantityExact = Number.parseInt(state.materialQuantity || "", 10);
+  const hasSelectedNeed = Boolean(state.materialNeedId);
+  const hasValidSelectedNeedQuantity = !hasSelectedNeed
+    || (Boolean(selectedNeed) && selectedNeedQuantityExact > 0 && selectedNeedQuantityExact <= selectedNeedRemaining);
+  const selectedNeedEstimatedAmount = selectedNeedUnitValueCents > 0 && selectedNeedQuantityExact > 0
+    ? selectedNeedUnitValueCents * selectedNeedQuantityExact
+    : 0;
+  const selectedNeedTargetAmount = selectedNeedUnitValueCents > 0 && selectedNeedTargetQuantity > 0
+    ? selectedNeedUnitValueCents * selectedNeedTargetQuantity
+    : 0;
+  const needsPreview = state.type === "material" && selectedNeed
+    ? [selectedNeed]
+    : campaignNeeds;
+  const selectedNeedRemainingAfterContribution = hasSelectedNeed && selectedNeedQuantityExact > 0
+    ? Math.max(0, selectedNeedRemaining - selectedNeedQuantityExact)
+    : selectedNeedRemaining;
+  const selectedNeedExceedsGoal = hasSelectedNeed && selectedNeedQuantityExact > selectedNeedRemaining;
+  const isVipApartmentOffer = initialOffer === "apartment" && state.type === "financial";
+  const configuredVipImages = Array.isArray((campaign as { vipMediaImages?: unknown })?.vipMediaImages)
+    ? ((campaign as { vipMediaImages?: unknown }).vipMediaImages as unknown[])
+      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      .slice(0, 6)
+    : [];
+  const configuredVipVideos = Array.isArray((campaign as { vipMediaVideos?: unknown })?.vipMediaVideos)
+    ? ((campaign as { vipMediaVideos?: unknown }).vipMediaVideos as unknown[])
+      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      .slice(0, 10)
+    : [];
+  const campaignGalleryImages = Array.isArray((campaign as { galleryImages?: unknown })?.galleryImages)
+    ? ((campaign as { galleryImages?: unknown }).galleryImages as unknown[])
+      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      .slice(0, 6)
+    : [];
+  const campaignUpdates = Array.isArray((campaign as { updates?: unknown })?.updates)
+    ? ((campaign as { updates?: unknown }).updates as Array<{ videos?: unknown }>).slice()
+    : [];
+  const campaignVideoUrls = campaignUpdates.flatMap((update) => {
+    if (!Array.isArray(update.videos)) return [];
+    return update.videos.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  });
+  const vipGalleryImages = (
+    configuredVipImages.length > 0
+      ? configuredVipImages
+      : campaignGalleryImages.length > 0
+        ? campaignGalleryImages
+        : DEFAULT_VIP_MEDIA_IMAGES
+  ).slice(0, 6);
+  const vipVideoCandidates = Array.from(new Set([
+    ...configuredVipVideos,
+    ...campaignVideoUrls,
+    DEFAULT_VIP_MEDIA_VIDEO_URL,
+    DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL,
+  ].filter((url) => typeof url === "string" && url.trim().length > 0)));
+  const vipVideoUrl = vipVideoCandidates[vipVideoIndex] ?? null;
+  const vipVideoEmbedUrl = vipVideoUrl ? toEmbedVideoUrl(vipVideoUrl) : null;
+  const vipHasMedia = vipGalleryImages.length > 0 || Boolean(vipVideoUrl);
+
+  useEffect(() => {
+    setVipVideoIndex(0);
+  }, [campaignId]);
+
+  useEffect(() => {
+    setVipVideoFailed(false);
+  }, [vipVideoUrl]);
+
   const isValid = {
     type: state.type !== null,
     donorInfo:
@@ -244,9 +465,8 @@ export default function ContributionWizardPage() {
         ? (state.amount ?? 0) >= 1 &&
           (state.recurrence === "unique" || (state.numberOfInstallments ?? 0) >= 2)
         : state.type === "material"
-          ? state.materialDescription.trim().length >= 3 &&
-            state.deliveryMethod !== null &&
-            (!state.materialNeedId || Number.parseInt(state.materialQuantity || "", 10) > 0) &&
+          ? effectiveMaterialDescription.length >= 3 &&
+            hasValidSelectedNeedQuantity &&
             (state.materialDeliveryFrequency === "unique" || state.numberOfInstallments === undefined)
           : state.volunteerDescription.trim().length >= 10,
     payment: state.paymentMethod !== null,
@@ -263,6 +483,7 @@ export default function ContributionWizardPage() {
       ...state,
       type,
       deliveryMethod: type === "material" ? (state.deliveryMethod ?? "pickup") : state.deliveryMethod,
+      materialSettlementMode: type === "material" ? (state.materialSettlementMode ?? "in_kind") : null,
     });
     setStep("donor-info");
   };
@@ -283,8 +504,28 @@ export default function ContributionWizardPage() {
         setLocation(`/contribute/items/${campaignId}`);
         return;
       }
+      if (isVipDirectPaymentFlow && state.type === "financial") {
+        setStep("payment");
+        return;
+      }
       setStep("details");
+    } else if (step === "vip-showcase") {
+      if (!vipMediaReviewed) {
+        toast.error("Veja as fotos e o video do apartamento antes de continuar.");
+        return;
+      }
+      if (isLoaded && currentDonor) {
+        setStep("details");
+      } else {
+        setStep("donor-info");
+      }
     } else if (step === "details" && isValid.details) {
+      if (state.type === "financial") {
+        setStep("payment");
+      } else {
+        setStep("confirmation");
+      }
+    } else if (step === "confirmation") {
       if (state.type === "financial") {
         setStep("payment");
       } else {
@@ -314,7 +555,7 @@ export default function ContributionWizardPage() {
         await createMaterial.mutateAsync({
           campaignId,
           campaignNeedId: state.materialNeedId,
-          description: state.materialDescription,
+          description: effectiveMaterialSubmissionDescription,
           donorName: state.donorName,
           donorWhatsapp: state.donorWhatsapp,
           donorEmail: state.donorEmail.trim() ? state.donorEmail.trim() : undefined,
@@ -323,12 +564,22 @@ export default function ContributionWizardPage() {
           allowPublicDisplay: state.allowPublicDisplay ?? false,
           quantity: state.materialQuantity || undefined,
           quantityExact: quantityExact && quantityExact > 0 ? quantityExact : undefined,
-          deliveryMethod: state.deliveryMethod || undefined,
+          deliveryMethod: state.deliveryMethod || "pickup",
           numberOfInstallments: state.materialDeliveryFrequency === "unique" ? undefined : state.numberOfInstallments,
           materialDeliveryFrequency: state.materialDeliveryFrequency,
         });
+
+        if (state.materialNeedId && quantityExact && quantityExact > 0) {
+          addLocalNeedProgress({
+            campaignId,
+            needId: state.materialNeedId,
+            quantity: quantityExact,
+            valueCents: selectedNeedEstimatedAmount,
+          });
+        }
+
         toast.success("Oferta de material recebida! Entraremos em contato.");
-        setLocation(`/campaigns/${campaignId}`);
+        setLocation(`/contribute/help/${campaignId}`);
       } else if (state.type === "volunteer") {
         await createVolunteer.mutateAsync({
           campaignId,
@@ -341,7 +592,7 @@ export default function ContributionWizardPage() {
           allowPublicDisplay: state.allowPublicDisplay ?? false,
         });
         toast.success("Oferta de voluntariado recebida! Entraremos em contato.");
-        setLocation(`/campaigns/${campaignId}`);
+        setLocation(`/contribute/help/${campaignId}`);
       } else if (state.type === "financial" && state.amount && state.paymentMethod) {
         const result = await createPayment.mutateAsync({
           campaignId,
@@ -369,15 +620,6 @@ export default function ContributionWizardPage() {
     }
   };
 
-  const campaign = campaignQuery.data;
-  const campaignNeeds = sortNeeds((campaign?.needs ?? []) as NeedItem[]);
-  const selectedNeed = campaignNeeds.find((need) => need.id === state.materialNeedId);
-  const selectedNeedUnitValueCents = selectedNeed?.unitValueCents ?? 0;
-  const selectedNeedRemaining = selectedNeed?.remainingQuantity ?? 0;
-  const selectedNeedQuantityExact = Number.parseInt(state.materialQuantity || "", 10);
-  const selectedNeedEstimatedAmount = selectedNeedUnitValueCents > 0 && selectedNeedQuantityExact > 0
-    ? selectedNeedUnitValueCents * selectedNeedQuantityExact
-    : 0;
   const loading = createMaterial.isPending || createVolunteer.isPending || createPayment.isPending;
 
   return (
@@ -385,7 +627,7 @@ export default function ContributionWizardPage() {
       <PublicHeader />
       <main className="min-h-screen bg-gradient-to-b from-[#f8faf6] to-white">
         <div className="mx-auto max-w-2xl px-4 py-8 md:py-12">
-          <Link href={`/campaigns/${campaignId}`} className="mb-6 flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700">
+          <Link href={`/contribute/help/${campaignId}`} className="mb-6 flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700">
             <ChevronLeft className="h-4 w-4" />
             Voltar
           </Link>
@@ -394,38 +636,54 @@ export default function ContributionWizardPage() {
             <CardHeader>
               <CardTitle>Como você gostaria de contribuir?</CardTitle>
               {campaign && <CardDescription>Campanha: {campaign.title}</CardDescription>}
-              
+              <div className="mt-4 rounded-lg border border-[#d7c18a] bg-gradient-to-r from-[#fff9e7] via-[#fff4d6] to-[#ffeab5] p-3 text-left">
+                <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#8a5b00]">Acesso rápido VIP</p>
+                <p className="mt-1 text-sm text-[#5b3a00]">Quero doar um apartamento completo.</p>
+                <Link
+                  href={`/contribute/vip/${campaignId}`}
+                  className="mt-2 inline-flex min-h-10 items-center justify-center rounded-md bg-[#8a6708] px-3 text-xs font-extrabold uppercase tracking-[0.04em] text-white transition hover:bg-[#6d5006]"
+                >
+                  Ir para apartamento VIP
+                </Link>
+              </div>
+
               {/* Progress Indicator */}
               <div className="mt-6 flex items-center justify-between">
                 {isSingleRegistrationFlow && state.type === null ? (
                   <>
                     <div className="flex flex-1 items-center gap-2">
                       <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "donor-info" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>1</div>
-                      <span className={`text-xs font-medium ${step === "donor-info" ? "text-blue-600" : "text-gray-600"}`}>Cadastro</span>
+                      <span className={`text-xs font-medium ${step === "donor-info" ? "text-blue-600" : "text-gray-600"}`}>Doador</span>
                     </div>
                   </>
                 ) : state.type === "financial" ? (
                   <>
                     <div className="flex flex-1 items-center gap-2">
-                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "type" || step === "donor-info" || step === "details" || step === "payment" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>1</div>
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "type" || step === "donor-info" || step === "vip-showcase" || step === "details" || step === "payment" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>1</div>
                       <span className={`text-xs font-medium ${step === "type" ? "text-blue-600" : "text-gray-600"}`}>Tipo</span>
                     </div>
-                    <div className={`flex-1 h-1 mx-2 ${step === "donor-info" || step === "details" || step === "payment" ? "bg-blue-600" : "bg-gray-200"}`} />
-                    
+                    <div className={`flex-1 h-1 mx-2 ${step === "donor-info" || step === "vip-showcase" || step === "details" || step === "payment" ? "bg-blue-600" : "bg-gray-200"}`} />
+
                     <div className="flex flex-1 items-center gap-2">
-                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "donor-info" || step === "details" || step === "payment" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>2</div>
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "donor-info" || step === "vip-showcase" || step === "details" || step === "payment" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>2</div>
                       <span className={`text-xs font-medium ${step === "donor-info" ? "text-blue-600" : "text-gray-600"}`}>Doador</span>
                     </div>
-                    <div className={`flex-1 h-1 mx-2 ${step === "details" || step === "payment" ? "bg-blue-600" : "bg-gray-200"}`} />
-                    
+                    <div className={`flex-1 h-1 mx-2 ${step === "vip-showcase" || step === "details" || step === "payment" ? "bg-blue-600" : "bg-gray-200"}`} />
+
                     <div className="flex flex-1 items-center gap-2">
-                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "details" || step === "payment" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>3</div>
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "vip-showcase" || step === "details" || step === "payment" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>3</div>
+                      <span className={`text-xs font-medium ${step === "vip-showcase" ? "text-blue-600" : "text-gray-600"}`}>Apartamento</span>
+                    </div>
+                    <div className={`flex-1 h-1 mx-2 ${step === "details" || step === "payment" ? "bg-blue-600" : "bg-gray-200"}`} />
+
+                    <div className="flex flex-1 items-center gap-2">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "details" || step === "payment" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>4</div>
                       <span className={`text-xs font-medium ${step === "details" ? "text-blue-600" : "text-gray-600"}`}>Detalhes</span>
                     </div>
                     <div className={`flex-1 h-1 mx-2 ${step === "payment" ? "bg-blue-600" : "bg-gray-200"}`} />
-                    
+
                     <div className="flex flex-1 items-center gap-2">
-                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "payment" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>4</div>
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "payment" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>5</div>
                       <span className={`text-xs font-medium ${step === "payment" ? "text-blue-600" : "text-gray-600"}`}>Pagamento</span>
                     </div>
                   </>
@@ -435,28 +693,46 @@ export default function ContributionWizardPage() {
                       <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "type" || step === "donor-info" || step === "details" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>1</div>
                       <span className={`text-xs font-medium ${step === "type" ? "text-blue-600" : "text-gray-600"}`}>Tipo</span>
                     </div>
-                    <div className={`flex-1 h-1 mx-2 ${step === "donor-info" || step === "details" ? "bg-blue-600" : "bg-gray-200"}`} />
-                    
+                    <div className={`flex-1 h-1 mx-2 ${step === "donor-info" || step === "details" || step === "confirmation" ? "bg-blue-600" : "bg-gray-200"}`} />
+
                     <div className="flex flex-1 items-center gap-2">
-                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "donor-info" || step === "details" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>2</div>
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "donor-info" || step === "details" || step === "confirmation" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>2</div>
                       <span className={`text-xs font-medium ${step === "donor-info" ? "text-blue-600" : "text-gray-600"}`}>Doador</span>
                     </div>
-                    <div className={`flex-1 h-1 mx-2 ${step === "details" ? "bg-blue-600" : "bg-gray-200"}`} />
-                    
+                    <div className={`flex-1 h-1 mx-2 ${step === "details" || step === "confirmation" ? "bg-blue-600" : "bg-gray-200"}`} />
+
                     <div className="flex flex-1 items-center gap-2">
-                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "details" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>3</div>
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "details" || step === "confirmation" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>3</div>
                       <span className={`text-xs font-medium ${step === "details" ? "text-blue-600" : "text-gray-600"}`}>Detalhes</span>
+                    </div>
+                    <div className={`flex-1 h-1 mx-2 ${step === "confirmation" ? "bg-blue-600" : "bg-gray-200"}`} />
+
+                    <div className="flex flex-1 items-center gap-2">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm ${step === "confirmation" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>4</div>
+                      <span className={`text-xs font-medium ${step === "confirmation" ? "text-blue-600" : "text-gray-600"}`}>Confirmar</span>
                     </div>
                   </>
                 )}
               </div>
             </CardHeader>
             <CardContent>
-              {campaignNeeds.length > 0 && (
+              {isVipApartmentOffer && (
+                <div className="mb-6 rounded-lg border border-[#d7c18a] bg-gradient-to-r from-[#fff9e7] via-[#fff4d6] to-[#ffeab5] p-4 text-sm text-[#5b3a00]">
+                  <p className="font-extrabold uppercase tracking-[0.08em] text-[#8a5b00]">DOADOR VIP · APARTAMENTO COMPLETO</p>
+                  <p className="mt-1 font-semibold">Você está na jornada de doação do apartamento completo.</p>
+                  <p className="mt-1">Valor de referência: R$ 120.000,00 (ajustável).</p>
+                  <p className="mt-1">Configuração prevista: 5 camas box de solteiro, com adaptação para 1 cama de casal em encontros de casais.</p>
+                  <p className="mt-1 font-medium">Material de linha para maior conforto. As fotos e o video ficam nesta jornada VIP, antes do pagamento.</p>
+                </div>
+              )}
+
+              {campaignNeeds.length > 0 && !(isSingleRegistrationFlow && state.type === null) && step !== "vip-showcase" && (
                 <div className="mb-6 rounded-lg border border-[#d5dfd3] bg-[#f5f8f4] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#35523a]">De acordo com a lista da campanha</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#35523a]">
+                    {state.type === "material" && selectedNeed ? "Item selecionado na campanha" : "De acordo com a lista da campanha"}
+                  </p>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {campaignNeeds.map((need) => (
+                    {needsPreview.map((need) => (
                       <div key={need.id} className="rounded-md border border-[#e1e8df] bg-white px-3 py-2 text-sm">
                         <span className="font-semibold text-[#2d2d2d]">{normalizeNeedLabel(need.name)}</span>
                         <span className="text-[#5f6f61]">: {need.targetQuantityExact ?? 0} un.</span>
@@ -513,7 +789,7 @@ export default function ContributionWizardPage() {
                 <div className="space-y-4">
                   <p className="text-sm text-gray-600 mb-6">
                     {isSingleRegistrationFlow && state.type === null
-                      ? "Faça seu cadastro único para liberar a lista de materiais e a opção de doação em dinheiro."
+                      ? "Faça o cadastro da pessoa doadora para liberar a lista de materiais e a opção de doação em dinheiro."
                       : "Preencha seus dados para que possamos entrar em contato:"}
                   </p>
                   
@@ -635,7 +911,7 @@ export default function ContributionWizardPage() {
                       variant="outline"
                       onClick={() => {
                         if (isSingleRegistrationFlow && state.type === null) {
-                          setLocation(`/campaign/${campaignId}`);
+                          setLocation(`/contribute/help/${campaignId}`);
                           return;
                         }
                         setStep("type");
@@ -650,18 +926,208 @@ export default function ContributionWizardPage() {
                       disabled={!isValid.donorInfo || loading}
                       className="flex-1 bg-blue-600 hover:bg-blue-700"
                     >
-                      {isSingleRegistrationFlow && state.type === null ? "Ir para lista de itens →" : "Próximo →"}
+                      {isSingleRegistrationFlow && state.type === null ? "Concluir cadastro do doador →" : "Próximo →"}
                     </Button>
                   </div>
                 </div>
               )}
 
               {/* STEP 3: Detalhes da Contribuição */}
+              {step === "vip-showcase" && state.type === "financial" && isVipApartmentOffer && (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-[#d7c18a] bg-gradient-to-r from-[#fff9e7] via-[#fff4d6] to-[#ffeab5] p-4 text-sm text-[#5b3a00]">
+                    <p className="font-extrabold uppercase tracking-[0.08em] text-[#8a5b00]">DOADOR VIP · APARTAMENTO COMPLETO</p>
+                    <p className="mt-1 font-semibold">Ao clicar em ir para doador VIP, você entra nesta página com os detalhes do apartamento decorado.</p>
+                    <p className="mt-1">Este é o apartamento que será construído com a doação VIP completa.</p>
+                    <p className="mt-1">Configuração prevista: 5 camas box de solteiro, com adaptação para 1 cama de casal em encontros de casais.</p>
+                  </div>
+
+                  {vipHasMedia && (
+                    <section className="rounded-lg border border-[#d7c18a] bg-gradient-to-b from-[#fff9e7] via-[#fff4d6] to-[#ffeab5] p-4">
+                      <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#8a5b00]">Apartamento completo</p>
+                      <h3 className="mt-1 text-lg font-black uppercase tracking-[0.03em] text-[#6a4600]">Fotos e video do apartamento decorado</h3>
+
+                      {vipVideoUrl && (
+                        <div className="mt-3 rounded-md border border-[#e3c98a] bg-white/80 p-3 text-sm text-[#5b3a00]">
+                          <p className="font-semibold">Video do apartamento VIP</p>
+                          <p className="mt-1">Se o player não abrir no seu aparelho, toque no botão abaixo.</p>
+                          <a
+                            href={vipVideoUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex min-h-10 items-center justify-center rounded-md bg-[#8a6708] px-3 text-xs font-extrabold uppercase tracking-[0.04em] text-white transition hover:bg-[#6d5006]"
+                          >
+                            Abrir video em nova aba
+                          </a>
+                        </div>
+                      )}
+
+                      {vipVideoUrl && (
+                        <div className="mt-3 overflow-hidden rounded-lg border border-[#e3c98a] bg-black">
+                          {vipVideoEmbedUrl ? (
+                            <div className="aspect-video w-full">
+                              <iframe
+                                src={vipVideoEmbedUrl}
+                                title={`Video de apresentacao do apartamento VIP da campanha ${campaign?.title ?? ""}`}
+                                className="h-full w-full"
+                                loading="lazy"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              />
+                            </div>
+                          ) : (
+                            <video
+                              key={vipVideoUrl}
+                              className="aspect-video w-full"
+                              controls
+                              preload="metadata"
+                              playsInline
+                                  poster={vipGalleryImages[0]}
+                              onError={() => {
+                                    setVipVideoFailed(true);
+                                setVipVideoIndex((current) => (current + 1 < vipVideoCandidates.length ? current + 1 : current));
+                              }}
+                            >
+                              <source src={encodeURI(vipVideoUrl)} />
+                            </video>
+                          )}
+                        </div>
+                      )}
+
+                      {vipVideoFailed && vipVideoUrl && (
+                        <p className="mt-2 text-xs font-semibold text-[#8a2e00]">
+                          O player do video teve falha neste dispositivo. Use o botão "Abrir video em nova aba" para assistir.
+                        </p>
+                      )}
+
+                      {vipGalleryImages.length > 0 && (
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {vipGalleryImages.map((imageUrl) => (
+                            <div key={imageUrl} className="overflow-hidden rounded-lg border border-[#e3c98a] bg-white">
+                              <img
+                                src={imageUrl}
+                                alt={`Foto do apartamento VIP da campanha ${campaign?.title ?? ""}`}
+                                className="h-40 w-full object-cover"
+                                loading="lazy"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  )}
+
+                  <div className="rounded-md border border-[#e3c98a] bg-white/70 p-3">
+                    <label className="flex cursor-pointer items-start gap-2 text-sm text-[#5b3a00]">
+                      <input
+                        type="checkbox"
+                        checked={vipMediaReviewed}
+                        onChange={(event) => setVipMediaReviewed(event.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-[#b59128]"
+                      />
+                      <span>
+                        Vi as fotos e o video do apartamento decorado e desejo continuar com a doacao VIP.
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setStep("donor-info")}
+                      disabled={loading}
+                      className="flex-1"
+                    >
+                      ← Voltar
+                    </Button>
+                    <Button
+                      onClick={() => setStep("details")}
+                      disabled={loading || !vipMediaReviewed}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    >
+                      Continuar para detalhes →
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {step === "details" && (
                 <div className="space-y-4">
                   {state.type === "financial" && (
                     <>
                       <p className="text-sm text-gray-600 mb-6">Defina os detalhes de sua doação financeira:</p>
+                      {initialOffer === "apartment" && (
+                        <div className="rounded-lg border border-[#d7c18a] bg-gradient-to-r from-[#fff9e7] via-[#fff4d6] to-[#ffeab5] p-4 text-sm text-[#5b3a00]">
+                          <p className="font-extrabold uppercase tracking-[0.08em] text-[#8a5b00]">DOADOR VIP · OFERTA ESPECIAL</p>
+                          <p className="mt-1 font-semibold">Doação VIP de apartamento completo selecionada.</p>
+                          <p className="mt-1">Você pode manter o valor sugerido ou ajustar antes de continuar.</p>
+                          <div className="mt-3 rounded-md border border-[#e3c98a] bg-white/60 p-3">
+                            <p className="font-semibold">Breve comentário sobre o apartamento</p>
+                            <p className="mt-1">
+                              O valor de um apartamento completo fica em torno de R$ 120.000,00,
+                              com previsão de 5 camas box de solteiro.
+                            </p>
+                            <p className="mt-1">
+                              Em encontros de casais, o apto pode ser adaptado para 1 cama de casal,
+                              mantendo conforto e material de boa qualidade.
+                            </p>
+                            <p className="mt-1 font-medium">As fotos e o video aparecem abaixo nesta jornada VIP, antes do pagamento.</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {initialOffer === "apartment" && vipHasMedia && (
+                        <section className="rounded-lg border border-[#d7c18a] bg-gradient-to-b from-[#fff9e7] via-[#fff4d6] to-[#ffeab5] p-4">
+                          <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#8a5b00]">Apartamento completo</p>
+                          <h3 className="mt-1 text-lg font-black uppercase tracking-[0.03em] text-[#6a4600]">Fotos e video do apartamento decorado</h3>
+
+                          {vipVideoUrl && (
+                            <div className="mt-3 overflow-hidden rounded-lg border border-[#e3c98a] bg-black">
+                              {vipVideoEmbedUrl ? (
+                                <div className="aspect-video w-full">
+                                  <iframe
+                                    src={vipVideoEmbedUrl}
+                                    title={`Video de apresentacao do apartamento VIP da campanha ${campaign?.title ?? ""}`}
+                                    className="h-full w-full"
+                                    loading="lazy"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                  />
+                                </div>
+                              ) : (
+                                <video
+                                  key={vipVideoUrl}
+                                  className="aspect-video w-full"
+                                  controls
+                                  preload="metadata"
+                                  playsInline
+                                  onError={() => {
+                                    setVipVideoIndex((current) => (current + 1 < vipVideoCandidates.length ? current + 1 : current));
+                                  }}
+                                >
+                                  <source src={encodeURI(vipVideoUrl)} />
+                                </video>
+                              )}
+                            </div>
+                          )}
+
+                          {vipGalleryImages.length > 0 && (
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                              {vipGalleryImages.map((imageUrl) => (
+                                <div key={imageUrl} className="overflow-hidden rounded-lg border border-[#e3c98a] bg-white">
+                                  <img
+                                    src={imageUrl}
+                                    alt={`Foto do apartamento VIP da campanha ${campaign?.title ?? ""}`}
+                                    className="h-40 w-full object-cover"
+                                    loading="lazy"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </section>
+                      )}
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Valor (R$) *</label>
                         <Input
@@ -743,10 +1209,14 @@ export default function ContributionWizardPage() {
 
                   {state.type === "material" && (
                     <>
-                      <p className="text-sm text-gray-600 mb-6">Descreva o material que você gostaria de doar:</p>
+                      <p className="text-sm text-gray-600 mb-6">
+                        {selectedNeed
+                          ? "Confira o item da planilha e informe sua quantidade:"
+                          : "Descreva o material que você gostaria de doar:"}
+                      </p>
                       {campaignNeeds.length > 0 && (
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Item da lista (opcional)</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Item da lista</label>
                           <Select
                             value={state.materialNeedId ? String(state.materialNeedId) : ""}
                             onValueChange={(value) => setState({ ...state, materialNeedId: value ? Number(value) : undefined })}
@@ -763,34 +1233,59 @@ export default function ContributionWizardPage() {
                               ))}
                             </SelectContent>
                           </Select>
-                        </div>
-                      )}
-
-                      {selectedNeed && (
-                        <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
-                          <p className="font-semibold">Saldo do item selecionado</p>
-                          <p>Faltam {selectedNeedRemaining} unidades.</p>
-                          {selectedNeedEstimatedAmount > 0 && (
-                            <p>Valor estimado da sua oferta: {formatCurrency(selectedNeedEstimatedAmount)}</p>
+                          {selectedNeed && (
+                            <p className="mt-1 text-xs text-[#5f6f61]">
+                              Item definido pela planilha. Voce so precisa informar a quantidade.
+                            </p>
                           )}
                         </div>
                       )}
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
-                        <Textarea
-                          placeholder="Ex: Cimento, tijolos, tintas, etc."
-                          value={state.materialDescription}
-                          onChange={(e) => setState({ ...state, materialDescription: e.target.value })}
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Tipo da doação</label>
+                        <Select
+                          value={state.materialDonationType}
+                          onValueChange={(value: MaterialDonationType) => setState({ ...state, materialDonationType: value })}
                           disabled={loading}
-                          className="min-h-24"
-                        />
-                        <p className="mt-1 text-xs text-gray-500">Mínimo de 3 caracteres.</p>
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border border-gray-200 text-gray-900 opacity-100 shadow-lg">
+                            <SelectItem className="bg-white text-gray-900 hover:bg-gray-100 focus:bg-gray-100" value="detailed">DOACAO DETALHADA</SelectItem>
+                            <SelectItem className="bg-white text-gray-900 hover:bg-gray-100 focus:bg-gray-100" value="avulsa">DOACAO AVULSA</SelectItem>
+                            <SelectItem className="bg-white text-gray-900 hover:bg-gray-100 focus:bg-gray-100" value="other">OUTRA DOACAO</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
+
+                      {selectedNeed && (
+                        <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900 space-y-1">
+                          <p><span className="font-semibold">Item:</span> {normalizeNeedLabel(selectedNeed.name)}</p>
+                          <p><span className="font-semibold">Meta:</span> {selectedNeedTargetQuantity} unidades</p>
+                          <p><span className="font-semibold">Valor unitário:</span> {formatCurrency(selectedNeedUnitValueCents)}</p>
+                          <p><span className="font-semibold">Valor total da meta:</span> {formatCurrency(selectedNeedTargetAmount)}</p>
+                          <p><span className="font-semibold">Falta hoje:</span> {selectedNeedRemaining} unidades</p>
+                        </div>
+                      )}
+
+                      {!selectedNeed && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
+                          <Textarea
+                            placeholder="Ex: Cimento, tijolos, tintas, etc."
+                            value={state.materialDescription}
+                            onChange={(e) => setState({ ...state, materialDescription: e.target.value })}
+                            disabled={loading}
+                            className="min-h-24"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">Mínimo de 3 caracteres.</p>
+                        </div>
+                      )}
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Quantidade exata {state.materialNeedId ? "*" : "(opcional)"}
+                          Minha doação (quantidade) {state.materialNeedId ? "*" : "(opcional)"}
                         </label>
                         <Input
                           type="number"
@@ -801,48 +1296,21 @@ export default function ContributionWizardPage() {
                           onChange={(e) => setState({ ...state, materialQuantity: e.target.value })}
                           disabled={loading}
                         />
-                        {state.materialNeedId && Number.parseInt(state.materialQuantity || "", 10) <= 0 && (
+                        {state.materialNeedId && selectedNeedQuantityExact <= 0 && (
                           <p className="mt-1 text-xs text-red-500">Informe a quantidade exata que você vai entregar.</p>
+                        )}
+                        {state.materialNeedId && selectedNeedExceedsGoal && (
+                          <p className="mt-1 text-xs text-red-500">Quantidade acima do saldo da meta. Ajuste para no máximo {selectedNeedRemaining} unidades.</p>
                         )}
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Como você gostaria de entregar? *</label>
-                        <Select
-                          value={state.materialDeliveryFrequency}
-                          onValueChange={(value) => setState({ ...state, materialDeliveryFrequency: value as DeliveryFrequency })}
-                          disabled={loading}
-                        >
-                          <SelectTrigger className="bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                            <SelectItem value="unique">Tudo de uma vez</SelectItem>
-                            <SelectItem value="weekly">Semanalmente</SelectItem>
-                            <SelectItem value="biweekly">Quinzenalmente</SelectItem>
-                            <SelectItem value="monthly">Mensalmente</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {selectedNeed && (
+                        <div className="rounded-md border border-[#dbe8db] bg-[#f7fbf7] p-3 text-sm text-[#2f4a34] space-y-1">
+                          <p><span className="font-semibold">Valor da minha doação:</span> {formatCurrency(selectedNeedEstimatedAmount)}</p>
+                          <p><span className="font-semibold">Falta após minha doação:</span> {selectedNeedRemainingAfterContribution} unidades</p>
+                        </div>
+                      )}
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Como fazer a doação? *</label>
-                        <Select
-                          value={state.deliveryMethod || ""}
-                          onValueChange={(value) => setState({ ...state, deliveryMethod: value as DeliveryMethod })}
-                          disabled={loading}
-                        >
-                          <SelectTrigger className="bg-white">
-                            <SelectValue placeholder="Escolha uma opção..." />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                            <SelectItem value="pickup">📍 Entrega pessoalmente no local da obra</SelectItem>
-                            <SelectItem value="deliver">🚚 Buscar na minha casa/local</SelectItem>
-                            <SelectItem value="mail">📦 Enviar pelo correio</SelectItem>
-                            <SelectItem value="other">📞 Outro (combinar por whatsapp)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
                     </>
                   )}
 
@@ -876,7 +1344,92 @@ export default function ContributionWizardPage() {
                       disabled={!isValid.details || loading}
                       className="flex-1 bg-blue-600 hover:bg-blue-700"
                     >
-                      {state.type === "financial" ? "Escolher Pagamento →" : "Enviar →"}
+                      {state.type === "financial" ? "Escolher Pagamento →" : "Confirmar valores →"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 4: Revisão VIP antes do pagamento */}
+              {/* STEP 4: Confirmação da proposta (material/voluntário) */}
+              {step === "confirmation" && state.type !== "financial" && (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600 mb-2">Revise os dados antes de confirmar sua proposta de doação:</p>
+
+                  <div className="rounded-lg border border-[#d9e6d9] bg-[#f6fbf6] p-4 space-y-2 text-sm">
+                    <div><span className="font-semibold text-[#2d2d2d]">Campanha:</span> <span className="text-[#4c5a4e]">{campaign?.title}</span></div>
+                    <div><span className="font-semibold text-[#2d2d2d]">Doador:</span> <span className="text-[#4c5a4e]">{state.donorName}</span></div>
+                    {state.type === "material" ? (
+                      <>
+                        <div><span className="font-semibold text-[#2d2d2d]">Tipo da doação:</span> <span className="text-[#4c5a4e]">{materialDonationTypeLabel}</span></div>
+                        <div><span className="font-semibold text-[#2d2d2d]">Item:</span> <span className="text-[#4c5a4e]">{selectedNeed ? selectedNeed.name : state.materialDescription}</span></div>
+                        <div><span className="font-semibold text-[#2d2d2d]">Quantidade:</span> <span className="text-[#4c5a4e]">{state.materialQuantity || "Não informada"}</span></div>
+                        <div><span className="font-semibold text-[#2d2d2d]">Valor total:</span> <span className="text-[#4c5a4e]">{formatCurrency(selectedNeedEstimatedAmount)}</span></div>
+                        <div><span className="font-semibold text-[#2d2d2d]">Faltam hoje na meta:</span> <span className="text-[#4c5a4e]">{selectedNeedRemaining} unidades</span></div>
+                        <div><span className="font-semibold text-[#2d2d2d]">Após sua oferta:</span> <span className="text-[#4c5a4e]">{selectedNeedRemainingAfterContribution} unidades</span></div>
+                      </>
+                    ) : (
+                      <div><span className="font-semibold text-[#2d2d2d]">Serviço oferecido:</span> <span className="text-[#4c5a4e]">{state.volunteerDescription}</span></div>
+                    )}
+                  </div>
+
+                  {state.type === "material" && selectedNeedEstimatedAmount > 0 && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm">
+                      <p className="font-semibold text-blue-900">Como você quer prosseguir?</p>
+                      <p className="mt-1 text-blue-800">Escolha se esta contribuição será em espécie (material) ou em dinheiro (valor equivalente).</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <Button
+                          type="button"
+                          className={state.materialSettlementMode === "in_kind" ? "bg-green-700 hover:bg-green-800" : "bg-green-600 hover:bg-green-700"}
+                          disabled={loading}
+                          onClick={() => setState((prev) => ({ ...prev, materialSettlementMode: "in_kind", deliveryMethod: prev.deliveryMethod ?? "pickup" }))}
+                        >
+                          Em espécie (material)
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={state.materialSettlementMode === "cash_equivalent" ? "default" : "outline"}
+                          disabled={loading}
+                          onClick={() => setState((prev) => ({ ...prev, materialSettlementMode: "cash_equivalent" }))}
+                        >
+                          Em dinheiro (equivalente)
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setStep("details")}
+                      disabled={loading}
+                      className="flex-1"
+                    >
+                      ← Ajustar proposta
+                    </Button>
+                    <Button
+                      disabled={loading || (state.type === "material" && selectedNeedEstimatedAmount > 0 && state.materialSettlementMode === null)}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700"
+                      type="button"
+                      onClick={() => {
+                        if (state.type === "material" && selectedNeedEstimatedAmount > 0 && state.materialSettlementMode === "cash_equivalent") {
+                          setState((prev) => ({
+                            ...prev,
+                            type: "financial",
+                            amount: selectedNeedEstimatedAmount / 100,
+                            recurrence: "unique",
+                            paymentMethod: null,
+                          }));
+                          setStep("payment");
+                          return;
+                        }
+
+                        handleSubmit();
+                      }}
+                    >
+                      {state.type === "material" && state.materialSettlementMode === "cash_equivalent"
+                        ? "Prosseguir para pagamento →"
+                        : "Confirmar proposta"}
                     </Button>
                   </div>
                 </div>

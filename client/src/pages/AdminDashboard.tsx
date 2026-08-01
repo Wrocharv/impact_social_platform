@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { saveLocalNeed } from "@/lib/localNeeds";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -52,11 +53,43 @@ const createEmptyNeedDraft = (): NewNeedDraft => ({
   description: "",
 });
 
+type CampaignModelType = "custom" | "construction_hotel";
+
+const CONSTRUCTION_HOTEL_NEEDS_TEMPLATE: NewNeedDraft[] = [
+  {
+    type: "material",
+    name: "Cimento",
+    quantity: "200 sacos",
+    targetQuantityExact: "200",
+    unitValue: "45,00",
+    priority: "high",
+    description: "Materiais essenciais para a fase inicial da construção.",
+  },
+  {
+    type: "material",
+    name: "Tijolo",
+    quantity: "12.000 unidades",
+    targetQuantityExact: "12000",
+    unitValue: "1,20",
+    priority: "high",
+    description: "Para avanço das paredes e divisórias da obra.",
+  },
+];
+
+const CONSTRUCTION_HOTEL_DESCRIPTION =
+  "Apoie a construção com materiais e contribuições para avançar cada etapa da obra com transparência e impacto social.";
+
+const CONSTRUCTION_HOTEL_LONG_DESCRIPTION =
+  "Esta campanha segue o modelo de construção colaborativa, com necessidades concretas por item, metas exatas de materiais e acompanhamento contínuo da evolução da obra. Sua contribuição ajuda a acelerar fases essenciais como estrutura, divisórias e acabamento.";
+
 const EMPTY_CAMPAIGN_EDIT_FORM = {
   title: "",
   description: "",
   longDescription: "",
   goal: "",
+  vipApartmentAmount: "120.000,00",
+  vipImageUrls: "",
+  vipVideoUrls: "",
   initialRaised: "",
   imageUrl: "",
   status: "active" as "active" | "completed" | "paused" | "archived",
@@ -104,25 +137,48 @@ export default function AdminDashboard() {
     description: "",
     longDescription: "",
     goal: "",
+    vipApartmentAmount: "120.000,00",
     initialRaised: "",
     imageUrl: "",
   });
   const [campaignNeedsDrafts, setCampaignNeedsDrafts] = useState<NewNeedDraft[]>([]);
+  const [campaignModelType, setCampaignModelType] = useState<CampaignModelType>("custom");
   const [campaignEditForm, setCampaignEditForm] = useState(EMPTY_CAMPAIGN_EDIT_FORM);
   const [campaignUpdateForm, setCampaignUpdateForm] = useState(EMPTY_UPDATE_FORM);
   const [campaignNeedForm, setCampaignNeedForm] = useState(EMPTY_NEED_FORM);
   const [partnerForm, setPartnerForm] = useState(EMPTY_PARTNER_FORM);
   const [cashValidationNotes, setCashValidationNotes] = useState<Record<number, string>>({});
+  const [materialValidationNotes, setMaterialValidationNotes] = useState<Record<number, string>>({});
+  const [validationCampaignFilter, setValidationCampaignFilter] = useState<string>("all");
+
+  const selectedValidationCampaignId = validationCampaignFilter === "all"
+    ? undefined
+    : Number.parseInt(validationCampaignFilter, 10);
 
   const campaignsQuery = trpc.campaigns.getAll.useQuery(undefined, { enabled: isAdmin });
   const partnersQuery = trpc.partners.getAll.useQuery(undefined, { enabled: isAdmin });
-  const pendingCashQuery = trpc.contributions.getPendingCashValidations.useQuery(undefined, { enabled: isAdmin });
-  const recentCashQuery = trpc.contributions.getRecentCashValidations.useQuery({ limit: 20 }, { enabled: isAdmin });
+  const pendingCashQuery = trpc.contributions.getPendingCashValidations.useQuery(
+    selectedValidationCampaignId ? { campaignId: selectedValidationCampaignId } : undefined,
+    { enabled: isAdmin },
+  );
+  const recentCashQuery = trpc.contributions.getRecentCashValidations.useQuery(
+    selectedValidationCampaignId ? { campaignId: selectedValidationCampaignId, limit: 20 } : { limit: 20 },
+    { enabled: isAdmin },
+  );
+  const pendingMaterialQuery = trpc.contributions.getPendingMaterialValidations.useQuery(
+    selectedValidationCampaignId ? { campaignId: selectedValidationCampaignId } : undefined,
+    { enabled: isAdmin },
+  );
+  const recentMaterialQuery = trpc.contributions.getRecentMaterialValidations.useQuery(
+    selectedValidationCampaignId ? { campaignId: selectedValidationCampaignId, limit: 20 } : { limit: 20 },
+    { enabled: isAdmin },
+  );
   const createCampaign = trpc.campaigns.create.useMutation({
     onSuccess: async () => {
       toast.success("Campanha criada com sucesso!");
-      setCampaignForm({ title: "", description: "", longDescription: "", goal: "", initialRaised: "", imageUrl: "" });
+      setCampaignForm({ title: "", description: "", longDescription: "", goal: "", vipApartmentAmount: "120.000,00", initialRaised: "", imageUrl: "" });
       setCampaignNeedsDrafts([]);
+      setCampaignModelType("custom");
       setIsCreateCampaignOpen(false);
       await invalidateCampaignData();
     },
@@ -144,14 +200,7 @@ export default function AdminDashboard() {
     },
     onError: (error) => toast.error(error.message || "Erro ao publicar atualização"),
   });
-  const createCampaignNeed = trpc.campaigns.createNeed.useMutation({
-    onSuccess: async () => {
-      toast.success("Necessidade cadastrada com sucesso!");
-      closeCampaignNeedDialog();
-      await invalidateCampaignData();
-    },
-    onError: (error) => toast.error(error.message || "Erro ao cadastrar necessidade"),
-  });
+  const createCampaignNeed = trpc.campaigns.createNeed.useMutation();
   const deleteCampaign = trpc.campaigns.delete.useMutation({
     onSuccess: async () => {
       toast.success("Campanha removida com sucesso!");
@@ -200,6 +249,23 @@ export default function AdminDashboard() {
       ]);
     },
     onError: (error) => toast.error(error.message || "Erro ao revisar contribuição em dinheiro"),
+  });
+  const reviewMaterialContribution = trpc.contributions.reviewMaterialContribution.useMutation({
+    onSuccess: async (result) => {
+      toast.success(result.status === "approved" ? "Oferta de material aprovada." : "Oferta de material rejeitada.");
+      setMaterialValidationNotes((current) => {
+        const next = { ...current };
+        delete next[result.contributionId];
+        return next;
+      });
+      await Promise.all([
+        pendingMaterialQuery.refetch(),
+        recentMaterialQuery.refetch(),
+        invalidateCampaignData(),
+        utils.contributions.getPublicDonors.invalidate(),
+      ]);
+    },
+    onError: (error) => toast.error(error.message || "Erro ao revisar oferta de material"),
   });
   const uploadPartnerImage = trpc.partners.uploadImage.useMutation({
     onError: (error) => toast.error(error.message || "Erro ao enviar imagem"),
@@ -274,6 +340,9 @@ export default function AdminDashboard() {
       description: campaign.description,
       longDescription: campaign.longDescription ?? "",
       goal: String(campaign.goal / 100).replace(".", ","),
+      vipApartmentAmount: String((("vipApartmentAmountCents" in campaign ? campaign.vipApartmentAmountCents : undefined) ?? 12000000) / 100).replace(".", ","),
+      vipImageUrls: "",
+      vipVideoUrls: "",
       initialRaised: String((("initialRaised" in campaign ? campaign.initialRaised : undefined) ?? campaign.raised) / 100).replace(".", ","),
       imageUrl: campaign.imageUrl ?? "",
       status: campaign.status,
@@ -311,6 +380,23 @@ export default function AdminDashboard() {
     setCampaignNeedForm(EMPTY_NEED_FORM);
   }
 
+  function applyCampaignNeedsTemplate(template: CampaignModelType) {
+    if (template === "construction_hotel") {
+      setCampaignNeedsDrafts(CONSTRUCTION_HOTEL_NEEDS_TEMPLATE.map((item) => ({ ...item })));
+      setCampaignForm((current) => ({
+        ...current,
+        description: current.description.trim().length > 0 ? current.description : CONSTRUCTION_HOTEL_DESCRIPTION,
+        longDescription: current.longDescription.trim().length > 0 ? current.longDescription : CONSTRUCTION_HOTEL_LONG_DESCRIPTION,
+      }));
+      setCampaignModelType("construction_hotel");
+      toast.success("Modelo de construção aplicado com itens e descrições base do Hotel.");
+      return;
+    }
+
+    setCampaignNeedsDrafts([]);
+    setCampaignModelType("custom");
+  }
+
   function handleCreateCampaign(event: React.FormEvent) {
     event.preventDefault();
     const goalInCents = parseCurrencyToCents(campaignForm.goal);
@@ -327,6 +413,12 @@ export default function AdminDashboard() {
 
     if (initialRaisedInCents > goalInCents) {
       toast.error("A arrecadação inicial não pode ser maior que a meta");
+      return;
+    }
+
+    const vipApartmentAmountCents = parseCurrencyToCents(campaignForm.vipApartmentAmount);
+    if (vipApartmentAmountCents === null || vipApartmentAmountCents <= 0) {
+      toast.error("Informe um valor VIP válido");
       return;
     }
 
@@ -363,6 +455,7 @@ export default function AdminDashboard() {
         description: campaignForm.description,
         longDescription: campaignForm.longDescription,
         goal: goalInCents,
+        vipApartmentAmountCents,
         initialRaised: initialRaisedInCents,
         imageUrl: campaignForm.imageUrl || undefined,
         needs: parsedNeeds,
@@ -392,12 +485,24 @@ export default function AdminDashboard() {
       return;
     }
 
+    const vipApartmentAmountCents = parseCurrencyToCents(campaignEditForm.vipApartmentAmount);
+    if (vipApartmentAmountCents === null || vipApartmentAmountCents <= 0) {
+      toast.error("Informe um valor VIP válido");
+      return;
+    }
+
+    const vipImageUrls = parseMediaUrlsInput(campaignEditForm.vipImageUrls);
+    const vipVideoUrls = parseMediaUrlsInput(campaignEditForm.vipVideoUrls);
+
     updateCampaign.mutate({
       id: editingCampaignId,
       title: campaignEditForm.title,
       description: campaignEditForm.description,
       longDescription: campaignEditForm.longDescription,
       goal: goalInCents,
+      vipApartmentAmountCents,
+      vipImageUrls: vipImageUrls.length > 0 ? vipImageUrls : undefined,
+      vipVideoUrls: vipVideoUrls.length > 0 ? vipVideoUrls : undefined,
       initialRaised: initialRaisedInCents,
       imageUrl: campaignEditForm.imageUrl || null,
       status: campaignEditForm.status,
@@ -417,7 +522,7 @@ export default function AdminDashboard() {
     });
   }
 
-  function handleCreateCampaignNeed(event: React.FormEvent) {
+  async function handleCreateCampaignNeed(event: React.FormEvent) {
     event.preventDefault();
     if (!selectedCampaign) return;
 
@@ -438,16 +543,57 @@ export default function AdminDashboard() {
       return;
     }
 
-    createCampaignNeed.mutate({
-      campaignId: selectedCampaign.id,
-      type: campaignNeedForm.type,
-      name: campaignNeedForm.name,
-      description: campaignNeedForm.description || undefined,
-      quantity: campaignNeedForm.quantity.trim(),
-      targetQuantityExact,
-      unitValueCents,
-      priority: campaignNeedForm.priority,
-    });
+    if (isLocalhost) {
+      saveLocalNeed({
+        campaignId: selectedCampaign.id,
+        type: campaignNeedForm.type,
+        name: campaignNeedForm.name.trim(),
+        description: campaignNeedForm.description.trim() || undefined,
+        quantity: campaignNeedForm.quantity.trim(),
+        targetQuantityExact,
+        unitValueCents,
+        priority: campaignNeedForm.priority,
+      });
+      toast.success("Necessidade cadastrada no modo local.");
+      closeCampaignNeedDialog();
+      return;
+    }
+
+    try {
+      await createCampaignNeed.mutateAsync({
+        campaignId: selectedCampaign.id,
+        type: campaignNeedForm.type,
+        name: campaignNeedForm.name,
+        description: campaignNeedForm.description || undefined,
+        quantity: campaignNeedForm.quantity.trim(),
+        targetQuantityExact,
+        unitValueCents,
+        priority: campaignNeedForm.priority,
+      });
+
+      toast.success("Necessidade cadastrada com sucesso!");
+      closeCampaignNeedDialog();
+      await invalidateCampaignData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.toLowerCase().includes("database not available")) {
+        saveLocalNeed({
+          campaignId: selectedCampaign.id,
+          type: campaignNeedForm.type,
+          name: campaignNeedForm.name.trim(),
+          description: campaignNeedForm.description.trim() || undefined,
+          quantity: campaignNeedForm.quantity.trim(),
+          targetQuantityExact,
+          unitValueCents,
+          priority: campaignNeedForm.priority,
+        });
+        toast.success("Necessidade cadastrada no modo local.");
+        closeCampaignNeedDialog();
+        return;
+      }
+
+      toast.error(message || "Erro ao cadastrar necessidade");
+    }
   }
 
   function handleSavePartner(event: React.FormEvent) {
@@ -568,6 +714,19 @@ export default function AdminDashboard() {
                 <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
                   <DialogHeader><DialogTitle>Criar nova campanha</DialogTitle></DialogHeader>
                   <form onSubmit={handleCreateCampaign} className="space-y-4">
+                    <Field label="Modelo da campanha">
+                      <Select
+                        value={campaignModelType}
+                        onValueChange={(value: CampaignModelType) => applyCampaignNeedsTemplate(value)}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="custom">Outro (personalizada)</SelectItem>
+                          <SelectItem value="construction_hotel">Construção (igual Hotel Recanto)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="mt-1 text-xs text-[#66736a]">Use o modelo de construção quando a nova campanha seguir o mesmo formato de doação por materiais da obra do hotel.</p>
+                    </Field>
                     <Field label="Título *"><Input value={campaignForm.title} onChange={(event) => setCampaignForm({ ...campaignForm, title: event.target.value })} required minLength={5} /></Field>
                     <Field label="Descrição curta *"><Textarea value={campaignForm.description} onChange={(event) => setCampaignForm({ ...campaignForm, description: event.target.value })} required minLength={20} rows={2} /></Field>
                     <Field label="Descrição longa *"><Textarea value={campaignForm.longDescription} onChange={(event) => setCampaignForm({ ...campaignForm, longDescription: event.target.value })} required minLength={50} rows={5} /></Field>
@@ -575,6 +734,7 @@ export default function AdminDashboard() {
                       <Field label="Meta (R$) *"><Input inputMode="decimal" value={campaignForm.goal} onChange={(event) => setCampaignForm({ ...campaignForm, goal: event.target.value })} required placeholder="Ex.: 50.000,00" /></Field>
                       <Field label="Arrecadação inicial (R$)"><Input inputMode="decimal" value={campaignForm.initialRaised} onChange={(event) => setCampaignForm({ ...campaignForm, initialRaised: event.target.value })} placeholder="Ex.: 12.350,90" /></Field>
                     </div>
+                    <Field label="Valor VIP apartamento (R$) *"><Input inputMode="decimal" value={campaignForm.vipApartmentAmount} onChange={(event) => setCampaignForm({ ...campaignForm, vipApartmentAmount: event.target.value })} required placeholder="Ex.: 120.000,00" /></Field>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <Field label="Imagem da campanha (arquivo)">
                         <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleCampaignImageUpload("create", event.target.files?.[0])} />
@@ -743,6 +903,27 @@ export default function AdminDashboard() {
             </Card>
 
             <Card className="p-5 md:p-6">
+              <div className="mb-4 flex flex-col gap-3 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-[#243128]">Filtro de validação</h3>
+                  <p className="mt-1 text-sm text-[#66736a]">Selecione uma campanha para focar nas ofertas e validações daquele projeto.</p>
+                </div>
+                <div className="w-full sm:w-[320px]">
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-[#546459]">Campanha</label>
+                  <Select value={validationCampaignFilter} onValueChange={setValidationCampaignFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todas as campanhas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as campanhas</SelectItem>
+                      {(campaignsQuery.data ?? []).map((campaign) => (
+                        <SelectItem key={`validation-filter-${campaign.id}`} value={String(campaign.id)}>{campaign.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-bold text-[#243128]">Validação presencial de dinheiro</h3>
@@ -864,6 +1045,144 @@ export default function AdminDashboard() {
               </div>
             </Card>
 
+            <Card className="p-5 md:p-6">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-[#243128]">Validação de ofertas de material</h3>
+                  <p className="text-sm text-[#66736a]">As ofertas de material só entram no progresso das necessidades após aprovação da equipe.</p>
+                </div>
+                <Badge variant="secondary">
+                  {pendingMaterialQuery.data?.length ?? 0} pendente(s)
+                </Badge>
+              </div>
+
+              {pendingMaterialQuery.isLoading ? (
+                <p className="text-sm text-[#66736a]">Carregando pendências...</p>
+              ) : pendingMaterialQuery.isError ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="text-sm text-[#b42318]">
+                    Não foi possível carregar as pendências de material.
+                    {pendingMaterialQuery.error?.message ? ` Motivo: ${pendingMaterialQuery.error.message}` : ""}
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => pendingMaterialQuery.refetch()}>Tentar novamente</Button>
+                </div>
+              ) : pendingMaterialQuery.data?.length ? (
+                <div className="space-y-3">
+                  {pendingMaterialQuery.data.map((item) => {
+                    const quantityLabel = Number.isInteger(item.quantityExact) && (item.quantityExact ?? 0) > 0
+                      ? `${item.quantityExact} unidade(s)`
+                      : (item.quantity || item.description || "Não informado");
+
+                    return (
+                      <div key={item.id} className="rounded-lg border border-[#e1e6df] p-4">
+                        <div className="grid gap-2 text-sm text-[#4e5c53] sm:grid-cols-2 lg:grid-cols-4">
+                          <p><span className="font-semibold text-[#243128]">Oferta:</span> #{item.id}</p>
+                          <p><span className="font-semibold text-[#243128]">Campanha:</span> #{item.campaignId}</p>
+                          <p><span className="font-semibold text-[#243128]">Necessidade:</span> {item.campaignNeedId ? `#${item.campaignNeedId}` : "Não vinculada"}</p>
+                          <p><span className="font-semibold text-[#243128]">Doador:</span> {item.donorName || "Não informado"}</p>
+                        </div>
+                        <div className="mt-1 grid gap-2 text-sm text-[#4e5c53] sm:grid-cols-2 lg:grid-cols-3">
+                          <p><span className="font-semibold text-[#243128]">Quantidade:</span> {quantityLabel}</p>
+                          <p><span className="font-semibold text-[#243128]">Valor estimado:</span> {formatCurrency(item.estimatedAmount ?? 0)}</p>
+                          <p><span className="font-semibold text-[#243128]">WhatsApp:</span> {item.donorWhatsapp || "Não informado"}</p>
+                        </div>
+                        <p className="mt-1 text-sm text-[#4e5c53]"><span className="font-semibold text-[#243128]">Cidade:</span> {item.donorCity || "Não informada"}</p>
+                        {item.description && (
+                          <p className="mt-1 text-sm text-[#4e5c53]"><span className="font-semibold text-[#243128]">Descrição:</span> {item.description}</p>
+                        )}
+                        <div className="mt-3">
+                          <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-[#546459]">Observação da validação (opcional)</label>
+                          <Textarea
+                            rows={2}
+                            maxLength={500}
+                            placeholder="Ex.: Conferido com responsável da obra e item aprovado."
+                            value={materialValidationNotes[item.id] ?? ""}
+                            onChange={(event) => setMaterialValidationNotes((current) => ({
+                              ...current,
+                              [item.id]: event.target.value,
+                            }))}
+                          />
+                        </div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            className="gap-2 bg-[#228B22] hover:bg-[#1a6b1a]"
+                            disabled={reviewMaterialContribution.isPending}
+                            onClick={() => reviewMaterialContribution.mutate({
+                              contributionId: item.id,
+                              decision: "approve",
+                              validationNote: materialValidationNotes[item.id]?.trim() || undefined,
+                            })}
+                          >
+                            <CheckCircle2 className="h-4 w-4" /> Aprovar oferta
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-2 border-red-300 text-red-700 hover:text-red-800"
+                            disabled={reviewMaterialContribution.isPending}
+                            onClick={() => reviewMaterialContribution.mutate({
+                              contributionId: item.id,
+                              decision: "reject",
+                              validationNote: materialValidationNotes[item.id]?.trim() || undefined,
+                            })}
+                          >
+                            <XCircle className="h-4 w-4" /> Rejeitar oferta
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-[#66736a]">Sem ofertas de material pendentes no momento.</p>
+              )}
+
+              <div className="mt-6 border-t border-[#e1e6df] pt-5">
+                <h4 className="text-sm font-bold text-[#243128]">Histórico recente de validações de material</h4>
+                <p className="mt-1 text-xs text-[#66736a]">Auditoria das ofertas aprovadas ou rejeitadas pela equipe.</p>
+                {recentMaterialQuery.isLoading ? (
+                  <p className="mt-3 text-sm text-[#66736a]">Carregando histórico...</p>
+                ) : recentMaterialQuery.isError ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <p className="text-sm text-[#b42318]">
+                      Não foi possível carregar o histórico de material.
+                      {recentMaterialQuery.error?.message ? ` Motivo: ${recentMaterialQuery.error.message}` : ""}
+                    </p>
+                    <Button variant="outline" size="sm" onClick={() => recentMaterialQuery.refetch()}>Tentar novamente</Button>
+                  </div>
+                ) : recentMaterialQuery.data?.length ? (
+                  <div className="mt-3 space-y-2">
+                    {recentMaterialQuery.data.map((item) => {
+                      const isApproved = item.paymentStatusDetail === "material_validated";
+                      const validator = item.validatorName || item.validatorEmail || (item.validatedBy ? `Usuário #${item.validatedBy}` : "Não identificado");
+                      const when = item.validatedAt ? new Date(item.validatedAt).toLocaleString("pt-BR") : "Data não informada";
+                      const quantityLabel = Number.isInteger(item.quantityExact) && (item.quantityExact ?? 0) > 0
+                        ? `${item.quantityExact} unidade(s)`
+                        : (item.description || "Não informado");
+
+                      return (
+                        <div key={`material-validation-${item.id}`} className="rounded-lg bg-[#f5f8f3] p-3 text-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-semibold text-[#243128]">Oferta #{item.id} · Campanha #{item.campaignId}</p>
+                            <Badge variant={isApproved ? "default" : "secondary"} className={isApproved ? "bg-[#228B22]" : "bg-red-100 text-red-700"}>
+                              {isApproved ? "Aprovada" : "Rejeitada"}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-[#4e5c53]">Quantidade: {quantityLabel} · Doador: {item.donorName || "Não informado"}</p>
+                          <p className="mt-1 text-[#4e5c53]">Valor estimado: {formatCurrency(item.estimatedAmount ?? 0)}</p>
+                          <p className="mt-1 text-[#4e5c53]">Validado por: {validator} · Em: {when}</p>
+                          {item.validationNote && <p className="mt-1 text-[#4e5c53]">Observação: {item.validationNote}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-[#66736a]">Nenhuma validação de material auditada ainda.</p>
+                )}
+              </div>
+            </Card>
+
             <div className="space-y-4">
               {campaignsQuery.isLoading ? <LoadingCard label="Carregando campanhas..." /> : campaignsQuery.isError ? <ErrorCard label="Não foi possível carregar as campanhas." onRetry={() => campaignsQuery.refetch()} /> : campaignsQuery.data?.length ? campaignsQuery.data.map((campaign) => (
                 <Card key={campaign.id} className="p-5 md:p-6">
@@ -937,6 +1256,29 @@ export default function AdminDashboard() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Meta (R$) *"><Input inputMode="decimal" value={campaignEditForm.goal} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, goal: event.target.value })} required placeholder="Ex.: 50.000,00" /></Field>
                 <Field label="Arrecadação inicial (R$)"><Input inputMode="decimal" value={campaignEditForm.initialRaised} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, initialRaised: event.target.value })} placeholder="Ex.: 12.350,90" /></Field>
+              </div>
+              <Field label="Valor VIP apartamento (R$) *"><Input inputMode="decimal" value={campaignEditForm.vipApartmentAmount} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, vipApartmentAmount: event.target.value })} required placeholder="Ex.: 120.000,00" /></Field>
+              <div className="rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4">
+                <p className="text-sm font-bold text-[#243128]">Configuração da página VIP</p>
+                <p className="mt-1 text-xs text-[#66736a]">Essas mídias aparecem na página VIP antes do pagamento. Use uma URL por linha (https://...) ou caminho local iniciando com /.</p>
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  <Field label="Fotos VIP (URLs)">
+                    <Textarea
+                      value={campaignEditForm.vipImageUrls}
+                      onChange={(event) => setCampaignEditForm({ ...campaignEditForm, vipImageUrls: event.target.value })}
+                      rows={5}
+                      placeholder="https://site.com/foto-1.jpg"
+                    />
+                  </Field>
+                  <Field label="Vídeos VIP (URLs)">
+                    <Textarea
+                      value={campaignEditForm.vipVideoUrls}
+                      onChange={(event) => setCampaignEditForm({ ...campaignEditForm, vipVideoUrls: event.target.value })}
+                      rows={5}
+                      placeholder="https://site.com/video-1.mp4"
+                    />
+                  </Field>
+                </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Status *"><Select value={campaignEditForm.status} onValueChange={(status: typeof campaignEditForm.status) => setCampaignEditForm({ ...campaignEditForm, status })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Ativa</SelectItem><SelectItem value="paused">Pausada</SelectItem><SelectItem value="completed">Concluída</SelectItem><SelectItem value="archived">Arquivada</SelectItem></SelectContent></Select></Field>

@@ -130,6 +130,7 @@ type PublishedCampaign = {
 };
 
 export default function Home() {
+  const primaryContributionPath = "/contribute/help/100001";
   const featuredInput = useMemo(() => ({ status: "active" as const, limit: 3 }), []);
   const completedInput = useMemo(() => ({ status: "completed" as const, limit: 3 }), []);
   const campaignsQuery = trpc.campaigns.listPublished.useQuery(featuredInput);
@@ -175,7 +176,7 @@ export default function Home() {
             </p>
             <div className="flex flex-col justify-center gap-3 sm:flex-row">
               <Link
-                href="/campaigns"
+                  href={primaryContributionPath}
                 className="inline-flex min-h-12 items-center justify-center rounded-md bg-white px-7 font-semibold text-[#18751f] transition hover:bg-[#f2f7f1] active:scale-[0.97]"
               >
                 Eu quero ajudar
@@ -333,7 +334,7 @@ export default function Home() {
           </div>
           <div className="mt-12 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
-              href="/campaigns"
+                href={primaryContributionPath}
               className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-7 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]"
             >
               <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
@@ -371,7 +372,7 @@ export default function Home() {
           )}
           <div className="mt-12 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
-              href="/campaigns"
+                href={primaryContributionPath}
               className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-7 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]"
             >
               <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
@@ -433,7 +434,7 @@ export default function Home() {
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
-              href="/campaigns"
+                href={primaryContributionPath}
               className="inline-flex min-h-12 items-center justify-center rounded-md bg-white px-7 font-semibold text-[#1f2c29] transition hover:bg-[#f0f5f0] active:scale-[0.97]"
             >
               <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar

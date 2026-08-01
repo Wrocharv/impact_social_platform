@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { and, desc, eq, inArray, like } from "drizzle-orm";
+import { and, desc, eq, inArray, like, or } from "drizzle-orm";
 import {
   campaigns,
   campaignComments,
@@ -11,8 +11,11 @@ import {
 } from "../drizzle/schema";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
+import { listFallbackTrackedMaterialContributions } from "./materialValidationFallback";
 import { storagePut } from "./storage";
 import { whatsappService } from "./whatsapp.service";
+
+const DEFAULT_VIP_APARTMENT_AMOUNT_CENTS = 120_000_00;
 
 const DEMO_CAMPAIGN = {
   id: 100001,
@@ -22,6 +25,7 @@ const DEMO_CAMPAIGN = {
     "A campanha apresenta uma obra real, com evolução de etapas, atualizações de fotos e necessidades concretas de materiais. Apoie a construção do Hotel Recanto de Paz em cada fase.",
   category: "outro" as const,
   goal: 5_000_000,
+  vipApartmentAmountCents: DEFAULT_VIP_APARTMENT_AMOUNT_CENTS,
   imageUrl: "/obra-paredes.jpg",
   createdBy: 1,
   status: "active" as const,
@@ -172,6 +176,27 @@ function withFallbackRecantoContentIfEmpty<T extends {
   };
 }
 
+function withDefaultNeedsIfMissing<T extends {
+  id: number;
+  needs?: Array<Record<string, unknown>>;
+}>(campaign: T): T {
+  const hasNeeds = Array.isArray(campaign.needs) && campaign.needs.length > 0;
+  if (hasNeeds) return campaign;
+
+  return {
+    ...campaign,
+    needs: DEMO_CAMPAIGN.needs.map((need) => ({
+      ...need,
+      campaignId: campaign.id,
+      offeredQuantity: 0,
+      remainingQuantity: need.targetQuantityExact,
+      offeredValueCents: 0,
+      remainingValueCents: need.targetQuantityExact * need.unitValueCents,
+      fulfilled: 0,
+    })),
+  };
+}
+
 function getDemoCampaigns(status?: "active" | "completed") {
   const demoCampaigns = [DEMO_CAMPAIGN].filter((campaign) => {
     return !status || campaign.status === status;
@@ -185,6 +210,20 @@ function getDemoCampaigns(status?: "active" | "completed") {
 }
 
 function getDemoCampaignById(id: number) {
+  if (id === 1) {
+    return {
+      ...DEMO_CAMPAIGN,
+      id,
+      needs: DEMO_CAMPAIGN.needs.map((need) => ({
+        ...need,
+        campaignId: id,
+      })),
+      updates: DEMO_CAMPAIGN.updates.map((update) => ({
+        ...update,
+        campaignId: id,
+      })),
+    };
+  }
   if (id === DEMO_CAMPAIGN.id) return DEMO_CAMPAIGN;
   return null;
 }
@@ -202,6 +241,7 @@ function mapFallbackCampaignToPublicShape(campaign: ReturnType<typeof whatsappSe
     longDescription: campaign.longDescription ?? campaign.description,
     category: campaign.category ?? "outro",
     goal,
+    vipApartmentAmountCents: Math.max(1, Number(campaign.vipApartmentAmountCents ?? DEFAULT_VIP_APARTMENT_AMOUNT_CENTS)),
     imageUrl: campaign.imageUrl ?? "/obra-paredes.jpg",
     createdBy: campaign.createdBy ?? 1,
     status: campaign.status ?? "active",
@@ -213,7 +253,23 @@ function mapFallbackCampaignToPublicShape(campaign: ReturnType<typeof whatsappSe
     progress,
     contributorsCount: 0,
     galleryImages: [campaign.imageUrl ?? "/obra-paredes.jpg"],
-    needs: [],
+    needs: (campaign.needs ?? []).map((need) => ({
+      id: need.id,
+      campaignId: campaign.id,
+      type: need.type,
+      name: need.name,
+      description: need.description ?? null,
+      quantity: need.quantity,
+      targetQuantityExact: need.targetQuantityExact ?? null,
+      unitValueCents: need.unitValueCents ?? null,
+      priority: need.priority,
+      fulfilled: need.fulfilled ?? 0,
+      createdAt: campaign.createdAt,
+      offeredQuantity: 0,
+      remainingQuantity: Math.max(0, Number(need.targetQuantityExact ?? 0)),
+      offeredValueCents: 0,
+      remainingValueCents: Math.max(0, Number(need.targetQuantityExact ?? 0) * Number(need.unitValueCents ?? 0)),
+    })),
     updates: [],
     documents: [],
   };
@@ -251,7 +307,56 @@ function isInternalLocalSeedCampaign(campaign: { id: number; title: string }) {
 
 const PUBLIC_STATUSES = ["active", "completed"] as const;
 const APPROVED_CONTRIBUTION_STATUSES = ["approved", "completed"] as const;
+// Somente contribuições validadas entram no abatimento da meta de material.
 const TRACKED_MATERIAL_STATUSES = ["pending", "approved", "completed"] as const;
+
+function withMaterialProgressFromFallback<T extends { id: number; needs?: any[] }>(campaign: T): T {
+  if (!Array.isArray(campaign.needs) || campaign.needs.length === 0) {
+    return campaign;
+  }
+
+  const materialContributions = listFallbackTrackedMaterialContributions(campaign.id);
+  if (materialContributions.length === 0) {
+    return campaign;
+  }
+
+  const materialProgressByNeed = new Map<number, { offeredQuantity: number; offeredValueCents: number }>();
+
+  materialContributions.forEach((row) => {
+    if (!row.campaignNeedId) return;
+    const current = materialProgressByNeed.get(row.campaignNeedId) ?? { offeredQuantity: 0, offeredValueCents: 0 };
+    current.offeredQuantity += Math.max(0, row.quantityExact ?? 0);
+    current.offeredValueCents += Math.max(0, row.estimatedAmount ?? 0);
+    materialProgressByNeed.set(row.campaignNeedId, current);
+  });
+
+  const needsWithProgress = campaign.needs.map((need) => {
+    const progress = materialProgressByNeed.get(Number(need.id)) ?? { offeredQuantity: 0, offeredValueCents: 0 };
+    const targetQuantityExact = Math.max(0, Number(need.targetQuantityExact ?? 0));
+    const remainingQuantity = Math.max(0, targetQuantityExact - progress.offeredQuantity);
+    const unitValueCents = Math.max(0, Number(need.unitValueCents ?? 0));
+    const fallbackOfferedValue = progress.offeredQuantity * unitValueCents;
+    const offeredValueCents = progress.offeredValueCents > 0 ? progress.offeredValueCents : fallbackOfferedValue;
+    const remainingValueCents = remainingQuantity * unitValueCents;
+    const fulfilledPercent = targetQuantityExact > 0
+      ? Math.min(100, Math.round((progress.offeredQuantity / targetQuantityExact) * 100))
+      : 0;
+
+    return {
+      ...need,
+      fulfilled: fulfilledPercent,
+      offeredQuantity: progress.offeredQuantity,
+      remainingQuantity,
+      offeredValueCents,
+      remainingValueCents,
+    };
+  });
+
+  return {
+    ...campaign,
+    needs: needsWithProgress,
+  };
+}
 
 function isMissingColumnError(error: unknown): boolean {
   const stack = [error];
@@ -386,6 +491,7 @@ const createCampaignSchema = z.object({
   longDescription: z.string().min(50, "Descrição longa deve ter pelo menos 50 caracteres"),
   category: z.enum(["moradia", "educacao", "saude", "alimentacao", "infraestrutura", "outro"]).optional().default("outro"),
   goal: z.number().int().positive("Meta deve ser um valor positivo"),
+  vipApartmentAmountCents: z.number().int().positive("Valor VIP deve ser um valor positivo").default(DEFAULT_VIP_APARTMENT_AMOUNT_CENTS),
   initialRaised: z.number().int().min(0).default(0),
   imageUrl: z.string().optional(),
   needs: z.array(z.object({
@@ -399,15 +505,43 @@ const createCampaignSchema = z.object({
   })).default([]),
 });
 
+const VIP_MEDIA_CONFIG_TITLE = "[VIP_MEDIA_CONFIG]";
+
+function isValidAbsoluteUrl(value: string) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+const vipMediaUrlsSchema = z
+  .array(
+    z
+      .string()
+      .trim()
+      .min(1)
+      .refine(
+        (value) => value.startsWith("/") || isValidAbsoluteUrl(value),
+        "Use uma URL válida (http/https) ou caminho local iniciando com /",
+      ),
+  )
+  .max(10, "Informe no máximo 10 URLs")
+  .default([]);
+
 const updateCampaignSchema = z.object({
   id: z.number().int().positive(),
   title: z.string().min(5).optional(),
   description: z.string().min(20).optional(),
   longDescription: z.string().min(50).optional(),
   goal: z.number().int().positive().optional(),
+  vipApartmentAmountCents: z.number().int().positive().optional(),
   initialRaised: z.number().int().min(0).optional(),
   status: z.enum(["active", "completed", "paused", "archived"]).optional(),
   imageUrl: z.string().nullable().optional(),
+  vipImageUrls: vipMediaUrlsSchema.optional(),
+  vipVideoUrls: vipMediaUrlsSchema.optional(),
 }).refine(({ id: _id, ...changes }) => Object.values(changes).some((value) => value !== undefined), {
   message: "Informe ao menos um campo para atualizar",
 });
@@ -491,6 +625,136 @@ async function requireCampaign(
   }
 }
 
+async function ensureCanonicalRecantoCampaign(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+) {
+  const [existing] = await db
+    .select({ id: campaigns.id })
+    .from(campaigns)
+    .where(
+      or(
+        eq(campaigns.title, DEMO_CAMPAIGN.title),
+        like(campaigns.title, "%Recanto de Paz%"),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    return existing.id;
+  }
+
+  const [createdCampaign] = await db
+    .insert(campaigns)
+    .values({
+      title: DEMO_CAMPAIGN.title,
+      description: DEMO_CAMPAIGN.description,
+      longDescription: DEMO_CAMPAIGN.longDescription,
+      category: DEMO_CAMPAIGN.category,
+      goal: DEMO_CAMPAIGN.goal,
+      vipApartmentAmountCents: DEMO_CAMPAIGN.vipApartmentAmountCents,
+      raised: 0,
+      imageUrl: DEMO_CAMPAIGN.imageUrl,
+      createdBy: DEMO_CAMPAIGN.createdBy,
+      status: DEMO_CAMPAIGN.status,
+    })
+    .$returningId();
+
+  const campaignId = createdCampaign?.id;
+  if (!campaignId) {
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível restaurar a campanha do Recanto." });
+  }
+
+  for (const need of DEMO_CAMPAIGN.needs) {
+    try {
+      await db.insert(campaignNeeds).values({
+        campaignId,
+        type: need.type,
+        name: need.name,
+        description: need.description,
+        quantity: need.quantity,
+        targetQuantityExact: need.targetQuantityExact,
+        unitValueCents: need.unitValueCents,
+        priority: need.priority,
+        fulfilled: need.fulfilled,
+      });
+    } catch (error) {
+      if (!isMissingColumnError(error)) throw error;
+
+      await db.insert(campaignNeeds).values({
+        campaignId,
+        type: need.type,
+        name: need.name,
+        description: need.description,
+        quantity: need.quantity,
+        priority: need.priority,
+        fulfilled: need.fulfilled,
+      });
+    }
+  }
+
+  await db.insert(campaignUpdates).values(
+    DEMO_CAMPAIGN.updates.map((update) => ({
+      campaignId,
+      title: update.title,
+      description: update.description,
+      phase: update.phase,
+      imageUrls: JSON.stringify(update.images ?? []),
+      videoUrls: JSON.stringify(update.videoUrls ?? []),
+    })),
+  );
+
+  return campaignId;
+}
+
+async function loadCampaignNeedsWithLegacyFallback(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  campaignId: number,
+) {
+  try {
+    return await db
+      .select({
+        id: campaignNeeds.id,
+        campaignId: campaignNeeds.campaignId,
+        type: campaignNeeds.type,
+        name: campaignNeeds.name,
+        description: campaignNeeds.description,
+        quantity: campaignNeeds.quantity,
+        targetQuantityExact: campaignNeeds.targetQuantityExact,
+        unitValueCents: campaignNeeds.unitValueCents,
+        priority: campaignNeeds.priority,
+        fulfilled: campaignNeeds.fulfilled,
+        createdAt: campaignNeeds.createdAt,
+      })
+      .from(campaignNeeds)
+      .where(eq(campaignNeeds.campaignId, campaignId))
+      .orderBy(desc(campaignNeeds.priority));
+  } catch (error) {
+    if (!isMissingColumnError(error)) throw error;
+
+    const legacyNeeds = await db
+      .select({
+        id: campaignNeeds.id,
+        campaignId: campaignNeeds.campaignId,
+        type: campaignNeeds.type,
+        name: campaignNeeds.name,
+        description: campaignNeeds.description,
+        quantity: campaignNeeds.quantity,
+        priority: campaignNeeds.priority,
+        fulfilled: campaignNeeds.fulfilled,
+        createdAt: campaignNeeds.createdAt,
+      })
+      .from(campaignNeeds)
+      .where(eq(campaignNeeds.campaignId, campaignId))
+      .orderBy(desc(campaignNeeds.priority));
+
+    return legacyNeeds.map((need) => ({
+      ...need,
+      targetQuantityExact: null,
+      unitValueCents: null,
+    }));
+  }
+}
+
 export const campaignsRouter = router({
   uploadImage: adminProcedure
     .input(uploadCampaignImageSchema)
@@ -536,7 +800,13 @@ export const campaignsRouter = router({
     if (!db) {
       // Admin sem DB deve mostrar apenas campanhas realmente editaveis no fallback local.
       const fallbackCampaigns = getMappedFallbackCampaigns();
-      if (fallbackCampaigns.length === 0) {
+      const demoCampaigns = getDemoCampaigns();
+      const mergedCampaigns = dedupeCampaignsById([
+        ...fallbackCampaigns,
+        ...demoCampaigns,
+      ]).sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+
+      if (mergedCampaigns.length === 0) {
         const seededCampaign = whatsappService.createFallbackCampaign({
           title: "Campanha Local Inicial",
           description: "Campanha criada automaticamente no modo local para permitir edicao e testes do painel admin.",
@@ -551,9 +821,7 @@ export const campaignsRouter = router({
         return [mapFallbackCampaignToPublicShape(seededCampaign)];
       }
 
-      return dedupeCampaignsById(fallbackCampaigns).sort(
-        (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
-      );
+      return mergedCampaigns;
     }
 
     const rows = await db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
@@ -600,6 +868,8 @@ export const campaignsRouter = router({
         return mergedCampaigns.slice(0, input?.limit ?? 12);
       }
 
+      await ensureCanonicalRecantoCampaign(db);
+
       const statusCondition = input?.status
         ? eq(campaigns.status, input.status)
         : inArray(campaigns.status, PUBLIC_STATUSES);
@@ -624,21 +894,7 @@ export const campaignsRouter = router({
         ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
       }));
 
-      const normalizedQuery = input?.query?.trim().toLowerCase();
-      const hasRecantoInDb = publishedRows.some((campaign) => isCanonicalRecantoCampaign(campaign));
-      const demoCampaigns = hasRecantoInDb
-        ? []
-        : getDemoCampaigns(input?.status).filter((campaign) => {
-            if (!normalizedQuery) return true;
-            return campaign.title.toLowerCase().includes(normalizedQuery);
-          });
-
-      const mergedCampaigns = dedupeCampaignsById([
-        ...publishedRows,
-        ...demoCampaigns,
-      ]).sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
-
-      return mergedCampaigns.slice(0, input?.limit ?? 12);
+      return dedupeCampaignsById(publishedRows).slice(0, input?.limit ?? 12);
     }),
 
   getPublicStats: publicProcedure.query(async () => {
@@ -657,6 +913,8 @@ export const campaignsRouter = router({
         contributorsCount: mergedActiveCampaigns.reduce((sum, campaign) => sum + campaign.contributorsCount, 0),
       };
     }
+
+    await ensureCanonicalRecantoCampaign(db);
 
     const activeCampaigns = await db
       .select({ id: campaigns.id, goal: campaigns.goal, initialRaised: campaigns.raised })
@@ -689,45 +947,43 @@ export const campaignsRouter = router({
       const db = await getDb();
       if (!db) {
         const demoCampaign = getDemoCampaignById(input.id);
-        if (demoCampaign) return demoCampaign;
+        if (demoCampaign) return withMaterialProgressFromFallback(demoCampaign);
 
         const fallbackCampaign = getMappedFallbackCampaigns().find((campaign) => campaign.id === input.id);
-        return fallbackCampaign ?? null;
+        if (!fallbackCampaign) return null;
+
+        return withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaign));
       }
+
+      const canonicalRecantoId = await ensureCanonicalRecantoCampaign(db);
+      const campaignId = input.id === DEMO_CAMPAIGN.id ? canonicalRecantoId : input.id;
 
       const result = await db
         .select()
         .from(campaigns)
         .where(
           and(
-            eq(campaigns.id, input.id),
+            eq(campaigns.id, campaignId),
             inArray(campaigns.status, PUBLIC_STATUSES),
           ),
         )
         .limit(1);
       const campaign = result[0];
-      if (!campaign) {
-        const demoCampaign = getDemoCampaignById(input.id);
-        return demoCampaign ?? null;
-      }
+      if (!campaign) return null;
 
       const [updates, needs, documents, metrics, materialContributions] = await Promise.all([
         db
           .select()
           .from(campaignUpdates)
-          .where(eq(campaignUpdates.campaignId, input.id))
+          .where(eq(campaignUpdates.campaignId, campaign.id))
           .orderBy(desc(campaignUpdates.createdAt)),
-        db
-          .select()
-          .from(campaignNeeds)
-          .where(eq(campaignNeeds.campaignId, input.id))
-          .orderBy(desc(campaignNeeds.priority)),
+        loadCampaignNeedsWithLegacyFallback(db, campaign.id),
         db
           .select()
           .from(transparencyDocuments)
-          .where(eq(transparencyDocuments.campaignId, input.id))
+          .where(eq(transparencyDocuments.campaignId, campaign.id))
           .orderBy(desc(transparencyDocuments.uploadedAt)),
-        loadCampaignMetrics(db, [input.id]),
+        loadCampaignMetrics(db, [campaign.id]),
         (async () => {
           try {
             return await db
@@ -739,7 +995,7 @@ export const campaignsRouter = router({
               .from(contributions)
               .where(
                 and(
-                  eq(contributions.campaignId, input.id),
+                  eq(contributions.campaignId, campaign.id),
                   eq(contributions.type, "material"),
                   inArray(contributions.status, TRACKED_MATERIAL_STATUSES),
                 ),
@@ -751,11 +1007,15 @@ export const campaignsRouter = router({
         })(),
       ]);
       const campaignMetrics =
-        metrics.get(input.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, []);
+        metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, []);
+      const vipMediaConfigUpdate = updates.find((update) => update.title === VIP_MEDIA_CONFIG_TITLE);
+      const vipMediaImages = vipMediaConfigUpdate ? parseMediaUrls(vipMediaConfigUpdate.imageUrls) : [];
+      const vipMediaVideos = vipMediaConfigUpdate ? parseMediaUrls(vipMediaConfigUpdate.videoUrls) : [];
       const galleryImages = Array.from(
         new Set(
           [
             campaign.imageUrl,
+            ...vipMediaImages,
             ...updates.flatMap((update) => parseMediaUrls(update.imageUrls)),
           ].filter((url): url is string => Boolean(url)),
         ),
@@ -803,6 +1063,8 @@ export const campaignsRouter = router({
           images: parseMediaUrls(update.imageUrls),
           videos: parseMediaUrls(update.videoUrls),
         })),
+        vipMediaImages,
+        vipMediaVideos,
         needs: needsWithProgress,
         documents,
         galleryImages,
@@ -820,9 +1082,11 @@ export const campaignsRouter = router({
           description: input.description,
           category: "outro",
           goal: input.goal,
+          vipApartmentAmountCents: input.vipApartmentAmountCents,
           raised: input.initialRaised,
           longDescription: input.longDescription,
           imageUrl: input.imageUrl,
+          needs: input.needs,
         });
         return { success: true, message: "Campanha criada com sucesso!" };
       }
@@ -838,6 +1102,7 @@ export const campaignsRouter = router({
         longDescription: input.longDescription,
         category: input.category,
         goal: input.goal,
+        vipApartmentAmountCents: input.vipApartmentAmountCents,
         raised: input.initialRaised,
         imageUrl: input.imageUrl,
         createdBy: userId,
@@ -884,6 +1149,7 @@ export const campaignsRouter = router({
           description: input.description,
           longDescription: input.longDescription,
           goal: input.goal,
+          vipApartmentAmountCents: input.vipApartmentAmountCents,
           raised: input.initialRaised,
           imageUrl: input.imageUrl ?? undefined,
           status:
@@ -902,7 +1168,7 @@ export const campaignsRouter = router({
         return { success: true, message: "Campanha atualizada com sucesso!" };
       }
 
-      const { id, initialRaised, ...updateData } = input;
+      const { id, initialRaised, vipImageUrls, vipVideoUrls, ...updateData } = input;
       await requireCampaign(db, id);
       const endDate = input.status
         ? input.status === "completed"
@@ -913,6 +1179,26 @@ export const campaignsRouter = router({
         .update(campaigns)
         .set({ ...updateData, raised: initialRaised, endDate, updatedAt: new Date() })
         .where(eq(campaigns.id, id));
+
+      if (vipImageUrls !== undefined || vipVideoUrls !== undefined) {
+        await db
+          .delete(campaignUpdates)
+          .where(and(eq(campaignUpdates.campaignId, id), eq(campaignUpdates.title, VIP_MEDIA_CONFIG_TITLE)));
+
+        const nextVipImages = vipImageUrls ?? [];
+        const nextVipVideos = vipVideoUrls ?? [];
+        if (nextVipImages.length > 0 || nextVipVideos.length > 0) {
+          await db.insert(campaignUpdates).values({
+            campaignId: id,
+            title: VIP_MEDIA_CONFIG_TITLE,
+            description: "Configuração interna da vitrine VIP",
+            phase: "during",
+            imageUrls: nextVipImages.length > 0 ? JSON.stringify(nextVipImages) : undefined,
+            videoUrls: nextVipVideos.length > 0 ? JSON.stringify(nextVipVideos) : undefined,
+          });
+        }
+      }
+
       return { success: true, message: "Campanha atualizada com sucesso!" };
     }),
 
@@ -971,25 +1257,75 @@ export const campaignsRouter = router({
     .input(createCampaignNeedSchema)
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database not available");
+      if (!db) {
+        const added = whatsappService.addFallbackCampaignNeed(input.campaignId, {
+          type: input.type,
+          name: input.name,
+          description: input.description,
+          quantity: input.quantity,
+          targetQuantityExact: input.targetQuantityExact,
+          unitValueCents: input.unitValueCents,
+          priority: input.priority,
+        });
 
-      await requireCampaign(db, input.campaignId);
+        if (!added) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Campanha não encontrada no modo local.",
+          });
+        }
+
+        return { success: true, message: "Necessidade criada com sucesso!" };
+      }
+
+      const saveNeedInFallback = () => {
+        const addedFallbackNeed = whatsappService.addFallbackCampaignNeed(input.campaignId, {
+          type: input.type,
+          name: input.name,
+          description: input.description,
+          quantity: input.quantity,
+          targetQuantityExact: input.targetQuantityExact,
+          unitValueCents: input.unitValueCents,
+          priority: input.priority,
+        });
+        return Boolean(addedFallbackNeed);
+      };
+
+      try {
+        await requireCampaign(db, input.campaignId);
+      } catch (error) {
+        if (error instanceof TRPCError && error.code === "NOT_FOUND") {
+          if (saveNeedInFallback()) {
+            return { success: true, message: "Necessidade criada com sucesso!" };
+          }
+        }
+
+        throw error;
+      }
+
       try {
         await db.insert(campaignNeeds).values({
           ...input,
           quantity: input.quantity,
         });
       } catch (error) {
-        if (!isMissingColumnError(error)) throw error;
+        if (isMissingColumnError(error)) {
+          await db.insert(campaignNeeds).values({
+            campaignId: input.campaignId,
+            type: input.type,
+            name: input.name,
+            description: input.description,
+            quantity: input.quantity,
+            priority: input.priority,
+          });
+          return { success: true, message: "Necessidade criada com sucesso!" };
+        }
 
-        await db.insert(campaignNeeds).values({
-          campaignId: input.campaignId,
-          type: input.type,
-          name: input.name,
-          description: input.description,
-          quantity: input.quantity,
-          priority: input.priority,
-        });
+        if (saveNeedInFallback()) {
+          return { success: true, message: "Necessidade criada com sucesso!" };
+        }
+
+        throw error;
       }
       return { success: true, message: "Necessidade criada com sucesso!" };
     }),
@@ -998,11 +1334,47 @@ export const campaignsRouter = router({
     .input(z.object({ campaignId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database not available");
-      return db
-        .select()
-        .from(campaignNeeds)
-        .where(eq(campaignNeeds.campaignId, input.campaignId));
+      if (!db) {
+        const fallbackCampaign = whatsappService
+          .getFallbackCampaigns()
+          .find((campaign) => campaign.id === input.campaignId);
+
+        return (fallbackCampaign?.needs ?? []).map((need) => ({
+          id: need.id,
+          campaignId: input.campaignId,
+          type: need.type,
+          name: need.name,
+          description: need.description ?? null,
+          quantity: need.quantity,
+          targetQuantityExact: need.targetQuantityExact ?? null,
+          unitValueCents: need.unitValueCents ?? null,
+          priority: need.priority,
+          fulfilled: need.fulfilled ?? 0,
+          createdAt: fallbackCampaign?.createdAt ?? new Date(),
+        }));
+      }
+      const dbNeeds = await loadCampaignNeedsWithLegacyFallback(db, input.campaignId);
+      if (dbNeeds.length > 0) return dbNeeds;
+
+      const fallbackCampaign = whatsappService
+        .getFallbackCampaigns()
+        .find((campaign) => campaign.id === input.campaignId);
+
+      if (!fallbackCampaign) return dbNeeds;
+
+      return (fallbackCampaign.needs ?? []).map((need) => ({
+        id: need.id,
+        campaignId: input.campaignId,
+        type: need.type,
+        name: need.name,
+        description: need.description ?? null,
+        quantity: need.quantity,
+        targetQuantityExact: need.targetQuantityExact ?? null,
+        unitValueCents: need.unitValueCents ?? null,
+        priority: need.priority,
+        fulfilled: need.fulfilled ?? 0,
+        createdAt: fallbackCampaign.createdAt,
+      }));
     }),
 
   getComments: publicProcedure

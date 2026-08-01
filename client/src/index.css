@@ -64,7 +64,7 @@
   --popover: 255 255 255;
   --popover-foreground: 45 45 45;
   --muted: 120 120 120; /* Cinza médio */
-  --muted-foreground: 255 255 255;
+  --muted-foreground: 92 105 97; /* Texto secundário legível em fundo claro */
   --border: 220 220 220; /* Cinza claro */
   --input: 255 255 255;
   --ring: 34 139 34; /* Verde profundo */
@@ -103,7 +103,7 @@
   --popover: 30 30 30;
   --popover-foreground: 245 245 245;
   --muted: 150 150 150;
-  --muted-foreground: 30 30 30;
+  --muted-foreground: 220 220 220;
   --border: 60 60 60;
   --input: 40 40 40;
   --sidebar: 26 107 26;

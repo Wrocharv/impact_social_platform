@@ -4,9 +4,20 @@ import { InsertUser, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let hasLoggedMissingDatabaseUrl = false;
+let hasLoggedNoDbUpsert = false;
+let hasLoggedNoDbGetUser = false;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
+  if (!_db && !process.env.DATABASE_URL) {
+    if (!hasLoggedMissingDatabaseUrl) {
+      console.warn("[Database] DATABASE_URL not configured. Running in fallback mode without persistence.");
+      hasLoggedMissingDatabaseUrl = true;
+    }
+    return null;
+  }
+
   if (!_db && process.env.DATABASE_URL) {
     try {
       _db = drizzle(process.env.DATABASE_URL);
@@ -25,7 +36,10 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
+    if (!hasLoggedNoDbUpsert) {
+      console.warn("[Database] Cannot upsert user: database not available");
+      hasLoggedNoDbUpsert = true;
+    }
     return;
   }
 
@@ -83,7 +97,10 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
+    if (!hasLoggedNoDbGetUser) {
+      console.warn("[Database] Cannot get user: database not available");
+      hasLoggedNoDbGetUser = true;
+    }
     return undefined;
   }
 

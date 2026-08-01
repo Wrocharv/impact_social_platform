@@ -17,6 +17,77 @@ const formatDate = (value: Date | string | null) => {
   return new Date(value).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
 };
 
+type CampaignVideoSource =
+  | { kind: "embed"; src: string; title: string }
+  | { kind: "file"; src: string; mimeType: string; title: string };
+
+function toCampaignVideoSource(rawValue: string, fallbackTitle: string): CampaignVideoSource | null {
+  const value = rawValue.trim();
+  if (!value) return null;
+  const lowered = value.toLowerCase();
+
+  if (value.startsWith("/") || /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/.test(lowered)) {
+    const extension = lowered.match(/\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/)?.[1] ?? "mp4";
+    const mimeType = extension === "webm"
+      ? "video/webm"
+      : extension === "ogg"
+        ? "video/ogg"
+        : "video/mp4";
+    return {
+      kind: "file",
+      src: value,
+      mimeType,
+      title: fallbackTitle,
+    };
+  }
+
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+
+    if (host.includes("youtu.be")) {
+      const id = url.pathname.replace(/^\//, "");
+      if (id) {
+        return {
+          kind: "embed",
+          src: `https://www.youtube.com/embed/${id}`,
+          title: fallbackTitle,
+        };
+      }
+    }
+
+    if (host.includes("youtube.com")) {
+      if (url.pathname.startsWith("/embed/")) {
+        return { kind: "embed", src: url.toString(), title: fallbackTitle };
+      }
+
+      const id = url.searchParams.get("v");
+      if (id) {
+        return {
+          kind: "embed",
+          src: `https://www.youtube.com/embed/${id}`,
+          title: fallbackTitle,
+        };
+      }
+    }
+
+    if (host.includes("vimeo.com")) {
+      const id = url.pathname.split("/").filter(Boolean).pop();
+      if (id) {
+        return {
+          kind: "embed",
+          src: `https://player.vimeo.com/video/${id}`,
+          title: fallbackTitle,
+        };
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 export default function CampaignDetail() {
   const [, params] = useRoute("/campaign/:id");
   const campaignId = Number(params?.id ?? 0);
@@ -111,7 +182,7 @@ export default function CampaignDetail() {
           {/* BOTÕES DE AÇÃO - Em Cima */}
           <div className="grid gap-3 sm:grid-cols-2">
             {campaign.status === "active" ? (
-              <Link href={`/contribute/items/${campaign.id}`} className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
+              <Link href={`/contribute/help/${campaign.id}`} className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
                 <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
               </Link>
             ) : (
@@ -168,11 +239,12 @@ export default function CampaignDetail() {
             </div>
 
             <Tabs defaultValue="gallery">
-              <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-[#edf2ec] p-1 sm:grid-cols-4">
+              <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-[#edf2ec] p-1 sm:grid-cols-5">
                 <TabsTrigger value="gallery">Galeria</TabsTrigger>
                 <TabsTrigger value="timeline">Atualizações</TabsTrigger>
+                <TabsTrigger value="videos">Vídeos</TabsTrigger>
                 <TabsTrigger value="needs">Necessidades</TabsTrigger>
-                <TabsTrigger value="comments">Mural</TabsTrigger>
+                <TabsTrigger value="comments">Depoimentos</TabsTrigger>
               </TabsList>
 
               <TabsContent value="gallery" className="mt-6">
@@ -212,8 +284,82 @@ export default function CampaignDetail() {
                         ))}
                       </div>
                     )}
+                    {Array.isArray((update as { videos?: string[] }).videos) && (update as { videos?: string[] }).videos!.length > 0 && (
+                      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                        {(update as { videos?: string[] }).videos!.map((videoUrl) => {
+                          const source = toCampaignVideoSource(videoUrl, `Vídeo da atualização: ${update.title}`);
+                          if (!source) return null;
+
+                          return (
+                            <div key={videoUrl} className="aspect-video overflow-hidden rounded-lg border border-[#dfe7dd] bg-[#f6faf5]">
+                              {source.kind === "embed" ? (
+                                <iframe
+                                  className="h-full w-full"
+                                  src={source.src}
+                                  title={source.title}
+                                  loading="lazy"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                  referrerPolicy="strict-origin-when-cross-origin"
+                                  allowFullScreen
+                                />
+                              ) : (
+                                <video className="h-full w-full bg-black" controls preload="metadata" playsInline>
+                                  <source src={source.src} type={source.mimeType} />
+                                </video>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </Card>
                 )) : <EmptySection title="Ainda não há atualizações publicadas" description="A linha do tempo ficará pronta para mostrar cada etapa da obra, desde a preparação até a conclusão." />}
+              </TabsContent>
+
+              <TabsContent value="videos" className="mt-6 space-y-4">
+                {campaign.updates.some((update) => Array.isArray((update as { videos?: string[] }).videos) && (update as { videos?: string[] }).videos!.length > 0) ? (
+                  campaign.updates.map((update) => {
+                    const rawVideos = Array.isArray((update as { videos?: string[] }).videos)
+                      ? (update as { videos?: string[] }).videos!
+                      : [];
+                    if (rawVideos.length === 0) return null;
+
+                    return (
+                      <Card key={`video-${update.id}`} className="p-6">
+                        <h3 className="text-xl font-bold text-[#2d2d2d]">{update.title}</h3>
+                        <p className="mt-2 text-sm text-[#656565]">{formatDate(update.createdAt)}</p>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          {rawVideos.map((videoUrl) => {
+                            const source = toCampaignVideoSource(videoUrl, `Vídeo da campanha: ${campaign.title}`);
+                            if (!source) return null;
+
+                            return (
+                              <div key={videoUrl} className="aspect-video overflow-hidden rounded-lg border border-[#dfe7dd] bg-[#f6faf5]">
+                                {source.kind === "embed" ? (
+                                  <iframe
+                                    className="h-full w-full"
+                                    src={source.src}
+                                    title={source.title}
+                                    loading="lazy"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    referrerPolicy="strict-origin-when-cross-origin"
+                                    allowFullScreen
+                                  />
+                                ) : (
+                                  <video className="h-full w-full bg-black" controls preload="metadata" playsInline>
+                                    <source src={source.src} type={source.mimeType} />
+                                  </video>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </Card>
+                    );
+                  })
+                ) : (
+                  <EmptySection title="Vídeos da campanha em breve" description="Os vídeos desta campanha serão publicados aqui conforme as próximas etapas forem registradas." />
+                )}
               </TabsContent>
 
               <TabsContent value="needs" className="mt-6 space-y-4">
@@ -262,7 +408,7 @@ export default function CampaignDetail() {
           {/* BOTÕES DE AÇÃO */}
           <div className="grid gap-3 sm:grid-cols-2">
             {campaign.status === "active" ? (
-              <Link href={`/contribute/items/${campaign.id}`} className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
+              <Link href={`/contribute/help/${campaign.id}`} className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
               <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
               </Link>
             ) : (
