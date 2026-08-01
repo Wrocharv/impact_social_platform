@@ -279,8 +279,8 @@ export default function AdminMobilePage() {
                             const targetQuantityExact = Number.parseInt(needForm.targetQuantityExact, 10);
                             const unitValueCents = parseCurrencyToCents(needForm.unitValue);
 
-                            if (!needForm.name || !needForm.description || !targetQuantityExact || targetQuantityExact <= 0 || !unitValueCents || unitValueCents <= 0) {
-                              toast.error("Preencha nome, descrição, meta exata e valor unitário");
+                            if (!needForm.name || !needForm.description || !needForm.quantity || !targetQuantityExact || targetQuantityExact <= 0 || !unitValueCents || unitValueCents <= 0) {
+                              toast.error("Preencha nome, descrição, quantidade textual, meta exata e valor unitário");
                               return;
                             }
                             createNeedMutation.mutate({
@@ -288,7 +288,7 @@ export default function AdminMobilePage() {
                               type: needForm.type,
                               name: needForm.name,
                               description: needForm.description,
-                              quantity: needForm.quantity || undefined,
+                              quantity: needForm.quantity.trim(),
                               targetQuantityExact,
                               unitValueCents,
                               priority: needForm.priority,

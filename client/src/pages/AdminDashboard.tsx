@@ -379,12 +379,17 @@ export default function AdminDashboard() {
       return;
     }
 
+    if (!campaignNeedForm.quantity.trim()) {
+      toast.error("Preencha manualmente a quantidade textual do item");
+      return;
+    }
+
     createCampaignNeed.mutate({
       campaignId: selectedCampaign.id,
       type: campaignNeedForm.type,
       name: campaignNeedForm.name,
       description: campaignNeedForm.description || undefined,
-      quantity: campaignNeedForm.quantity || undefined,
+      quantity: campaignNeedForm.quantity.trim(),
       targetQuantityExact,
       unitValueCents,
       priority: campaignNeedForm.priority,
@@ -833,7 +838,7 @@ export default function AdminDashboard() {
                 <Field label="Meta exata (unidades) *"><Input type="number" min={1} step={1} value={campaignNeedForm.targetQuantityExact} onChange={(event) => setCampaignNeedForm({ ...campaignNeedForm, targetQuantityExact: event.target.value })} required placeholder="Ex.: 3700" /></Field>
                 <Field label="Valor unitário (R$) *"><Input inputMode="decimal" value={campaignNeedForm.unitValue} onChange={(event) => setCampaignNeedForm({ ...campaignNeedForm, unitValue: event.target.value })} required placeholder="Ex.: 1,80" /></Field>
               </div>
-              <Field label="Quantidade textual (opcional)"><Input value={campaignNeedForm.quantity} onChange={(event) => setCampaignNeedForm({ ...campaignNeedForm, quantity: event.target.value })} placeholder="Ex.: 3.700 unidades" /></Field>
+              <Field label="Quantidade textual *"><Input value={campaignNeedForm.quantity} onChange={(event) => setCampaignNeedForm({ ...campaignNeedForm, quantity: event.target.value })} required placeholder="Ex.: 3.700 unidades" /></Field>
               <Field label="Descrição"><Textarea value={campaignNeedForm.description} onChange={(event) => setCampaignNeedForm({ ...campaignNeedForm, description: event.target.value })} rows={4} /></Field>
               <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={closeCampaignNeedDialog}>Cancelar</Button><Button type="submit" disabled={createCampaignNeed.isPending}>{createCampaignNeed.isPending ? "Salvando..." : "Cadastrar necessidade"}</Button></div>
             </form>

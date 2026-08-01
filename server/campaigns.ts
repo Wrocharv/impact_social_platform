@@ -395,7 +395,7 @@ const createCampaignNeedSchema = z.object({
   type: z.enum(["material", "labor", "equipment", "other"]),
   name: z.string().min(3),
   description: z.string().optional(),
-  quantity: z.string().min(1).optional(),
+  quantity: z.string().trim().min(1, "Quantidade textual deve ser preenchida manualmente"),
   targetQuantityExact: z.number().int().positive("Meta exata deve ser maior que zero"),
   unitValueCents: z.number().int().positive("Valor unitário deve ser maior que zero"),
   priority: z.enum(["high", "medium", "low"]).default("medium"),
@@ -912,7 +912,7 @@ export const campaignsRouter = router({
       try {
         await db.insert(campaignNeeds).values({
           ...input,
-          quantity: input.quantity ?? `${input.targetQuantityExact} unidades`,
+          quantity: input.quantity,
         });
       } catch (error) {
         if (!isMissingColumnError(error)) throw error;
@@ -922,7 +922,7 @@ export const campaignsRouter = router({
           type: input.type,
           name: input.name,
           description: input.description,
-          quantity: input.quantity ?? `${input.targetQuantityExact} unidades`,
+          quantity: input.quantity,
           priority: input.priority,
         });
       }
