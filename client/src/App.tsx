@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import CampaignDetail from "./pages/CampaignDetail";
 import ContributionPage from "./pages/ContributionPage";
 import ContributionWizardPage from "./pages/ContributionWizardPage";
+import ContributionNeedsPage from "./pages/ContributionNeedsPage";
 import ContributionConfirmationPage from "./pages/ContributionConfirmationPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminMobilePage from "./pages/AdminMobilePage";
@@ -31,6 +32,7 @@ function Router() {
       <Route path={"/partner/:id"} component={PartnerSpotlightPage} />
       <Route path={"/donors"} component={DonorsPage} />
       <Route path={"/contribute/wizard/:id"} component={ContributionWizardPage} />
+      <Route path={"/contribute/items/:id"} component={ContributionNeedsPage} />
       <Route path={"/contribute/confirmation"} component={ContributionConfirmationPage} />
       <Route path={"/contribute/:id"} component={ContributionPage} />
       <Route path={"/checkout/:campaignId"} component={CheckoutPage} />

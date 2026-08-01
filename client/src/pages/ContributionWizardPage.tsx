@@ -34,6 +34,7 @@ interface WizardState {
   installmentFrequency?: InstallmentFrequency;
   startDate: string;
   // Material
+  materialNeedId?: number;
   materialDescription: string;
   materialQuantity: string;
   materialDeliveryFrequency: DeliveryFrequency;
@@ -58,6 +59,9 @@ export default function ContributionWizardPage() {
     { enabled: Number.isInteger(campaignId) && campaignId > 0 },
   );
 
+  const initialType = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("type") : null;
+  const initialNeedId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("needId") : null;
+
   const [step, setStep] = useState<Step>("type");
   const [lastLookupKey, setLastLookupKey] = useState("");
   const [state, setState] = useState<WizardState>({
@@ -70,6 +74,7 @@ export default function ContributionWizardPage() {
     allowPublicDisplay: false,
     recurrence: "unique",
     startDate: new Date().toISOString().split("T")[0],
+    materialNeedId: undefined,
     materialDescription: "",
     materialQuantity: "",
     materialDeliveryFrequency: "unique",
@@ -91,6 +96,20 @@ export default function ContributionWizardPage() {
       }));
     }
   }, [isLoaded, currentDonor]);
+
+  useEffect(() => {
+    if (!initialType && !initialNeedId) return;
+
+    setState((prev) => ({
+      ...prev,
+      type: initialType === "financial" || initialType === "material" || initialType === "volunteer" ? initialType : prev.type,
+      materialNeedId: initialNeedId ? Number(initialNeedId) : prev.materialNeedId,
+    }));
+
+    if (initialType === "material" || initialType === "financial" || initialType === "volunteer") {
+      setStep("donor-info");
+    }
+  }, [initialType, initialNeedId]);
 
   useEffect(() => {
     if (step !== "donor-info") return;
@@ -228,6 +247,7 @@ export default function ContributionWizardPage() {
       if (state.type === "material") {
         await createMaterial.mutateAsync({
           campaignId,
+          campaignNeedId: state.materialNeedId,
           description: state.materialDescription,
           donorName: state.donorName,
           donorWhatsapp: state.donorWhatsapp,
@@ -283,6 +303,7 @@ export default function ContributionWizardPage() {
   };
 
   const campaign = campaignQuery.data;
+  const campaignNeeds = campaign?.needs ?? [];
   const loading = createMaterial.isPending || createVolunteer.isPending || createPayment.isPending;
 
   return (
@@ -350,6 +371,20 @@ export default function ContributionWizardPage() {
               </div>
             </CardHeader>
             <CardContent>
+              {campaignNeeds.length > 0 && (
+                <div className="mb-6 rounded-lg border border-[#d5dfd3] bg-[#f5f8f4] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#35523a]">De acordo com a lista da campanha</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {campaignNeeds.map((need) => (
+                      <div key={need.id} className="rounded-md border border-[#e1e8df] bg-white px-3 py-2 text-sm">
+                        <span className="font-semibold text-[#2d2d2d]">{need.name.toUpperCase()}</span>
+                        <span className="text-[#5f6f61]">: {need.quantity || "A DEFINIR"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* STEP 1: Tipo de Contribuição */}
               {step === "type" && (
                 <div className="space-y-4">
@@ -617,6 +652,28 @@ export default function ContributionWizardPage() {
                   {state.type === "material" && (
                     <>
                       <p className="text-sm text-gray-600 mb-6">Descreva o material que você gostaria de doar:</p>
+                      {campaignNeeds.length > 0 && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Item da lista (opcional)</label>
+                          <Select
+                            value={state.materialNeedId ? String(state.materialNeedId) : ""}
+                            onValueChange={(value) => setState({ ...state, materialNeedId: value ? Number(value) : undefined })}
+                            disabled={loading}
+                          >
+                            <SelectTrigger className="bg-white">
+                              <SelectValue placeholder="Escolha um item da lista" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                              {campaignNeeds.map((need) => (
+                                <SelectItem key={need.id} value={String(need.id)}>
+                                  {need.name}{need.quantity ? `: ${need.quantity}` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
                         <Textarea

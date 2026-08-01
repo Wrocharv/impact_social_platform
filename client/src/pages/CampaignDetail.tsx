@@ -50,6 +50,8 @@ export default function CampaignDetail() {
     return <CampaignState title="Campanha não encontrada" description="Ela pode não estar publicada ou ter sido arquivada." />;
   }
 
+  const hasHeroImage = Boolean(campaign.galleryImages[0]);
+
   return (
     <div className="min-h-screen bg-[#f8faf7]">
       <PublicHeader />
@@ -61,15 +63,21 @@ export default function CampaignDetail() {
         </div>
       </div>
 
-      <section className="relative min-h-[240px] overflow-hidden bg-[#dcebd9] md:min-h-[280px]">
-        {campaign.galleryImages[0] ? (
+      <section className={`relative min-h-[240px] overflow-hidden ${hasHeroImage ? "bg-[#dcebd9]" : "bg-[#1c2e25]"} md:min-h-[280px]`}>
+        {hasHeroImage ? (
           <img src={campaign.galleryImages[0]} alt={`Imagem principal de ${campaign.title}`} className="absolute inset-0 h-full w-full object-cover" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <Heart className="h-24 w-24 text-[#228B22]/35" aria-hidden="true" />
+            <Heart className="h-24 w-24 text-white/20" aria-hidden="true" />
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+        <div
+          className={`absolute inset-0 ${
+            hasHeroImage
+              ? "bg-gradient-to-t from-black/75 via-black/20 to-transparent"
+              : "bg-gradient-to-t from-black/80 via-black/45 to-black/25"
+          }`}
+        />
         <div className="container relative flex min-h-[240px] max-w-7xl flex-col items-center justify-start px-4 pt-6 text-center md:min-h-[280px] md:pt-8">
           <div className="mx-auto max-w-4xl text-white">
             <span className="mb-2 inline-flex rounded-full bg-[#228B22] px-4 py-1 text-sm font-semibold">
@@ -103,7 +111,7 @@ export default function CampaignDetail() {
           {/* BOTÕES DE AÇÃO - Em Cima */}
           <div className="grid gap-3 sm:grid-cols-2">
             {campaign.status === "active" ? (
-              <Link href={`/contribute/wizard/${campaign.id}`} className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
+              <Link href={`/contribute/items/${campaign.id}`} className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
                 <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
               </Link>
             ) : (
@@ -254,7 +262,7 @@ export default function CampaignDetail() {
           {/* BOTÕES DE AÇÃO */}
           <div className="grid gap-3 sm:grid-cols-2">
             {campaign.status === "active" ? (
-              <Link href={`/contribute/wizard/${campaign.id}`} className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
+              <Link href={`/contribute/items/${campaign.id}`} className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]">
               <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
               </Link>
             ) : (
