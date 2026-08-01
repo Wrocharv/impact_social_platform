@@ -137,8 +137,11 @@ export default function Home() {
   const statsQuery = trpc.campaigns.getPublicStats.useQuery();
   const partnersQuery = trpc.partners.listPublished.useQuery();
   const presentationVideoSource = useMemo(() => {
-    const configured = (import.meta.env.VITE_HOME_PRESENTATION_VIDEO_URL || DEFAULT_HOME_PRESENTATION_VIDEO_URL).trim();
-    return toPresentationVideoSource(configured);
+    const configured = (import.meta.env.VITE_HOME_PRESENTATION_VIDEO_URL || "").trim();
+    const configuredSource = configured ? toPresentationVideoSource(configured) : null;
+    if (configuredSource) return configuredSource;
+
+    return toPresentationVideoSource(DEFAULT_HOME_PRESENTATION_VIDEO_URL);
   }, []);
   const campaigns = (campaignsQuery.data ?? []) as PublishedCampaign[];
   const completedCampaigns = (completedQuery.data ?? []) as PublishedCampaign[];
