@@ -361,6 +361,15 @@ const createCampaignSchema = z.object({
   goal: z.number().int().positive("Meta deve ser um valor positivo"),
   initialRaised: z.number().int().min(0).default(0),
   imageUrl: z.string().optional(),
+  needs: z.array(z.object({
+    type: z.enum(["material", "labor", "equipment", "other"]).default("material"),
+    name: z.string().trim().min(3),
+    description: z.string().trim().optional(),
+    quantity: z.string().trim().min(1),
+    targetQuantityExact: z.number().int().positive(),
+    unitValueCents: z.number().int().positive(),
+    priority: z.enum(["high", "medium", "low"]).default("medium"),
+  })).default([]),
 });
 
 const updateCampaignSchema = z.object({
@@ -794,7 +803,7 @@ export const campaignsRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Autenticação necessária." });
       }
 
-      await db.insert(campaigns).values({
+      const insertResult = await db.insert(campaigns).values({
         title: input.title,
         description: input.description,
         longDescription: input.longDescription,
@@ -805,6 +814,33 @@ export const campaignsRouter = router({
         createdBy: userId,
         status: "active",
       });
+
+      let createdCampaignId = Number((insertResult as { insertId?: number }).insertId ?? 0);
+
+      if (!createdCampaignId) {
+        const [recentCampaign] = await db
+          .select({ id: campaigns.id })
+          .from(campaigns)
+          .where(and(eq(campaigns.createdBy, userId), eq(campaigns.title, input.title)))
+          .orderBy(desc(campaigns.id))
+          .limit(1);
+        createdCampaignId = recentCampaign?.id ?? 0;
+      }
+
+      if (createdCampaignId && input.needs.length > 0) {
+        await db.insert(campaignNeeds).values(
+          input.needs.map((need) => ({
+            campaignId: createdCampaignId,
+            type: need.type,
+            name: need.name,
+            description: need.description,
+            quantity: need.quantity,
+            targetQuantityExact: need.targetQuantityExact,
+            unitValueCents: need.unitValueCents,
+            priority: need.priority,
+          })),
+        );
+      }
 
       return { success: true, message: "Campanha criada com sucesso!" };
     }),
