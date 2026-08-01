@@ -5,6 +5,46 @@ import { trpc } from "@/lib/trpc";
 import { ChevronLeft, Heart, Package } from "lucide-react";
 import { Link, useRoute } from "wouter";
 
+type NeedItem = {
+  id: number;
+  name: string;
+  quantity: string | null;
+  priority: "high" | "medium" | "low";
+  fulfilled?: number | null;
+};
+
+const PREFERRED_KEYWORDS = ["TIJOLO", "CIMENTO", "AREIA", "JANELA"];
+
+const normalizeNeedLabel = (name: string) =>
+  name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .trim();
+
+const priorityWeight = (priority: NeedItem["priority"]) => {
+  if (priority === "high") return 0;
+  if (priority === "medium") return 1;
+  return 2;
+};
+
+const keywordWeight = (name: string) => {
+  const normalized = normalizeNeedLabel(name);
+  const idx = PREFERRED_KEYWORDS.findIndex((keyword) => normalized.includes(keyword));
+  return idx === -1 ? 99 : idx;
+};
+
+const sortNeeds = (needs: NeedItem[]) =>
+  [...needs].sort((a, b) => {
+    const byPriority = priorityWeight(a.priority) - priorityWeight(b.priority);
+    if (byPriority !== 0) return byPriority;
+
+    const byKeyword = keywordWeight(a.name) - keywordWeight(b.name);
+    if (byKeyword !== 0) return byKeyword;
+
+    return normalizeNeedLabel(a.name).localeCompare(normalizeNeedLabel(b.name), "pt-BR");
+  });
+
 export default function ContributionNeedsPage() {
   const [, params] = useRoute("/contribute/items/:id");
   const campaignId = Number(params?.id ?? 0);
@@ -56,7 +96,7 @@ export default function ContributionNeedsPage() {
     );
   }
 
-  const needs = campaign.needs ?? [];
+  const needs = sortNeeds((campaign.needs ?? []) as NeedItem[]);
 
   return (
     <div className="min-h-screen bg-[#f8faf7]">
@@ -78,17 +118,15 @@ export default function ContributionNeedsPage() {
                   <th className="px-4 py-3 font-semibold">ITEM</th>
                   <th className="px-4 py-3 font-semibold">NOSSA META</th>
                   <th className="px-4 py-3 font-semibold">QUANTIDADE</th>
-                  <th className="px-4 py-3 font-semibold">ATENDIDO</th>
                   <th className="px-4 py-3 font-semibold">AÇÃO</th>
                 </tr>
               </thead>
               <tbody>
                 {needs.length > 0 ? needs.map((need) => (
                   <tr key={need.id} className="border-t border-[#e2e9df]">
-                    <td className="px-4 py-3 font-semibold text-[#2d2d2d]">{need.name.toUpperCase()}</td>
+                    <td className="px-4 py-3 font-semibold text-[#2d2d2d]">{normalizeNeedLabel(need.name)}</td>
                     <td className="px-4 py-3 text-[#4d5e4f]">{need.quantity || "A definir"}</td>
-                    <td className="px-4 py-3 text-[#4d5e4f]">{need.quantity || "A definir"}</td>
-                    <td className="px-4 py-3 text-[#4d5e4f]">{need.fulfilled ?? 0}%</td>
+                    <td className="px-4 py-3 text-[#4d5e4f]">{need.fulfilled ?? 0}% atendido</td>
                     <td className="px-4 py-3">
                       <Link
                         href={`/contribute/wizard/${campaignId}?type=material&needId=${need.id}`}
@@ -100,7 +138,7 @@ export default function ContributionNeedsPage() {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-[#656565]">A lista de necessidades está sendo atualizada.</td>
+                    <td colSpan={4} className="px-4 py-8 text-center text-[#656565]">A lista de necessidades está sendo atualizada.</td>
                   </tr>
                 )}
               </tbody>

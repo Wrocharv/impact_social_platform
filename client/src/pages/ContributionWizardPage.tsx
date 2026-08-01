@@ -19,6 +19,45 @@ type DeliveryMethod = "pickup" | "deliver" | "mail" | "other";
 type DeliveryFrequency = "unique" | "weekly" | "biweekly" | "monthly";
 type Step = "type" | "donor-info" | "details" | "payment" | "confirmation";
 
+type NeedItem = {
+  id: number;
+  name: string;
+  quantity: string | null;
+  priority: "high" | "medium" | "low";
+};
+
+const PREFERRED_KEYWORDS = ["TIJOLO", "CIMENTO", "AREIA", "JANELA"];
+
+const normalizeNeedLabel = (name: string) =>
+  name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .trim();
+
+const priorityWeight = (priority: NeedItem["priority"]) => {
+  if (priority === "high") return 0;
+  if (priority === "medium") return 1;
+  return 2;
+};
+
+const keywordWeight = (name: string) => {
+  const normalized = normalizeNeedLabel(name);
+  const idx = PREFERRED_KEYWORDS.findIndex((keyword) => normalized.includes(keyword));
+  return idx === -1 ? 99 : idx;
+};
+
+const sortNeeds = (needs: NeedItem[]) =>
+  [...needs].sort((a, b) => {
+    const byPriority = priorityWeight(a.priority) - priorityWeight(b.priority);
+    if (byPriority !== 0) return byPriority;
+
+    const byKeyword = keywordWeight(a.name) - keywordWeight(b.name);
+    if (byKeyword !== 0) return byKeyword;
+
+    return normalizeNeedLabel(a.name).localeCompare(normalizeNeedLabel(b.name), "pt-BR");
+  });
+
 interface WizardState {
   type: ContributionType | null;
   donorName: string;
@@ -303,7 +342,7 @@ export default function ContributionWizardPage() {
   };
 
   const campaign = campaignQuery.data;
-  const campaignNeeds = campaign?.needs ?? [];
+  const campaignNeeds = sortNeeds((campaign?.needs ?? []) as NeedItem[]);
   const loading = createMaterial.isPending || createVolunteer.isPending || createPayment.isPending;
 
   return (
@@ -377,7 +416,7 @@ export default function ContributionWizardPage() {
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {campaignNeeds.map((need) => (
                       <div key={need.id} className="rounded-md border border-[#e1e8df] bg-white px-3 py-2 text-sm">
-                        <span className="font-semibold text-[#2d2d2d]">{need.name.toUpperCase()}</span>
+                        <span className="font-semibold text-[#2d2d2d]">{normalizeNeedLabel(need.name)}</span>
                         <span className="text-[#5f6f61]">: {need.quantity || "A DEFINIR"}</span>
                       </div>
                     ))}
