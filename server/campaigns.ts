@@ -15,20 +15,20 @@ import { storagePut } from "./storage";
 import { whatsappService } from "./whatsapp.service";
 
 const DEMO_CAMPAIGN = {
-  id: 1,
+  id: 100001,
   title: "Construção Hotel Recanto de Paz",
   description: "Apoie a construção do Hotel Recanto de Paz com materiais e contribuições para a obra.",
   longDescription:
     "A campanha apresenta uma obra real, com evolução de etapas, atualizações de fotos e necessidades concretas de materiais. Apoie a construção do Hotel Recanto de Paz em cada fase.",
   category: "outro" as const,
-  goal: 0,
+  goal: 5_000_000,
   imageUrl: "/obra-paredes.jpg",
   createdBy: 1,
   status: "active" as const,
   createdAt: new Date("2026-07-29T10:00:00.000Z"),
   updatedAt: new Date("2026-07-29T10:00:00.000Z"),
   raised: 0,
-  remaining: 0,
+  remaining: 5_000_000,
   progress: 0,
   contributorsCount: 0,
   galleryImages: [
@@ -46,8 +46,32 @@ const DEMO_CAMPAIGN = {
       name: "Cimento",
       description: "Materiais essenciais para a fase inicial da construção.",
       quantity: "200 sacos",
+      targetQuantityExact: 200,
+      unitValueCents: 4_500,
+      offeredQuantity: 0,
+      remainingQuantity: 200,
+      offeredValueCents: 0,
+      remainingValueCents: 900_000,
       priority: "high" as const,
-      fulfilled: 30,
+      fulfilled: 0,
+      createdAt: new Date("2026-07-20T10:00:00.000Z"),
+      updatedAt: new Date("2026-07-20T10:00:00.000Z"),
+    },
+    {
+      id: 2,
+      campaignId: 100001,
+      type: "material" as const,
+      name: "Tijolo",
+      description: "Para avanço das paredes e divisórias da obra.",
+      quantity: "12.000 unidades",
+      targetQuantityExact: 12000,
+      unitValueCents: 120,
+      offeredQuantity: 0,
+      remainingQuantity: 12000,
+      offeredValueCents: 0,
+      remainingValueCents: 1_440_000,
+      priority: "high" as const,
+      fulfilled: 0,
       createdAt: new Date("2026-07-20T10:00:00.000Z"),
       updatedAt: new Date("2026-07-20T10:00:00.000Z"),
     },
@@ -117,31 +141,34 @@ function withCanonicalRecantoCover<T extends { id: number; title: string; imageU
   };
 }
 
-function shouldZeroCanonicalRecantoForLocal() {
-  return process.env.NODE_ENV !== "production";
-}
-
-function withLocalZeroedCanonicalRecanto<T extends {
-  id: number;
+function withFallbackRecantoContentIfEmpty<T extends {
   title: string;
-  goal?: number;
-  raised?: number;
-  initialRaised?: number;
-  remaining?: number;
-  progress?: number;
-  contributorsCount?: number;
+  description?: string;
+  longDescription?: string | null;
+  category?: string | null;
+  galleryImages?: string[];
+  updates?: Array<Record<string, unknown>>;
+  needs?: Array<Record<string, unknown>>;
 }>(campaign: T): T {
-  if (!shouldZeroCanonicalRecantoForLocal()) return campaign;
-  if (!isCanonicalRecantoCampaign(campaign)) return campaign;
+  if (!isCanonicalRecantoCampaign({ id: 0, title: campaign.title })) return campaign;
+
+  const hasUpdates = Array.isArray(campaign.updates) && campaign.updates.length > 0;
+  const hasNeeds = Array.isArray(campaign.needs) && campaign.needs.length > 0;
+  const hasGallery = Array.isArray(campaign.galleryImages) && campaign.galleryImages.length > 0;
 
   return {
     ...campaign,
-    goal: 0,
-    raised: 0,
-    initialRaised: 0,
-    remaining: 0,
-    progress: 0,
-    contributorsCount: 0,
+    longDescription: campaign.longDescription || DEMO_CAMPAIGN.longDescription,
+    category: campaign.category || DEMO_CAMPAIGN.category,
+    updates: hasUpdates
+      ? campaign.updates
+      : DEMO_CAMPAIGN.updates.map((update) => ({
+          ...update,
+          images: [...update.images],
+          videos: [],
+        })),
+    needs: hasNeeds ? campaign.needs : [...DEMO_CAMPAIGN.needs],
+    galleryImages: hasGallery ? campaign.galleryImages : [...DEMO_CAMPAIGN.galleryImages],
   };
 }
 
@@ -591,15 +618,27 @@ export const campaignsRouter = router({
         rows.map((campaign) => campaign.id),
       );
 
-      const publishedRows = rows.map((campaign) =>
-        withLocalZeroedCanonicalRecanto({
-          ...withCanonicalRecantoCover(campaign),
-          initialRaised: campaign.raised,
-          ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
-        }),
-      );
+      const publishedRows = rows.map((campaign) => ({
+        ...withCanonicalRecantoCover(campaign),
+        initialRaised: campaign.raised,
+        ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
+      }));
 
-      return dedupeCampaignsById(publishedRows).slice(0, input?.limit ?? 12);
+      const normalizedQuery = input?.query?.trim().toLowerCase();
+      const hasRecantoInDb = publishedRows.some((campaign) => isCanonicalRecantoCampaign(campaign));
+      const demoCampaigns = hasRecantoInDb
+        ? []
+        : getDemoCampaigns(input?.status).filter((campaign) => {
+            if (!normalizedQuery) return true;
+            return campaign.title.toLowerCase().includes(normalizedQuery);
+          });
+
+      const mergedCampaigns = dedupeCampaignsById([
+        ...publishedRows,
+        ...demoCampaigns,
+      ]).sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+
+      return mergedCampaigns.slice(0, input?.limit ?? 12);
     }),
 
   getPublicStats: publicProcedure.query(async () => {
@@ -628,12 +667,8 @@ export const campaignsRouter = router({
       activeCampaigns.map((campaign) => campaign.id),
     );
 
-    return activeCampaigns.reduce(
+      return activeCampaigns.reduce(
       (summary, campaign) => {
-        if (shouldZeroCanonicalRecantoForLocal() && isCanonicalRecantoCampaign(campaign)) {
-          return summary;
-        }
-
         const campaignMetrics =
           metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.initialRaised, []);
         summary.raised += campaignMetrics.raised;
@@ -671,7 +706,10 @@ export const campaignsRouter = router({
         )
         .limit(1);
       const campaign = result[0];
-      if (!campaign) return null;
+      if (!campaign) {
+        const demoCampaign = getDemoCampaignById(input.id);
+        return demoCampaign ?? null;
+      }
 
       const [updates, needs, documents, metrics, materialContributions] = await Promise.all([
         db
@@ -724,7 +762,6 @@ export const campaignsRouter = router({
       );
 
       const canonicalizedCampaign = withCanonicalRecantoCover(campaign);
-      const isRecanto = isCanonicalRecantoCampaign(campaign);
       const materialProgressByNeed = new Map<number, { offeredQuantity: number; offeredValueCents: number }>();
 
       materialContributions.forEach((row) => {
@@ -757,26 +794,18 @@ export const campaignsRouter = router({
         };
       });
 
-      return withLocalZeroedCanonicalRecanto({
+      return withFallbackRecantoContentIfEmpty({
         ...canonicalizedCampaign,
         initialRaised: campaign.raised,
         ...campaignMetrics,
-        longDescription: isRecanto ? DEMO_CAMPAIGN.longDescription : campaign.longDescription,
-        category: isRecanto ? DEMO_CAMPAIGN.category : campaign.category,
-        updates: isRecanto
-          ? DEMO_CAMPAIGN.updates.map((update) => ({
-              ...update,
-              images: [...update.images],
-              videos: [],
-            }))
-          : updates.map((update) => ({
-              ...update,
-              images: parseMediaUrls(update.imageUrls),
-              videos: parseMediaUrls(update.videoUrls),
-            })),
-        needs: isRecanto ? DEMO_CAMPAIGN.needs : needsWithProgress,
+        updates: updates.map((update) => ({
+          ...update,
+          images: parseMediaUrls(update.imageUrls),
+          videos: parseMediaUrls(update.videoUrls),
+        })),
+        needs: needsWithProgress,
         documents,
-        galleryImages: isRecanto ? [...DEMO_CAMPAIGN.galleryImages] : galleryImages,
+        galleryImages,
       });
     }),
 

@@ -14,7 +14,11 @@ export default function AnimatedProgressBar({
   showLabel = true,
 }: AnimatedProgressBarProps) {
   const [displayPercentage, setDisplayPercentage] = useState(0);
-  const percentage = Math.round((current / goal) * 100);
+  const safeCurrent = Number.isFinite(current) ? Math.max(0, current) : 0;
+  const safeGoal = Number.isFinite(goal) ? Math.max(0, goal) : 0;
+  const percentage = safeGoal > 0
+    ? Math.min(100, Math.max(0, Math.round((safeCurrent / safeGoal) * 100)))
+    : 0;
 
   useEffect(() => {
     if (!animated) {
@@ -53,7 +57,7 @@ export default function AnimatedProgressBar({
       {showLabel && (
         <div className="flex justify-between mt-2 text-sm">
           <span className="font-semibold text-[#2d2d2d]">
-            {(current / 100).toLocaleString("pt-BR", {
+            {(safeCurrent / 100).toLocaleString("pt-BR", {
               style: "currency",
               currency: "BRL",
             })}
