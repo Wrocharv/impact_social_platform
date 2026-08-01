@@ -226,6 +226,38 @@ const PUBLIC_STATUSES = ["active", "completed"] as const;
 const APPROVED_CONTRIBUTION_STATUSES = ["approved", "completed"] as const;
 const TRACKED_MATERIAL_STATUSES = ["pending", "approved", "completed"] as const;
 
+function isMissingColumnError(error: unknown): boolean {
+  const stack = [error];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || typeof current !== "object") {
+      continue;
+    }
+
+    const candidate = current as {
+      message?: unknown;
+      code?: unknown;
+      sqlMessage?: unknown;
+      cause?: unknown;
+    };
+
+    if (
+      candidate.code === "ER_BAD_FIELD_ERROR"
+      || (typeof candidate.message === "string" && candidate.message.includes("Unknown column"))
+      || (typeof candidate.sqlMessage === "string" && candidate.sqlMessage.includes("Unknown column"))
+    ) {
+      return true;
+    }
+
+    if (candidate.cause) {
+      stack.push(candidate.cause);
+    }
+  }
+
+  return false;
+}
+
 type CampaignMetrics = {
   raised: number;
   remaining: number;
@@ -649,20 +681,27 @@ export const campaignsRouter = router({
           .where(eq(transparencyDocuments.campaignId, input.id))
           .orderBy(desc(transparencyDocuments.uploadedAt)),
         loadCampaignMetrics(db, [input.id]),
-        db
-          .select({
-            campaignNeedId: contributions.campaignNeedId,
-            quantityExact: contributions.quantityExact,
-            estimatedAmount: contributions.estimatedAmount,
-          })
-          .from(contributions)
-          .where(
-            and(
-              eq(contributions.campaignId, input.id),
-              eq(contributions.type, "material"),
-              inArray(contributions.status, TRACKED_MATERIAL_STATUSES),
-            ),
-          ),
+        (async () => {
+          try {
+            return await db
+              .select({
+                campaignNeedId: contributions.campaignNeedId,
+                quantityExact: contributions.quantityExact,
+                estimatedAmount: contributions.estimatedAmount,
+              })
+              .from(contributions)
+              .where(
+                and(
+                  eq(contributions.campaignId, input.id),
+                  eq(contributions.type, "material"),
+                  inArray(contributions.status, TRACKED_MATERIAL_STATUSES),
+                ),
+              );
+          } catch (error) {
+            if (!isMissingColumnError(error)) throw error;
+            return [];
+          }
+        })(),
       ]);
       const campaignMetrics =
         metrics.get(input.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, []);
@@ -870,10 +909,23 @@ export const campaignsRouter = router({
       if (!db) throw new Error("Database not available");
 
       await requireCampaign(db, input.campaignId);
-      await db.insert(campaignNeeds).values({
-        ...input,
-        quantity: input.quantity ?? `${input.targetQuantityExact} unidades`,
-      });
+      try {
+        await db.insert(campaignNeeds).values({
+          ...input,
+          quantity: input.quantity ?? `${input.targetQuantityExact} unidades`,
+        });
+      } catch (error) {
+        if (!isMissingColumnError(error)) throw error;
+
+        await db.insert(campaignNeeds).values({
+          campaignId: input.campaignId,
+          type: input.type,
+          name: input.name,
+          description: input.description,
+          quantity: input.quantity ?? `${input.targetQuantityExact} unidades`,
+          priority: input.priority,
+        });
+      }
       return { success: true, message: "Necessidade criada com sucesso!" };
     }),
 
