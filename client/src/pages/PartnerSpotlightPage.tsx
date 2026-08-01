@@ -2,7 +2,8 @@ import PublicHeader from "@/components/PublicHeader";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { ExternalLink, Handshake, Instagram, MessageCircle, Store } from "lucide-react";
+import { Camera, ExternalLink, Handshake, Instagram, MessageCircle, Store } from "lucide-react";
+import { useState } from "react";
 import { Link, useRoute } from "wouter";
 
 type PartnerVideoSource =
@@ -122,6 +123,22 @@ function getCustomPartnerLogo(name?: string | null) {
   return null;
 }
 
+function getCustomPartnerWebsite(name?: string | null) {
+  if (!name) return null;
+
+  const normalizedName = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+  if (normalizedName.includes("multipla escolha")) {
+    return "https://www.parceriadobem.com.br";
+  }
+
+  return null;
+}
+
 function getCustomPartnerVideo(name?: string | null) {
   if (!name) return null;
 
@@ -145,6 +162,7 @@ function getCustomPartnerVideo(name?: string | null) {
 export default function PartnerSpotlightPage() {
   const [, params] = useRoute("/partner/:id");
   const partnerId = Number(params?.id ?? 0);
+  const [galleryActiveIndex, setGalleryActiveIndex] = useState(0);
 
   const partnerQuery = trpc.partners.getPublicById.useQuery(
     { id: partnerId },
@@ -174,8 +192,33 @@ export default function PartnerSpotlightPage() {
   const videoSource = toPartnerVideoSource(customVideoUrl || partner.testimonialVideoUrl);
   const customBannerUrl = getCustomPartnerBanner(partner.name);
   const customLogoUrl = getCustomPartnerLogo(partner.name);
+  const customWebsiteUrl = getCustomPartnerWebsite(partner.name);
+  const partnerWebsiteUrl = partner.website || customWebsiteUrl;
   const showFullWidthBanner = Boolean(customBannerUrl);
   const featuredImage = customBannerUrl || customLogoUrl || partner.logoUrl;
+  const galleryPhotos = [
+    {
+      src: partner.storePhotoUrl,
+      alt: `Foto da loja de ${partner.name}`,
+      label: "Loja",
+    },
+    {
+      src: partner.ownerPhotoUrl,
+      alt: `Foto do responsável de ${partner.name}`,
+      label: "Responsável",
+    },
+    {
+      src: featuredImage,
+      alt: `Imagem de destaque de ${partner.name}`,
+      label: "Destaque",
+    },
+  ].filter((item): item is { src: string; alt: string; label: string } => Boolean(item.src));
+  const uniqueGalleryPhotos = galleryPhotos.filter(
+    (item, index, list) => list.findIndex((candidate) => candidate.src === item.src) === index,
+  );
+  const galleryPreviewIndex = Math.min(galleryActiveIndex, Math.max(uniqueGalleryPhotos.length - 1, 0));
+  const galleryPreview = uniqueGalleryPhotos[galleryPreviewIndex];
+  const galleryPlaceholderCount = Math.max(0, 4 - uniqueGalleryPhotos.length);
 
   return (
     <div className="min-h-screen bg-[#f7faf6] text-[#233127]">
@@ -184,19 +227,17 @@ export default function PartnerSpotlightPage() {
       {!showFullWidthBanner && (
         <section className="overflow-hidden border-b border-[#dfe7dd] bg-gradient-to-br from-[#163a27] via-[#22563b] to-[#2e6f4a] py-14 text-white md:py-20">
           <div className="container max-w-6xl px-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#cce8d6]">Parceiro em destaque</p>
-            <h1 className="mt-3 max-w-3xl text-4xl font-bold leading-tight md:text-5xl">{partner.name}</h1>
             <p className="mt-4 max-w-2xl text-lg text-white/85">
               {partner.description || "Parceiro da rede Parceiros do Bem, apoiando campanhas sociais com presença e divulgação."}
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
-              {partner.website && (
-                <a href={partner.website} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-white px-4 font-semibold text-[#1e4c34] hover:bg-[#eef8f0]">
+              {partnerWebsiteUrl && (
+                <a href={partnerWebsiteUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-white px-4 font-semibold text-[#1e4c34] hover:bg-[#eef8f0]">
                   <ExternalLink className="h-4 w-4" /> Site oficial
                 </a>
               )}
               {whatsappUrl && (
-                <a href={whatsappUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/55 px-4 font-semibold text-white hover:bg-white/10">
+                <a href={whatsappUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#228B22] px-4 font-semibold text-white hover:bg-[#1c731c]">
                   <MessageCircle className="h-4 w-4" /> WhatsApp
                 </a>
               )}
@@ -217,18 +258,16 @@ export default function PartnerSpotlightPage() {
             alt={`Banner de ${partner.name}`}
             className="h-[280px] w-full object-cover object-center md:h-[440px]"
           />
-          <div className="absolute inset-0 z-10 flex items-end bg-gradient-to-t from-black/70 via-black/30 to-transparent">
-            <div className="container w-full max-w-6xl px-4 pb-4 md:pb-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#d8efe1]">Parceiro em destaque</p>
-              <h1 className="mt-2 max-w-3xl text-2xl font-bold leading-tight text-white md:text-4xl">{partner.name}</h1>
-              <div className="mt-4 flex flex-wrap gap-3 rounded-2xl bg-white/85 p-3 shadow-lg backdrop-blur-sm md:inline-flex">
-                {partner.website && (
-                  <a href={partner.website} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#1e4c34] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#173b29]">
+          <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/65 via-black/30 to-transparent">
+            <div className="container w-full max-w-6xl px-4 pb-4 pt-16 md:pb-8 md:pt-24">
+              <div className="mt-4 flex flex-wrap gap-3 rounded-2xl bg-white/85 p-3 shadow-lg backdrop-blur-sm md:ml-[3.5%] md:inline-flex">
+                {partnerWebsiteUrl && (
+                  <a href={partnerWebsiteUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#1e4c34] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#173b29]">
                     <ExternalLink className="h-4 w-4" /> Site oficial
                   </a>
                 )}
                 {whatsappUrl && (
-                  <a href={whatsappUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#1e4c34]/20 bg-white px-4 text-sm font-semibold text-[#1e4c34] shadow-sm transition hover:bg-[#eef8f0]">
+                  <a href={whatsappUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#228B22] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1c731c]">
                     <MessageCircle className="h-4 w-4" /> WhatsApp
                   </a>
                 )}
@@ -303,15 +342,15 @@ export default function PartnerSpotlightPage() {
           </div>
         </Card>
 
-        {videoSource && (
-          <Card className="border-[#dce6da] p-6 md:p-8">
-            <h3 className="text-xl font-bold text-[#223126]">Vídeo de apresentação do parceiro</h3>
-            <p className="mt-2 text-[#4a5e51]">
-              Espaço dedicado para destacar ações, promoções e campanhas do parceiro em potencial.
-            </p>
-            <div className="mt-4 overflow-hidden rounded-xl border border-[#dce6da] bg-[#f1f6ef]">
-              <div className="aspect-video w-full">
-                {videoSource.kind === "embed" ? (
+        <Card className="border-[#dce6da] p-6 md:p-8">
+          <h3 className="text-center text-xl font-bold text-[#223126]">Vídeo de apresentação/depoimento do parceiro</h3>
+          <p className="mt-2 text-center text-[#4a5e51]">
+            Espaço dedicado para destacar ações, promoções e campanhas do parceiro em potencial.
+          </p>
+          <div className="mt-4 flex justify-center overflow-hidden rounded-xl border border-[#dce6da] bg-[#1f1f1f] p-2 md:p-3">
+            <div className="aspect-video w-full overflow-hidden rounded-lg border-4 border-[#5f7f66] md:w-[76%]">
+              {videoSource ? (
+                videoSource.kind === "embed" ? (
                   <iframe
                     className="h-full w-full"
                     src={videoSource.src}
@@ -322,15 +361,66 @@ export default function PartnerSpotlightPage() {
                     allowFullScreen
                   />
                 ) : (
-                  <video className="h-full w-full" controls preload="metadata">
+                  <video className="h-full w-full" controls playsInline preload="auto">
                     <source src={encodeURI(videoSource.src)} type={videoSource.mimeType} />
                     Seu navegador não suporta reprodução de vídeo.
                   </video>
-                )}
-              </div>
+                )
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-black/35 px-4 text-center text-sm font-medium text-white/85">
+                  Vídeo/depoimento em breve para este parceiro.
+                </div>
+              )}
             </div>
-          </Card>
-        )}
+          </div>
+        </Card>
+
+        <Card className="border-[#dce6da] p-6 md:p-8">
+          <h3 className="text-center text-xl font-bold text-[#223126]">Galeria de fotos do parceiro</h3>
+          <p className="mt-2 text-center text-[#4a5e51]">
+            Modelo pronto para explorar imagens da loja, equipe e ações sociais conforme novas fotos forem inseridas.
+          </p>
+
+          <div className="mt-5 rounded-2xl border border-[#dce6da] bg-gradient-to-b from-[#f3f8f1] to-[#e7efe5] p-3 md:p-4">
+            <div className="overflow-hidden rounded-xl border border-[#c9d7c7] bg-white">
+              {galleryPreview ? (
+                <img src={encodeURI(galleryPreview.src)} alt={galleryPreview.alt} className="h-56 w-full object-cover md:h-[26rem]" />
+              ) : (
+                <div className="flex h-56 w-full items-center justify-center bg-[#edf3eb] text-[#5a6d61] md:h-[26rem]">
+                  <div className="text-center">
+                    <Camera className="mx-auto h-7 w-7" />
+                    <p className="mt-2 text-sm font-medium">As primeiras fotos desta galeria entram em breve</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {uniqueGalleryPhotos.map((photo, index) => (
+                <button
+                  key={`${photo.src}-${index}`}
+                  type="button"
+                  onClick={() => setGalleryActiveIndex(index)}
+                  className={`group overflow-hidden rounded-lg border bg-white text-left transition ${
+                    galleryPreviewIndex === index
+                      ? "border-[#22563b] ring-2 ring-[#22563b]/25"
+                      : "border-[#d5e0d2] hover:border-[#8fb39b]"
+                  }`}
+                >
+                  <img src={encodeURI(photo.src)} alt={photo.alt} className="h-24 w-full object-cover transition duration-300 group-hover:scale-105" />
+                  <span className="block px-2 py-1 text-xs font-medium text-[#355244]">{photo.label}</span>
+                </button>
+              ))}
+
+              {Array.from({ length: galleryPlaceholderCount }).map((_, index) => (
+                <div key={`placeholder-${index}`} className="flex h-[7.25rem] flex-col items-center justify-center rounded-lg border border-dashed border-[#b9cbb8] bg-white/70 text-[#6a7f70]">
+                  <Camera className="h-4 w-4" />
+                  <span className="mt-1 text-[11px] font-medium">Espaço para foto</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
       </main>
     </div>
   );

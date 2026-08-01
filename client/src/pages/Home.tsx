@@ -7,6 +7,8 @@ import { Building2, ExternalLink, Handshake, Heart, ShieldCheck, Zap } from "luc
 import { useMemo } from "react";
 import { Link } from "wouter";
 
+const DEFAULT_HOME_PRESENTATION_VIDEO_URL = "/89343f15-ccb1-4937-b353-a3cbb5f23bd6.mp4";
+
 const formatCurrency = (value: number) =>
   (value / 100).toLocaleString("pt-BR", {
     style: "currency",
@@ -135,7 +137,7 @@ export default function Home() {
   const statsQuery = trpc.campaigns.getPublicStats.useQuery();
   const partnersQuery = trpc.partners.listPublished.useQuery();
   const presentationVideoSource = useMemo(() => {
-    const configured = (import.meta.env.VITE_HOME_PRESENTATION_VIDEO_URL || "").trim();
+    const configured = (import.meta.env.VITE_HOME_PRESENTATION_VIDEO_URL || DEFAULT_HOME_PRESENTATION_VIDEO_URL).trim();
     return toPresentationVideoSource(configured);
   }, []);
   const campaigns = (campaignsQuery.data ?? []) as PublishedCampaign[];
@@ -568,7 +570,7 @@ function getPredimaisShowcasePartners(): PartnerItem[] {
       website: "https://www.parceriadobem.com.br",
     },
     {
-      id: 3,
+      id: 4,
       name: "Múltipla Escolha",
       type: "company",
       ownerName: "Lucas Sardinha",
