@@ -11,7 +11,9 @@ import { serveStatic, setupVite } from "./vite";
 import { registerMercadoPagoWebhook } from "../paymentWebhook";
 import { whatsappWebhook } from "../whatsapp.webhook";
 
-const PUBLIC_MAINTENANCE_MODE = true;
+const PUBLIC_MAINTENANCE_MODE = process.env.PUBLIC_MAINTENANCE_MODE === "true";
+const PUBLIC_MAINTENANCE_CONFIRMATION =
+  process.env.PUBLIC_MAINTENANCE_CONFIRMATION === "CONFIRM_MAINTENANCE_MODE";
 
 function renderMaintenancePage() {
   return `<!DOCTYPE html>
@@ -138,7 +140,11 @@ async function startServer() {
     })
   );
 
-  if (PUBLIC_MAINTENANCE_MODE && process.env.NODE_ENV === "production") {
+  if (
+    PUBLIC_MAINTENANCE_MODE &&
+    PUBLIC_MAINTENANCE_CONFIRMATION &&
+    process.env.NODE_ENV === "production"
+  ) {
     app.use("*", (_req, res) => {
       res
         .status(503)
