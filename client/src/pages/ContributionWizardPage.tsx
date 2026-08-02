@@ -252,8 +252,10 @@ export default function ContributionWizardPage() {
         return;
       }
 
-      // Se o cadastro único já foi feito neste dispositivo, entra direto em detalhes.
-      if (isLoaded && currentDonor) {
+      // No fluxo financeiro, manter a etapa de doador visível mesmo com dados salvos.
+      if (initialType === "financial") {
+        setStep("donor-info");
+      } else if (isLoaded && currentDonor) {
         setStep("details");
       } else {
         setStep("donor-info");
@@ -406,7 +408,7 @@ export default function ContributionWizardPage() {
     ? Math.max(0, selectedNeedRemaining - selectedNeedQuantityExact)
     : selectedNeedRemaining;
   const selectedNeedExceedsGoal = hasSelectedNeed && selectedNeedQuantityExact > selectedNeedRemaining;
-  const isVipApartmentOffer = initialOffer === "apartment" && state.type === "financial";
+  const isVipApartmentOffer = campaignId === HOTEL_CAMPAIGN_ID && initialOffer === "apartment" && state.type === "financial";
   const configuredVipImages = Array.isArray((campaign as { vipMediaImages?: unknown })?.vipMediaImages)
     ? ((campaign as { vipMediaImages?: unknown }).vipMediaImages as unknown[])
       .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
@@ -636,16 +638,18 @@ export default function ContributionWizardPage() {
             <CardHeader>
               <CardTitle>Como você gostaria de contribuir?</CardTitle>
               {campaign && <CardDescription>Campanha: {campaign.title}</CardDescription>}
-              <div className="mt-4 rounded-lg border border-[#d7c18a] bg-gradient-to-r from-[#fff9e7] via-[#fff4d6] to-[#ffeab5] p-3 text-left">
-                <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#8a5b00]">Acesso rápido VIP</p>
-                <p className="mt-1 text-sm text-[#5b3a00]">Quero doar um apartamento completo.</p>
-                <Link
-                  href={`/contribute/vip/${campaignId}`}
-                  className="mt-2 inline-flex min-h-10 items-center justify-center rounded-md bg-[#8a6708] px-3 text-xs font-extrabold uppercase tracking-[0.04em] text-white transition hover:bg-[#6d5006]"
-                >
-                  Ir para apartamento VIP
-                </Link>
-              </div>
+              {campaignId === HOTEL_CAMPAIGN_ID ? (
+                <div className="mt-4 rounded-lg border border-[#d7c18a] bg-gradient-to-r from-[#fff9e7] via-[#fff4d6] to-[#ffeab5] p-3 text-left">
+                  <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#8a5b00]">Acesso rápido VIP</p>
+                  <p className="mt-1 text-sm text-[#5b3a00]">Quero doar um apartamento completo.</p>
+                  <Link
+                    href={`/contribute/vip/${campaignId}`}
+                    className="mt-2 inline-flex min-h-10 items-center justify-center rounded-md bg-[#8a6708] px-3 text-xs font-extrabold uppercase tracking-[0.04em] text-white transition hover:bg-[#6d5006]"
+                  >
+                    Ir para apartamento VIP
+                  </Link>
+                </div>
+              ) : null}
 
               {/* Progress Indicator */}
               <div className="mt-6 flex items-center justify-between">
@@ -792,6 +796,18 @@ export default function ContributionWizardPage() {
                       ? "Faça o cadastro da pessoa doadora para liberar a lista de materiais e a opção de doação em dinheiro."
                       : "Preencha seus dados para que possamos entrar em contato:"}
                   </p>
+
+                  {state.type === "financial" && !isSingleRegistrationFlow && (
+                    <div className="rounded-lg border border-[#d7e6d3] bg-[#f6fbf4] p-4 text-sm text-[#35523a]">
+                      <p className="font-semibold text-[#24412a]">Por que pedimos esses dados?</p>
+                      <p className="mt-1">
+                        Eles servem para identificar sua doacao, facilitar contato se houver necessidade e registrar corretamente o apoio na campanha.
+                      </p>
+                      <p className="mt-2 text-[#4f6550]">
+                        Seu nome so aparece publicamente se voce autorizar. Caso contrario, a doacao permanece anonima na exibicao publica.
+                      </p>
+                    </div>
+                  )}
                   
                   {currentDonor && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">

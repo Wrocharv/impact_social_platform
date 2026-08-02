@@ -121,7 +121,17 @@ export default function CampaignDetail() {
     return <CampaignState title="Campanha não encontrada" description="Ela pode não estar publicada ou ter sido arquivada." />;
   }
 
-  const hasHeroImage = Boolean(campaign.galleryImages[0]);
+  const isSisterCampaign = campaign.id === 100002;
+  const displayTitle = isSisterCampaign ? "Construção da Casa da Irmã Valdelice" : campaign.title;
+  const displayHeroImage = isSisterCampaign ? "/Campanhas/ChatGPT Image 1 de ago. de 2026, 21_16_27.png" : campaign.imageUrl;
+  const displayGalleryImages = isSisterCampaign
+    ? [
+        "/Campanhas/ChatGPT Image 1 de ago. de 2026, 20_35_14.png",
+        "/Campanhas/44ab92e3-4a98-453e-9284-a5618b9a6c1b.JPG",
+        "/Campanhas/1fdd0f31-abb0-4827-8216-66a5c2892762.JPG",
+      ]
+    : campaign.galleryImages;
+  const hasHeroImage = Boolean(displayHeroImage);
 
   return (
     <div className="min-h-screen bg-[#f8faf7]">
@@ -136,7 +146,7 @@ export default function CampaignDetail() {
 
       <section className={`relative min-h-[240px] overflow-hidden ${hasHeroImage ? "bg-[#dcebd9]" : "bg-[#1c2e25]"} md:min-h-[280px]`}>
         {hasHeroImage ? (
-          <img src={campaign.galleryImages[0]} alt={`Imagem principal de ${campaign.title}`} className="absolute inset-0 h-full w-full object-cover" />
+          <img src={displayHeroImage ?? undefined} alt={`Imagem principal de ${displayTitle}`} className="absolute inset-0 h-full w-full object-cover" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <Heart className="h-24 w-24 text-white/20" aria-hidden="true" />
@@ -154,7 +164,7 @@ export default function CampaignDetail() {
             <span className="mb-2 inline-flex rounded-full bg-[#228B22] px-4 py-1 text-sm font-semibold">
               {campaign.status === "completed" ? "Campanha concluída" : "Campanha ativa"}
             </span>
-            <h1 className="text-4xl font-bold uppercase leading-tight md:text-5xl tracking-[0.06em]">{campaign.title}</h1>
+            <h1 className="text-4xl font-bold uppercase leading-tight md:text-5xl tracking-[0.06em]">{displayTitle}</h1>
             <div className="mt-4 flex flex-wrap justify-center gap-4 text-xs md:text-sm text-white/85">
               <span className="flex items-center gap-2"><Users className="h-3 w-3 md:h-4 md:w-4" /> {campaign.contributorsCount} contribuidores</span>
               <span className="flex items-center gap-2"><CalendarDays className="h-3 w-3 md:h-4 md:w-4" /> {formatDate(campaign.createdAt)}</span>
@@ -234,7 +244,7 @@ export default function CampaignDetail() {
               </Card>
               <Card className="p-5">
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#4f6550]">Fotos</p>
-                <p className="mt-3 text-3xl font-bold text-[#228B22]">{campaign.galleryImages.length}</p>
+                <p className="mt-3 text-3xl font-bold text-[#228B22]">{displayGalleryImages.length}</p>
               </Card>
             </div>
 
@@ -248,15 +258,15 @@ export default function CampaignDetail() {
               </TabsList>
 
               <TabsContent value="gallery" className="mt-6">
-                {campaign.galleryImages.length > 0 ? (
+                {displayGalleryImages.length > 0 ? (
                   <div className="space-y-4">
                     <div className="overflow-hidden rounded-3xl bg-[#f7fbf6] shadow-sm">
-                      <img src={campaign.galleryImages[0]} alt={`Foto principal da obra ${campaign.title}`} className="h-[420px] w-full object-cover" />
+                      <img src={displayGalleryImages[0]} alt={`Foto principal da obra ${displayTitle}`} className="h-[420px] w-full object-cover" />
                     </div>
-                    {campaign.galleryImages.length > 1 ? (
+                    {displayGalleryImages.length > 1 ? (
                       <div className="grid gap-4 sm:grid-cols-2">
-                        {campaign.galleryImages.slice(1).map((image) => (
-                          <img key={image} src={image} alt={`Foto da obra ${campaign.title}`} className="h-64 w-full rounded-xl object-cover" />
+                        {displayGalleryImages.slice(1).map((image) => (
+                          <img key={image} src={image} alt={`Foto da obra ${displayTitle}`} className="h-64 w-full rounded-xl object-cover" />
                         ))}
                       </div>
                     ) : null}

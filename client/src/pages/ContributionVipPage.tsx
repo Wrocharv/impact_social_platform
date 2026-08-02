@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Link, useRoute } from "wouter";
 
 const SPECIAL_APARTMENT_DONATION_CENTS = 120_000_00;
+const HOTEL_CAMPAIGN_ID = 100001;
 const DEFAULT_VIP_MEDIA_VIDEO_URL = "/89343f15-ccb1-4937-b353-a3cbb5f23bd6.mp4";
 const DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL = "/Parceiros/WhatsApp Video 2026-07-28 at 15.37.04.mp4";
 const DEFAULT_VIP_MEDIA_IMAGES = ["/render-quarto.jpg", "/render-hotel.jpg", "/obra-lavanderia.jpg"];
@@ -133,6 +134,26 @@ export default function ContributionVipPage() {
   ].filter((url) => typeof url === "string" && url.trim().length > 0)));
   const vipVideoUrl = videoCandidates[videoIndex] ?? null;
   const vipVideoEmbedUrl = vipVideoUrl ? toEmbedVideoUrl(vipVideoUrl) : null;
+
+  if (campaignId !== HOTEL_CAMPAIGN_ID) {
+    return (
+      <div className="min-h-screen bg-[#f8faf7]">
+        <PublicHeader />
+        <main className="container max-w-6xl px-4 py-16">
+          <Card className="p-8 text-center">
+            <h1 className="text-2xl font-bold text-[#2d2d2d]">VIP não disponível nesta campanha</h1>
+            <p className="mt-2 text-[#656565]">Aqui usamos somente materiais e doação financeira, como combinado para a campanha da irmã.</p>
+            <Link
+              href={`/contribute/help/${campaignId}`}
+              className="mt-6 inline-flex min-h-11 items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b]"
+            >
+              Voltar às opções de ajuda
+            </Link>
+          </Card>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f8faf7]">
