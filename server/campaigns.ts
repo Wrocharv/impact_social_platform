@@ -755,6 +755,114 @@ async function loadCampaignNeedsWithLegacyFallback(
   }
 }
 
+type PublicCampaignRow = {
+  id: number;
+  title: string;
+  description: string;
+  longDescription: string | null;
+  category: "moradia" | "educacao" | "saude" | "alimentacao" | "infraestrutura" | "outro" | null;
+  goal: number;
+  vipApartmentAmountCents: number;
+  raised: number;
+  status: "active" | "completed" | "paused" | "archived";
+  imageUrl: string | null;
+  createdBy: number;
+  createdAt: Date;
+  updatedAt: Date;
+  startDate: Date | null;
+  endDate: Date | null;
+};
+
+function normalizePublicCampaignRow(
+  row: Partial<PublicCampaignRow> & Pick<PublicCampaignRow, "id" | "title" | "description" | "goal" | "raised" | "status" | "createdBy" | "createdAt" | "updatedAt">,
+): PublicCampaignRow {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    longDescription: row.longDescription ?? row.description,
+    category: row.category ?? "outro",
+    goal: row.goal,
+    vipApartmentAmountCents: Math.max(1, Number(row.vipApartmentAmountCents ?? DEFAULT_VIP_APARTMENT_AMOUNT_CENTS)),
+    raised: row.raised,
+    status: row.status,
+    imageUrl: row.imageUrl ?? null,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    startDate: row.startDate ?? null,
+    endDate: row.endDate ?? null,
+  };
+}
+
+async function loadPublishedCampaignRowsWithLegacyFallback(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  condition: any,
+  limit: number,
+) {
+  try {
+    const rows = await db
+      .select({
+        id: campaigns.id,
+        title: campaigns.title,
+        description: campaigns.description,
+        longDescription: campaigns.longDescription,
+        category: campaigns.category,
+        goal: campaigns.goal,
+        vipApartmentAmountCents: campaigns.vipApartmentAmountCents,
+        raised: campaigns.raised,
+        status: campaigns.status,
+        imageUrl: campaigns.imageUrl,
+        createdBy: campaigns.createdBy,
+        createdAt: campaigns.createdAt,
+        updatedAt: campaigns.updatedAt,
+        startDate: campaigns.startDate,
+        endDate: campaigns.endDate,
+      })
+      .from(campaigns)
+      .where(condition)
+      .orderBy(desc(campaigns.createdAt))
+      .limit(limit);
+
+    return rows.map(normalizePublicCampaignRow);
+  } catch (error) {
+    if (!isMissingColumnError(error)) throw error;
+
+    const legacyRows = await db
+      .select({
+        id: campaigns.id,
+        title: campaigns.title,
+        description: campaigns.description,
+        goal: campaigns.goal,
+        raised: campaigns.raised,
+        status: campaigns.status,
+        imageUrl: campaigns.imageUrl,
+        createdBy: campaigns.createdBy,
+        createdAt: campaigns.createdAt,
+        updatedAt: campaigns.updatedAt,
+      })
+      .from(campaigns)
+      .where(condition)
+      .orderBy(desc(campaigns.createdAt))
+      .limit(limit);
+
+    return legacyRows.map(normalizePublicCampaignRow);
+  }
+}
+
+async function loadPublicCampaignByIdWithLegacyFallback(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  campaignId: number,
+) {
+  const condition = and(
+    eq(campaigns.id, campaignId),
+    inArray(campaigns.status, PUBLIC_STATUSES),
+  );
+
+  const rows = await loadPublishedCampaignRowsWithLegacyFallback(db, condition, 1);
+  return rows[0] ?? null;
+}
+
 export const campaignsRouter = router({
   uploadImage: adminProcedure
     .input(uploadCampaignImageSchema)
@@ -877,12 +985,11 @@ export const campaignsRouter = router({
         ? and(statusCondition, like(campaigns.title, `%${input.query}%`))
         : statusCondition;
 
-      const rows = await db
-        .select()
-        .from(campaigns)
-        .where(condition)
-        .orderBy(desc(campaigns.createdAt))
-        .limit(input?.limit ?? 12);
+      const rows = await loadPublishedCampaignRowsWithLegacyFallback(
+        db,
+        condition,
+        input?.limit ?? 12,
+      );
       const metrics = await loadCampaignMetrics(
         db,
         rows.map((campaign) => campaign.id),
@@ -958,17 +1065,7 @@ export const campaignsRouter = router({
       const canonicalRecantoId = await ensureCanonicalRecantoCampaign(db);
       const campaignId = input.id === DEMO_CAMPAIGN.id ? canonicalRecantoId : input.id;
 
-      const result = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.id, campaignId),
-            inArray(campaigns.status, PUBLIC_STATUSES),
-          ),
-        )
-        .limit(1);
-      const campaign = result[0];
+      const campaign = await loadPublicCampaignByIdWithLegacyFallback(db, campaignId);
       if (!campaign) return null;
 
       const [updates, needs, documents, metrics, materialContributions] = await Promise.all([
