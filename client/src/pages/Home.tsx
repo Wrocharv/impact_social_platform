@@ -7,7 +7,7 @@ import { Building2, ExternalLink, Handshake, Heart, ShieldCheck, Zap } from "luc
 import { useMemo } from "react";
 import { Link } from "wouter";
 
-const DEFAULT_HOME_PRESENTATION_VIDEO_URL = "https://www.youtube.com/watch?v=aqz-KE-bpKQ";
+const DEFAULT_HOME_PRESENTATION_VIDEO_URL = "/89343f15-ccb1-4937-b353-a3cbb5f23bd6.mp4";
 
 const formatCurrency = (value: number) =>
   (value / 100).toLocaleString("pt-BR", {
@@ -130,7 +130,6 @@ type PublishedCampaign = {
 };
 
 export default function Home() {
-  const primaryContributionPath = "/contribute/help/100001";
   const featuredInput = useMemo(() => ({ status: "active" as const, limit: 3 }), []);
   const completedInput = useMemo(() => ({ status: "completed" as const, limit: 3 }), []);
   const campaignsQuery = trpc.campaigns.listPublished.useQuery(featuredInput);
@@ -138,15 +137,11 @@ export default function Home() {
   const statsQuery = trpc.campaigns.getPublicStats.useQuery();
   const partnersQuery = trpc.partners.listPublished.useQuery();
   const presentationVideoSource = useMemo(() => {
-    const configured = (import.meta.env.VITE_HOME_PRESENTATION_VIDEO_URL || "").trim();
-    const configuredSource = configured ? toPresentationVideoSource(configured) : null;
-    if (configuredSource) return configuredSource;
-
-    return toPresentationVideoSource(DEFAULT_HOME_PRESENTATION_VIDEO_URL);
+    const configured = (import.meta.env.VITE_HOME_PRESENTATION_VIDEO_URL || DEFAULT_HOME_PRESENTATION_VIDEO_URL).trim();
+    return toPresentationVideoSource(configured);
   }, []);
   const campaigns = (campaignsQuery.data ?? []) as PublishedCampaign[];
   const completedCampaigns = (completedQuery.data ?? []) as PublishedCampaign[];
-  const partners = (partnersQuery.data ?? []) as PartnerItem[];
   const visiblePartners = getPredimaisShowcasePartners();
 
   return (
@@ -176,7 +171,7 @@ export default function Home() {
             </p>
             <div className="flex flex-col justify-center gap-3 sm:flex-row">
               <Link
-                  href={primaryContributionPath}
+                href="/campaigns"
                 className="inline-flex min-h-12 items-center justify-center rounded-md bg-white px-7 font-semibold text-[#18751f] transition hover:bg-[#f2f7f1] active:scale-[0.97]"
               >
                 Eu quero ajudar
@@ -334,7 +329,7 @@ export default function Home() {
           </div>
           <div className="mt-12 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
-                href={primaryContributionPath}
+              href="/campaigns"
               className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-7 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]"
             >
               <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
@@ -372,7 +367,7 @@ export default function Home() {
           )}
           <div className="mt-12 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
-                href={primaryContributionPath}
+              href="/campaigns"
               className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-7 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]"
             >
               <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
@@ -434,7 +429,7 @@ export default function Home() {
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
-                href={primaryContributionPath}
+              href="/campaigns"
               className="inline-flex min-h-12 items-center justify-center rounded-md bg-white px-7 font-semibold text-[#1f2c29] transition hover:bg-[#f0f5f0] active:scale-[0.97]"
             >
               <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
@@ -577,7 +572,7 @@ function getPredimaisShowcasePartners(): PartnerItem[] {
       id: 4,
       name: "Múltipla Escolha",
       type: "company",
-      ownerName: "Lucas Sardinha",
+      ownerName: "Lucas Daniel Sardinha",
       description: "Parceiro que mobiliza apoio para campanhas com presença local e comunicação direta.",
       logoUrl: "/partners/multipla-escolha.png",
       storePhotoUrl: "/partners/multipla-escolha.png",
@@ -591,50 +586,25 @@ function getPredimaisShowcasePartners(): PartnerItem[] {
   ];
 }
 
-function PartnerTickerItem({ partner }: { partner: PartnerItem }) {
-  const linkHref = partner.id > 0 ? `/partner/${partner.id}` : "#parceiros";
-
-  return (
-    <Link href={linkHref} className="block min-h-[196px] min-w-[390px] max-w-[390px] rounded-xl border border-white/10 bg-[#f3f8f1] px-4 py-6 text-[#1f3023] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <div className="flex items-center gap-3">
-        <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
-          {partner.logoUrl ? (
-            <img src={partner.logoUrl} alt={`Logomarca de ${partner.name}`} className="h-full w-full object-contain p-2.5" loading="lazy" />
-          ) : (
-            <Handshake className="h-8 w-8 text-[#5a7d5f]" aria-hidden="true" />
-          )}
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-base font-bold">{partner.name}</p>
-          <p className="truncate text-sm text-[#55665c]">{partner.type === "company" ? "Empresa parceira" : "Profissional parceiro"}</p>
-          {partner.ownerName && <p className="truncate text-sm text-[#6a7a71]">{partner.ownerName}</p>}
-        </div>
-      </div>
-      <div className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#1f6f37]">
-        Abrir vitrine do parceiro <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-      </div>
-    </Link>
-  );
-}
-
 function PartnerShowcaseBanner({ partner }: { partner: PartnerItem }) {
   const linkHref = partner.id > 0 ? `/partner/${partner.id}` : "#parceiros";
   const bannerImage = partner.logoUrl || partner.storePhotoUrl || partner.ownerPhotoUrl;
-  const shouldContainBanner = bannerImage?.includes("multipla-escolha.png") ?? false;
+  const shouldContainBanner =
+    bannerImage?.includes("multipla-escolha.png")
+    || bannerImage?.endsWith("/predimais.jpeg")
+    || false;
 
   return (
     <Link
       href={linkHref}
-      className="group relative overflow-hidden rounded-none border border-white/10 bg-[#f3f8f1] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+      className="relative overflow-hidden rounded-none border border-white/10 bg-[#f3f8f1] shadow-sm"
     >
       <div className="aspect-[18/10] w-full overflow-hidden bg-[#15211a]">
         {bannerImage ? (
           <img
             src={encodeURI(bannerImage)}
             alt={`Banner de ${partner.name}`}
-            className={`h-full w-full transition duration-300 group-hover:scale-[1.03] ${
-              shouldContainBanner ? "object-contain bg-white p-2" : "object-cover"
-            }`}
+            className={`h-full w-full ${shouldContainBanner ? "object-contain bg-white p-2" : "object-cover"}`}
             loading="lazy"
           />
         ) : (

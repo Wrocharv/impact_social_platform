@@ -33,17 +33,17 @@ const defaultFallbackPartnerSeeds: Array<
   Omit<PartnerRecord, "id" | "createdAt" | "updatedAt">
 > = [
   {
-    name: "A PREDIMAIS",
+    name: "Predimais",
     type: "company",
     ownerName: "Saulo Goulart",
     description:
       "Parceria que conecta clientes, amigos e colaboradores para apoiar campanhas sociais recorrentes.",
     logoUrl:
-      "/partners/predimais.jpeg",
+      "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?auto=format&fit=crop&w=900&q=80",
     storePhotoUrl:
-      "/partners/predimais-fachada.jpeg",
+      "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=900&q=80",
     ownerPhotoUrl:
-      "/partners/predimais-interior.jpeg",
+      "https://images.unsplash.com/photo-1542204625-de293a2f0f9b?auto=format&fit=crop&w=900&q=80",
     address: "Rua Central, 120 - Centro",
     contactInfo: "(11) 99999-0101",
     testimonialVideoUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
@@ -68,6 +68,24 @@ const defaultFallbackPartnerSeeds: Array<
     testimonialText:
       "Quando contamos histórias reais, muita gente decide ajudar. Essa ponte transforma vidas.",
     website: "https://www.instagram.com",
+  },
+  {
+    name: "Arte em Movimento",
+    type: "individual",
+    ownerName: "Rafael Nunes",
+    description:
+      "Artista parceiro que realiza ações culturais para ampliar a visibilidade das campanhas.",
+    logoUrl:
+      "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=900&q=80",
+    storePhotoUrl: undefined,
+    ownerPhotoUrl:
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80",
+    address: "Rio de Janeiro - RJ",
+    contactInfo: "(21) 98888-0202",
+    testimonialVideoUrl: undefined,
+    testimonialText:
+      "A arte aproxima pessoas de causas urgentes. Fazer parte dessa rede foi uma escolha natural.",
+    website: "https://www.youtube.com",
   },
   {
     name: "Múltipla Escolha",
@@ -400,19 +418,14 @@ export const partnersRouter = router({
         return getFallbackPartners().find((partner) => partner.id === input.id) ?? null;
       }
 
-      try {
-        const [partner] = await db
-          .select()
-          .from(partners)
-          .where(eq(partners.id, input.id))
-          .limit(1);
+      const [partner] = await db
+        .select()
+        .from(partners)
+        .where(eq(partners.id, input.id))
+        .limit(1);
 
-        if (partner) return partner;
-        return getLocalOnlyFallbackPartners().find((item) => item.id === input.id) ?? null;
-      } catch (error) {
-        console.warn("[Partners] Falling back to local data in getPublicById:", error);
-        return getFallbackPartners().find((partner) => partner.id === input.id) ?? null;
-      }
+      if (partner) return partner;
+      return getLocalOnlyFallbackPartners().find((item) => item.id === input.id) ?? null;
     }),
 
   getAll: adminProcedure.query(async () => {
