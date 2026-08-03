@@ -138,7 +138,6 @@ function isCanonicalRecantoCampaign(campaign: { id: number; title?: string | nul
 
 function withCanonicalRecantoCover<T extends { id: number; title: string; imageUrl: string | null }>(campaign: T): T {
   if (!isCanonicalRecantoCampaign(campaign)) return campaign;
-  if (campaign.imageUrl && campaign.imageUrl.trim().length > 0) return campaign;
   return {
     ...campaign,
     imageUrl: DEMO_CAMPAIGN.imageUrl,
