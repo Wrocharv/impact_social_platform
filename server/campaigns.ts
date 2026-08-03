@@ -24,23 +24,22 @@ const DEMO_CAMPAIGN = {
   longDescription:
     "A campanha apresenta uma obra real, com evolução de etapas, atualizações de fotos e necessidades concretas de materiais. Apoie a construção do Hotel Recanto de Paz em cada fase.",
   category: "outro" as const,
-  goal: 5_000_000,
+  goal: 150_000_000,
   vipApartmentAmountCents: DEFAULT_VIP_APARTMENT_AMOUNT_CENTS,
   imageUrl: "/obra-paredes.jpg",
   createdBy: 1,
   status: "active" as const,
   createdAt: new Date("2026-07-29T10:00:00.000Z"),
   updatedAt: new Date("2026-07-29T10:00:00.000Z"),
-  raised: 0,
-  remaining: 5_000_000,
-  progress: 0,
-  contributorsCount: 0,
+  raised: 10_025_000,
+  remaining: 139_975_000,
+  progress: 7,
+  contributorsCount: 3,
   galleryImages: [
     "/obra-paredes.jpg",
     "/obra-lavanderia.jpg",
     "/obra-drone.png",
     "/render-hotel.jpg",
-    "/render-quarto.jpg",
   ],
   needs: [
     {
