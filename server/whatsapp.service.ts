@@ -12,7 +12,7 @@ type FallbackCampaign = {
   goal: number;
   vipApartmentAmountCents?: number;
   raised: number;
-  status: "active" | "completed";
+  status: "active" | "completed" | "paused" | "archived";
   imageUrl?: string;
   needs?: Array<{
     id: number;

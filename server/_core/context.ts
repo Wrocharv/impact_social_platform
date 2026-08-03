@@ -46,6 +46,18 @@ export async function createContext(
     }
   }
 
+  // Local fallback mode: when running without DATABASE_URL on localhost,
+  // allow admin operations in the local panel even in production build.
+  if (!user && !process.env.DATABASE_URL) {
+    const hostHeader = String(opts.req.headers.host ?? "").toLowerCase();
+    const isLocalHost = hostHeader.includes("localhost") || hostHeader.includes("127.0.0.1");
+
+    if (isLocalHost) {
+      const email = ENV.adminEmails[0] ?? LOCAL_DEV_USER.email;
+      user = { ...LOCAL_DEV_USER, email };
+    }
+  }
+
   return {
     req: opts.req,
     res: opts.res,

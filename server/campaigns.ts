@@ -197,6 +197,20 @@ function withDefaultNeedsIfMissing<T extends {
   };
 }
 
+function supportsMutationQueries(db: unknown): boolean {
+  const candidate = db as {
+    insert?: unknown;
+    update?: unknown;
+    delete?: unknown;
+  };
+
+  return (
+    typeof candidate.insert === "function"
+    && typeof candidate.update === "function"
+    && typeof candidate.delete === "function"
+  );
+}
+
 function getDemoCampaigns(status?: "active" | "completed") {
   const demoCampaigns = [DEMO_CAMPAIGN].filter((campaign) => {
     return !status || campaign.status === status;
@@ -210,20 +224,6 @@ function getDemoCampaigns(status?: "active" | "completed") {
 }
 
 function getDemoCampaignById(id: number) {
-  if (id === 1) {
-    return {
-      ...DEMO_CAMPAIGN,
-      id,
-      needs: DEMO_CAMPAIGN.needs.map((need) => ({
-        ...need,
-        campaignId: id,
-      })),
-      updates: DEMO_CAMPAIGN.updates.map((update) => ({
-        ...update,
-        campaignId: id,
-      })),
-    };
-  }
   if (id === DEMO_CAMPAIGN.id) return DEMO_CAMPAIGN;
   return null;
 }
@@ -908,11 +908,8 @@ export const campaignsRouter = router({
     if (!db) {
       // Admin sem DB deve mostrar apenas campanhas realmente editaveis no fallback local.
       const fallbackCampaigns = getMappedFallbackCampaigns();
-      const demoCampaigns = getDemoCampaigns();
-      const mergedCampaigns = dedupeCampaignsById([
-        ...fallbackCampaigns,
-        ...demoCampaigns,
-      ]).sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+      const mergedCampaigns = dedupeCampaignsById(fallbackCampaigns)
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
 
       if (mergedCampaigns.length === 0) {
         const seededCampaign = whatsappService.createFallbackCampaign({
@@ -962,46 +959,53 @@ export const campaignsRouter = router({
           query: input?.query,
         }).filter((campaign) => !isInternalLocalSeedCampaign(campaign));
 
-        const normalizedQuery = input?.query?.trim().toLowerCase();
-        const demoCampaigns = getDemoCampaigns(input?.status).filter((campaign) => {
-          if (!normalizedQuery) return true;
-          return campaign.title.toLowerCase().includes(normalizedQuery);
-        });
-
-        const mergedCampaigns = dedupeCampaignsById([
-          ...mappedFallback,
-          ...demoCampaigns,
-        ]).sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+        const mergedCampaigns = dedupeCampaignsById(mappedFallback)
+          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
 
         return mergedCampaigns.slice(0, input?.limit ?? 12);
       }
 
-      await ensureCanonicalRecantoCampaign(db);
+      try {
+        if (supportsMutationQueries(db)) {
+          await ensureCanonicalRecantoCampaign(db);
+        }
 
-      const statusCondition = input?.status
-        ? eq(campaigns.status, input.status)
-        : inArray(campaigns.status, PUBLIC_STATUSES);
-      const condition = input?.query
-        ? and(statusCondition, like(campaigns.title, `%${input.query}%`))
-        : statusCondition;
+        const statusCondition = input?.status
+          ? eq(campaigns.status, input.status)
+          : inArray(campaigns.status, PUBLIC_STATUSES);
+        const condition = input?.query
+          ? and(statusCondition, like(campaigns.title, `%${input.query}%`))
+          : statusCondition;
 
-      const rows = await loadPublishedCampaignRowsWithLegacyFallback(
-        db,
-        condition,
-        input?.limit ?? 12,
-      );
-      const metrics = await loadCampaignMetrics(
-        db,
-        rows.map((campaign) => campaign.id),
-      );
+        const rows = await loadPublishedCampaignRowsWithLegacyFallback(
+          db,
+          condition,
+          input?.limit ?? 12,
+        );
+        const metrics = await loadCampaignMetrics(
+          db,
+          rows.map((campaign) => campaign.id),
+        );
 
-      const publishedRows = rows.map((campaign) => ({
-        ...withCanonicalRecantoCover(campaign),
-        initialRaised: campaign.raised,
-        ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
-      }));
+        const publishedRows = rows.map((campaign) => ({
+          ...withCanonicalRecantoCover(campaign),
+          initialRaised: campaign.raised,
+          ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
+        }));
 
-      return dedupeCampaignsById(publishedRows).slice(0, input?.limit ?? 12);
+        return dedupeCampaignsById(publishedRows).slice(0, input?.limit ?? 12);
+      } catch (error) {
+        console.warn("[campaigns.listPublished] Falling back to local campaigns after DB error:", error);
+        const mappedFallback = getMappedFallbackCampaigns({
+          status: input?.status,
+          query: input?.query,
+        }).filter((campaign) => !isInternalLocalSeedCampaign(campaign));
+
+        const mergedCampaigns = dedupeCampaignsById(mappedFallback)
+          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+
+        return mergedCampaigns.slice(0, input?.limit ?? 12);
+      }
     }),
 
   getPublicStats: publicProcedure.query(async () => {
@@ -1009,10 +1013,7 @@ export const campaignsRouter = router({
     if (!db) {
       const mappedActiveFallback = getMappedFallbackCampaigns({ status: "active" })
         .filter((campaign) => !isInternalLocalSeedCampaign(campaign));
-      const mergedActiveCampaigns = dedupeCampaignsById([
-        ...mappedActiveFallback,
-        ...getDemoCampaigns("active"),
-      ]);
+      const mergedActiveCampaigns = dedupeCampaignsById(mappedActiveFallback);
 
       return {
         activeCampaigns: mergedActiveCampaigns.length,
@@ -1021,31 +1022,46 @@ export const campaignsRouter = router({
       };
     }
 
-    await ensureCanonicalRecantoCampaign(db);
+    try {
+      if (supportsMutationQueries(db)) {
+        await ensureCanonicalRecantoCampaign(db);
+      }
 
-    const activeCampaigns = await db
-      .select({ id: campaigns.id, goal: campaigns.goal, initialRaised: campaigns.raised })
-      .from(campaigns)
-      .where(eq(campaigns.status, "active"));
-    const metrics = await loadCampaignMetrics(
-      db,
-      activeCampaigns.map((campaign) => campaign.id),
-    );
+      const activeCampaigns = await db
+        .select({ id: campaigns.id, goal: campaigns.goal, initialRaised: campaigns.raised })
+        .from(campaigns)
+        .where(eq(campaigns.status, "active"));
+      const metrics = await loadCampaignMetrics(
+        db,
+        activeCampaigns.map((campaign) => campaign.id),
+      );
 
       return activeCampaigns.reduce(
-      (summary, campaign) => {
-        const campaignMetrics =
-          metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.initialRaised, []);
-        summary.raised += campaignMetrics.raised;
-        summary.contributorsCount += campaignMetrics.contributorsCount;
-        return summary;
-      },
-      {
-        activeCampaigns: activeCampaigns.length,
-        raised: 0,
-        contributorsCount: 0,
-      },
-    );
+        (summary, campaign) => {
+          const campaignMetrics =
+            metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.initialRaised, []);
+          summary.raised += campaignMetrics.raised;
+          summary.contributorsCount += campaignMetrics.contributorsCount;
+          return summary;
+        },
+        {
+          activeCampaigns: activeCampaigns.length,
+          raised: 0,
+          contributorsCount: 0,
+        },
+      );
+    } catch (error) {
+      console.warn("[campaigns.getPublicStats] Falling back to local stats after DB error:", error);
+      const mappedActiveFallback = getMappedFallbackCampaigns({ status: "active" })
+        .filter((campaign) => !isInternalLocalSeedCampaign(campaign));
+      const mergedActiveCampaigns = dedupeCampaignsById(mappedActiveFallback);
+
+      return {
+        activeCampaigns: mergedActiveCampaigns.length,
+        raised: mergedActiveCampaigns.reduce((sum, campaign) => sum + campaign.raised, 0),
+        contributorsCount: mergedActiveCampaigns.reduce((sum, campaign) => sum + campaign.contributorsCount, 0),
+      };
+    }
   }),
 
   getById: publicProcedure
@@ -1056,7 +1072,13 @@ export const campaignsRouter = router({
         const demoCampaign = getDemoCampaignById(input.id);
         if (demoCampaign) return withMaterialProgressFromFallback(demoCampaign);
 
-        const fallbackCampaign = getMappedFallbackCampaigns().find((campaign) => campaign.id === input.id);
+        const fallbackCampaigns = getMappedFallbackCampaigns();
+        let fallbackCampaign = fallbackCampaigns.find((campaign) => campaign.id === input.id);
+        if (!fallbackCampaign && input.id === 1) {
+          fallbackCampaign =
+            fallbackCampaigns.find((campaign) => !/recanto de paz/i.test(campaign.title))
+            ?? fallbackCampaigns.find((campaign) => campaign.id !== DEMO_CAMPAIGN.id);
+        }
         if (!fallbackCampaign) return null;
 
         return withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaign));
@@ -1249,10 +1271,7 @@ export const campaignsRouter = router({
           vipApartmentAmountCents: input.vipApartmentAmountCents,
           raised: input.initialRaised,
           imageUrl: input.imageUrl ?? undefined,
-          status:
-            input.status === "active" || input.status === "completed"
-              ? input.status
-              : undefined,
+          status: input.status,
         });
 
         if (!fallbackCampaign) {
