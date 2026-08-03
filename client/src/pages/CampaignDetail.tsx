@@ -123,12 +123,12 @@ export default function CampaignDetail() {
 
   const isSisterCampaign = campaign.id === 100002;
   const displayTitle = isSisterCampaign ? "Construção da Casa da Irmã Valdelice" : campaign.title;
-  const displayHeroImage = isSisterCampaign ? "/Campanhas/ChatGPT Image 1 de ago. de 2026, 21_16_27.png" : campaign.imageUrl;
+  const displayHeroImage = isSisterCampaign ? "/Campanhas/Hotel Recanto de Paz/render-hotel.jpg" : campaign.imageUrl;
   const displayGalleryImages = isSisterCampaign
     ? [
-        "/Campanhas/ChatGPT Image 1 de ago. de 2026, 20_35_14.png",
-        "/Campanhas/44ab92e3-4a98-453e-9284-a5618b9a6c1b.JPG",
-        "/Campanhas/1fdd0f31-abb0-4827-8216-66a5c2892762.JPG",
+        "/Campanhas/Hotel Recanto de Paz/obra-paredes.jpg",
+        "/Campanhas/Hotel Recanto de Paz/obra-lavanderia.jpg",
+        "/Campanhas/Hotel Recanto de Paz/obra-drone.png",
       ]
     : campaign.galleryImages;
   const hasHeroImage = Boolean(displayHeroImage);
