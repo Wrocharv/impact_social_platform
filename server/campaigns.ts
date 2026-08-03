@@ -1084,7 +1084,9 @@ export const campaignsRouter = router({
       }
 
       const canonicalRecantoId = await ensureCanonicalRecantoCampaign(db);
-      const campaignId = input.id === DEMO_CAMPAIGN.id ? canonicalRecantoId : input.id;
+      const isRecantoAlias = input.id === DEMO_CAMPAIGN.id || input.id === 2;
+      const campaignId = isRecantoAlias ? canonicalRecantoId : input.id;
+      const responseCampaignId = isRecantoAlias ? input.id : campaignId;
 
       const campaign = await loadPublicCampaignByIdWithLegacyFallback(db, campaignId);
       if (!campaign) return null;
@@ -1164,6 +1166,7 @@ export const campaignsRouter = router({
 
         return {
           ...need,
+          campaignId: responseCampaignId,
           fulfilled: fulfilledPercent,
           offeredQuantity: progress.offeredQuantity,
           remainingQuantity,
@@ -1174,10 +1177,12 @@ export const campaignsRouter = router({
 
       return withFallbackRecantoContentIfEmpty({
         ...canonicalizedCampaign,
+        id: responseCampaignId,
         initialRaised: campaign.raised,
         ...campaignMetrics,
         updates: updates.map((update) => ({
           ...update,
+          campaignId: responseCampaignId,
           images: parseMediaUrls(update.imageUrls),
           videos: parseMediaUrls(update.videoUrls),
         })),
