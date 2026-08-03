@@ -146,6 +146,7 @@ function withCanonicalRecantoCover<T extends { id: number; title: string; imageU
 
 function withFallbackRecantoContentIfEmpty<T extends {
   title: string;
+  imageUrl?: string | null;
   description?: string;
   longDescription?: string | null;
   category?: string | null;
@@ -155,23 +156,21 @@ function withFallbackRecantoContentIfEmpty<T extends {
 }>(campaign: T): T {
   if (!isCanonicalRecantoCampaign({ id: 0, title: campaign.title })) return campaign;
 
-  const hasUpdates = Array.isArray(campaign.updates) && campaign.updates.length > 0;
   const hasNeeds = Array.isArray(campaign.needs) && campaign.needs.length > 0;
-  const hasGallery = Array.isArray(campaign.galleryImages) && campaign.galleryImages.length > 0;
+  const canonicalUpdates = DEMO_CAMPAIGN.updates.map((update) => ({
+    ...update,
+    images: [...update.images],
+    videos: [],
+  }));
 
   return {
     ...campaign,
+    imageUrl: DEMO_CAMPAIGN.imageUrl,
     longDescription: campaign.longDescription || DEMO_CAMPAIGN.longDescription,
     category: campaign.category || DEMO_CAMPAIGN.category,
-    updates: hasUpdates
-      ? campaign.updates
-      : DEMO_CAMPAIGN.updates.map((update) => ({
-          ...update,
-          images: [...update.images],
-          videos: [],
-        })),
+    updates: canonicalUpdates,
     needs: hasNeeds ? campaign.needs : [...DEMO_CAMPAIGN.needs],
-    galleryImages: hasGallery ? campaign.galleryImages : [...DEMO_CAMPAIGN.galleryImages],
+    galleryImages: [...DEMO_CAMPAIGN.galleryImages],
   };
 }
 
