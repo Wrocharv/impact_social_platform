@@ -121,9 +121,18 @@ export default function CampaignDetail() {
     return <CampaignState title="Campanha não encontrada" description="Ela pode não estar publicada ou ter sido arquivada." />;
   }
 
+  const isRecantoCampaign = /recanto de paz/i.test(campaign.title);
+  const canonicalRecantoGalleryImages = [
+    "/obra-paredes.jpg",
+    "/obra-lavanderia.jpg",
+    "/obra-drone.png",
+    "/render-hotel.jpg",
+    "/render-quarto.jpg",
+  ];
+
   const displayTitle = campaign.title;
-  const displayHeroImage = campaign.imageUrl;
-  const displayGalleryImages = campaign.galleryImages;
+  const displayHeroImage = isRecantoCampaign ? "/obra-paredes.jpg" : campaign.imageUrl;
+  const displayGalleryImages = isRecantoCampaign ? canonicalRecantoGalleryImages : campaign.galleryImages;
   const hasHeroImage = Boolean(displayHeroImage);
 
   return (
