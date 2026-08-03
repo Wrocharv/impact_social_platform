@@ -121,16 +121,9 @@ export default function CampaignDetail() {
     return <CampaignState title="Campanha não encontrada" description="Ela pode não estar publicada ou ter sido arquivada." />;
   }
 
-  const isSisterCampaign = campaign.id === 100002;
-  const displayTitle = isSisterCampaign ? "Construção da Casa da Irmã Valdelice" : campaign.title;
-  const displayHeroImage = isSisterCampaign ? "/Campanhas/Hotel Recanto de Paz/render-hotel.jpg" : campaign.imageUrl;
-  const displayGalleryImages = isSisterCampaign
-    ? [
-        "/Campanhas/Hotel Recanto de Paz/obra-paredes.jpg",
-        "/Campanhas/Hotel Recanto de Paz/obra-lavanderia.jpg",
-        "/Campanhas/Hotel Recanto de Paz/obra-drone.png",
-      ]
-    : campaign.galleryImages;
+  const displayTitle = campaign.title;
+  const displayHeroImage = campaign.imageUrl;
+  const displayGalleryImages = campaign.galleryImages;
   const hasHeroImage = Boolean(displayHeroImage);
 
   return (
