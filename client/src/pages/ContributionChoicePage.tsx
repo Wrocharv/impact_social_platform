@@ -6,6 +6,7 @@ import { ChevronLeft, Crown, Heart, Handshake, Trophy } from "lucide-react";
 import { Link, useRoute } from "wouter";
 
 const HOTEL_CAMPAIGN_ID = 100001;
+const HOTEL_LEGACY_CAMPAIGN_ID = 1;
 const SPECIAL_APARTMENT_DONATION_CENTS = 120_000_00;
 
 const formatCurrency = (valueInCents: number) =>
@@ -61,7 +62,12 @@ export default function ContributionChoicePage() {
   }
 
   const campaign = campaignQuery.data;
-  const isHotelCampaign = campaignId === HOTEL_CAMPAIGN_ID;
+  const campaignTitle = typeof campaign.title === "string" ? campaign.title.toLowerCase() : "";
+  const campaignDataId = typeof campaign.id === "number" ? campaign.id : campaignId;
+  const isHotelCampaign =
+    campaignId === HOTEL_CAMPAIGN_ID ||
+    campaignDataId === HOTEL_CAMPAIGN_ID ||
+    (campaignId === HOTEL_LEGACY_CAMPAIGN_ID && campaignTitle.includes("hotel recanto de paz"));
   const vipApartmentAmountCents = ("vipApartmentAmountCents" in campaign && typeof campaign.vipApartmentAmountCents === "number")
     ? campaign.vipApartmentAmountCents
     : SPECIAL_APARTMENT_DONATION_CENTS;
