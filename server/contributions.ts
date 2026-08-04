@@ -702,11 +702,6 @@ export const contributionsRouter = router({
           .select({
             id: contributions.id,
             campaignId: contributions.campaignId,
-            donorName: contributions.donorName,
-            donorWhatsapp: contributions.donorWhatsapp,
-            donorCity: contributions.donorCity,
-            description: contributions.description,
-            createdAt: contributions.createdAt,
           })
           .from(contributions)
           .where(and(...legacyConditions))
@@ -715,9 +710,14 @@ export const contributionsRouter = router({
         return legacyRows.map((row) => ({
           ...row,
           campaignNeedId: null,
-          quantity: row.description,
+          donorName: "",
+          donorWhatsapp: "",
+          donorCity: "",
+          description: "",
+          quantity: "",
           quantityExact: null,
           estimatedAmount: null,
+          createdAt: new Date(),
           paymentStatusDetail: "awaiting_triage",
         }));
       }
