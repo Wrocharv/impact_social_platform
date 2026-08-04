@@ -418,14 +418,20 @@ export const partnersRouter = router({
         return getFallbackPartners().find((partner) => partner.id === input.id) ?? null;
       }
 
-      const [partner] = await db
-        .select()
-        .from(partners)
-        .where(eq(partners.id, input.id))
-        .limit(1);
+      try {
+        const [partner] = await db
+          .select()
+          .from(partners)
+          .where(eq(partners.id, input.id))
+          .limit(1);
 
-      if (partner) return partner;
-      return getLocalOnlyFallbackPartners().find((item) => item.id === input.id) ?? null;
+        if (partner) return partner;
+        return getLocalOnlyFallbackPartners().find((item) => item.id === input.id) ?? null;
+      } catch (error) {
+        // Compatibility fallback for production databases that are missing newer partner columns.
+        console.warn("[Partners] Falling back to local data in getPublicById:", error);
+        return getFallbackPartners().find((partner) => partner.id === input.id) ?? null;
+      }
     }),
 
   getAll: adminProcedure.query(async () => {
