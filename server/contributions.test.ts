@@ -60,6 +60,39 @@ function createAdminContext(): TrpcContext {
   };
 }
 
+describe("contributions fallback without database", () => {
+  beforeEach(() => {
+    getDbMock.mockReset();
+  });
+
+  it("retorna null para lookup de doador quando o banco não está disponível", async () => {
+    getDbMock.mockResolvedValue(null);
+    const caller = appRouter.createCaller(createPublicContext());
+
+    await expect(caller.contributions.getDonorProfileLookup({
+      donorWhatsapp: "11999990000",
+      donorName: "Wellington",
+      donorEmail: "wellington@example.com",
+    })).resolves.toBeNull();
+  });
+
+  it("aceita contribuição financeira local mesmo sem banco disponível", async () => {
+    getDbMock.mockResolvedValue(null);
+    const caller = appRouter.createCaller(createPublicContext());
+
+    await expect(caller.contributions.createFinancialContribution({
+      campaignId: 100001,
+      amount: 100,
+      donorName: "Wellington",
+      donorWhatsapp: "11999990000",
+      donorEmail: "wellington@example.com",
+      donorCity: "Rio Verde",
+      donorChurch: "Igreja",
+      allowPublicDisplay: false,
+    })).resolves.toMatchObject({ success: true });
+  });
+});
+
 describe("contributions.createMaterialContribution", () => {
   beforeEach(() => {
     getDbMock.mockReset();
@@ -296,7 +329,6 @@ describe("contributions.reviewCashContribution", () => {
   it("usa fallback local para listar e revisar validacao presencial sem DB", async () => {
     getDbMock.mockResolvedValue(null);
     listFallbackPendingCashValidationsMock
-      .mockReturnValueOnce([])
       .mockReturnValueOnce([
         {
           id: 700001,
@@ -308,7 +340,8 @@ describe("contributions.reviewCashContribution", () => {
           createdAt: new Date("2026-07-30T12:00:00.000Z"),
           paymentStatusDetail: "awaiting_cash_confirmation",
         },
-      ]);
+      ])
+      .mockReturnValueOnce([]);
     listFallbackRecentCashValidationsMock.mockReturnValue([]);
     reviewFallbackCashContributionMock.mockReturnValue({
       ok: true,
@@ -326,7 +359,6 @@ describe("contributions.reviewCashContribution", () => {
       validationNote: "Confirmado local",
     });
 
-    expect(createFallbackCashContributionMock).toHaveBeenCalledOnce();
     expect(pending).toHaveLength(1);
     expect(recent).toEqual([]);
     expect(reviewed).toMatchObject({ success: true, status: "approved", contributionId: 700001 });

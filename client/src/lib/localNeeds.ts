@@ -60,6 +60,26 @@ export function readLocalNeedsForCampaign(campaignId: number): LocalNeed[] {
   return readAllLocalNeeds().filter((need) => need.campaignId === campaignId);
 }
 
+export function mergeNeedsForManagement<T extends Pick<LocalNeed, "id" | "campaignId" | "type" | "name" | "description" | "quantity" | "targetQuantityExact" | "unitValueCents" | "priority">>(serverNeeds: T[], localNeeds: T[], campaignId?: number) {
+  const filteredServerNeeds = serverNeeds.filter((need) => campaignId == null || need.campaignId === campaignId);
+  const filteredLocalNeeds = localNeeds.filter((need) => campaignId == null || need.campaignId === campaignId);
+  const merged = new Map<number, T>();
+
+  [...filteredServerNeeds, ...filteredLocalNeeds].forEach((need) => {
+    if (!merged.has(need.id)) {
+      merged.set(need.id, need);
+      return;
+    }
+
+    const localNeed = filteredLocalNeeds.find((item) => item.id === need.id);
+    if (localNeed) {
+      merged.set(need.id, localNeed as T);
+    }
+  });
+
+  return Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export function saveLocalNeed(input: Omit<LocalNeed, "id">): LocalNeed {
   const all = readAllLocalNeeds();
   const maxId = all.reduce((max, need) => Math.max(max, need.id), 0);
@@ -69,6 +89,29 @@ export function saveLocalNeed(input: Omit<LocalNeed, "id">): LocalNeed {
   };
   writeAllLocalNeeds([...all, next]);
   return next;
+}
+
+export function updateLocalNeed(input: Partial<LocalNeed> & { id: number; campaignId: number }): boolean {
+  const all = readAllLocalNeeds();
+  const index = all.findIndex((need) => need.id === input.id && need.campaignId === input.campaignId);
+  if (index < 0) return false;
+
+  all[index] = {
+    ...all[index],
+    ...input,
+    id: input.id,
+    campaignId: input.campaignId,
+  };
+  writeAllLocalNeeds(all);
+  return true;
+}
+
+export function removeLocalNeed(campaignId: number, needId: number): boolean {
+  const all = readAllLocalNeeds();
+  const next = all.filter((need) => !(need.id === needId && need.campaignId === campaignId));
+  if (next.length === all.length) return false;
+  writeAllLocalNeeds(next);
+  return true;
 }
 
 function readAllLocalNeedsProgress(): LocalNeedProgress[] {

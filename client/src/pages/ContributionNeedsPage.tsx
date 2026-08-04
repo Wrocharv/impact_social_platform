@@ -30,34 +30,7 @@ const formatCurrency = (valueInCents: number) =>
 const PREFERRED_KEYWORDS = ["TIJOLO", "CIMENTO", "AREIA", "JANELA"];
 const NEEDS_PER_PAGE = 8;
 
-const LOCAL_NEEDS_FALLBACK: NeedItem[] = [
-  {
-    id: 2,
-    name: "TIJOLO",
-    quantity: "12.000 unidades",
-    priority: "high",
-    targetQuantityExact: 12000,
-    unitValueCents: 120,
-    offeredQuantity: 0,
-    remainingQuantity: 12000,
-    offeredValueCents: 0,
-    remainingValueCents: 1_440_000,
-    fulfilled: 0,
-  },
-  {
-    id: 1,
-    name: "CIMENTO",
-    quantity: "200 sacos",
-    priority: "high",
-    targetQuantityExact: 200,
-    unitValueCents: 4500,
-    offeredQuantity: 0,
-    remainingQuantity: 200,
-    offeredValueCents: 0,
-    remainingValueCents: 900_000,
-    fulfilled: 0,
-  },
-];
+const LOCAL_NEEDS_FALLBACK: NeedItem[] = [];
 
 const normalizeNeedLabel = (name: string) =>
   name
@@ -310,7 +283,10 @@ export default function ContributionNeedsPage() {
                   </tr>
                 )}) : (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-[#656565]">A lista de necessidades está sendo atualizada.</td>
+                    <td colSpan={6} className="px-4 py-8 text-center text-[#656565]">
+                      <p className="font-semibold text-[#2d2d2d]">Ainda não há itens cadastrados para esta campanha.</p>
+                      <p className="mt-1 text-sm">Quando o administrador incluir itens, eles aparecem aqui automaticamente.</p>
+                    </td>
                   </tr>
                 )}
               </tbody>

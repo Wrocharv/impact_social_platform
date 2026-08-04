@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
+import { getMaterialContributionCopy } from "@/lib/contributionFlow";
 import { AlertCircle, ChevronLeft, Heart, Package, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -91,6 +92,7 @@ export default function ContributionPage() {
 
   const campaign = campaignQuery.data;
   const isLegendarioCampaign = campaign?.title?.trim().toUpperCase() === "LEGENDARIO SOLIDARIO";
+  const materialCopy = getMaterialContributionCopy(campaign?.title);
   if (!campaignId || campaignQuery.isError || (!campaignQuery.isLoading && !campaign)) {
     return (
       <div className="min-h-screen bg-[#f8faf7]">
@@ -115,7 +117,7 @@ export default function ContributionPage() {
         <h1 className="mt-3 text-4xl font-bold text-[#2d2d2d] md:text-5xl">Como você quer ajudar?</h1>
         <p className="mt-4 text-lg text-[#656565]">
           {isLegendarioCampaign
-            ? "Escolha uma modalidade. Para esta campanha, recebemos doação financeira e kit completo ou itens do kit."
+            ? "Escolha uma modalidade. Para esta campanha, recebemos doação financeira e kit completo ou itens do kit para a montanha."
             : "Escolha uma modalidade. As ofertas de materiais e trabalho serão analisadas pela equipe responsável."}
         </p>
 
@@ -144,15 +146,11 @@ export default function ContributionPage() {
 
           <TabsContent value="material" className="mt-6">
             <OfferForm
-              title={isLegendarioCampaign ? "Oferta de kit/itens" : "Oferta de material"}
-              description={isLegendarioCampaign
-                ? "Informe o kit completo ou itens separados (mochila, bastão, saco de dormir etc.), quantidade e forma de entrega."
-                : "Informe o material, a quantidade, o estado e como ele poderá ser entregue ou retirado."}
+              title={materialCopy.label}
+              description={isLegendarioCampaign ? materialCopy.description : "Informe o material, a quantidade, o estado e como ele poderá ser entregue ou retirado."}
               value={materialDescription}
               onValueChange={setMaterialDescription}
-              placeholder={isLegendarioCampaign
-                ? "Ex.: 1 kit completo + 2 bastões, disponíveis para retirada..."
-                : "Ex.: 100 sacos de cimento, disponíveis para retirada..."}
+              placeholder={isLegendarioCampaign ? materialCopy.placeholder : "Ex.: 100 sacos de cimento, disponíveis para retirada..."}
               campaignNeeds={campaignNeeds}
               selectedNeedId={selectedNeedId}
               onNeedChange={setSelectedNeedId}
@@ -165,7 +163,7 @@ export default function ContributionPage() {
               onEmailChange={setDonorEmail}
               onSubmit={handleMaterialSubmit}
               isPending={createMaterial.isPending}
-              submitLabel={isLegendarioCampaign ? "Enviar oferta de kit/itens" : "Enviar oferta de material"}
+              submitLabel={materialCopy.submitLabel}
             />
           </TabsContent>
 

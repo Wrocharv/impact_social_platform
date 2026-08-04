@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { saveLocalNeed } from "@/lib/localNeeds";
+import { mergeNeedsForManagement, readLocalNeedsForCampaign, removeLocalNeed, saveLocalNeed, updateLocalNeed } from "@/lib/localNeeds";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -178,9 +178,7 @@ export default function AdminDashboard() {
   const createCampaign = trpc.campaigns.create.useMutation({
     onSuccess: async () => {
       toast.success("Campanha criada com sucesso!");
-      setCampaignForm({ title: "", description: "", longDescription: "", goal: "", vipApartmentAmount: "", initialRaised: "", imageUrl: "" });
-      setCampaignNeedsDrafts([]);
-      setCampaignModelType("custom");
+      resetCreateCampaignForm();
       setIsCreateCampaignOpen(false);
       await invalidateCampaignData();
     },
@@ -209,6 +207,13 @@ export default function AdminDashboard() {
       await invalidateCampaignData();
     },
     onError: (error) => toast.error(error.message || "Erro ao cadastrar necessidade"),
+  });
+  const updateNeed = trpc.campaigns.updateNeed.useMutation({
+    onSuccess: async () => {
+      toast.success("Item atualizado.");
+      await invalidateCampaignData();
+    },
+    onError: (error) => toast.error(error.message || "Erro ao atualizar item"),
   });
   const deleteNeed = trpc.campaigns.deleteNeed.useMutation({
     onSuccess: async () => {
@@ -394,6 +399,20 @@ export default function AdminDashboard() {
     setIsCampaignNeedOpen(false);
     setSelectedCampaign(null);
     setCampaignNeedForm(EMPTY_NEED_FORM);
+  }
+
+  function resetCreateCampaignForm() {
+    setCampaignForm({
+      title: "",
+      description: "",
+      longDescription: "",
+      goal: "",
+      vipApartmentAmount: "",
+      initialRaised: "",
+      imageUrl: "",
+    });
+    setCampaignNeedsDrafts([]);
+    setCampaignModelType("custom");
   }
 
   function applyCampaignNeedsTemplate(template: CampaignModelType) {
@@ -612,6 +631,111 @@ export default function AdminDashboard() {
     }
   }
 
+  async function handleCreateNeed(campaignId: number, payload: {
+    name: string;
+    description?: string;
+    quantity: string;
+    targetQuantityExact: number;
+    unitValueCents: number;
+    type: "material" | "labor" | "equipment" | "other";
+    priority: "high" | "medium" | "low";
+  }) {
+    if (isLocalhost) {
+      saveLocalNeed({
+        campaignId,
+        type: payload.type,
+        name: payload.name,
+        description: payload.description?.trim() || undefined,
+        quantity: payload.quantity,
+        targetQuantityExact: payload.targetQuantityExact,
+        unitValueCents: payload.unitValueCents,
+        priority: payload.priority,
+      });
+      toast.success("Item criado localmente.");
+      await invalidateCampaignData();
+      return;
+    }
+
+    await createCampaignNeed.mutateAsync({
+      campaignId,
+      type: payload.type,
+      name: payload.name,
+      description: payload.description,
+      quantity: payload.quantity,
+      targetQuantityExact: payload.targetQuantityExact,
+      unitValueCents: payload.unitValueCents,
+      priority: payload.priority,
+    });
+  }
+
+  async function handleDeleteNeed(needId: number, campaignId: number) {
+    if (isLocalhost) {
+      const removed = removeLocalNeed(campaignId, needId);
+      if (removed) {
+        toast.success("Item removido localmente.");
+        await invalidateCampaignData();
+        return;
+      }
+    }
+
+    deleteNeed.mutate({ needId, campaignId });
+  }
+
+  async function handleUpdateNeed(needId: number, campaignId: number, updates: {
+    name: string;
+    description?: string;
+    quantity: string;
+    targetQuantityExact: number;
+    unitValueCents: number;
+    type: "material" | "labor" | "equipment" | "other";
+    priority: "high" | "medium" | "low";
+  }) {
+    const localMatch = readLocalNeedsForCampaign(campaignId).find((item) => item.id === needId);
+
+    if (isLocalhost) {
+      const updated = updateLocalNeed({
+        id: needId,
+        campaignId,
+        type: updates.type,
+        name: updates.name,
+        description: updates.description?.trim() || undefined,
+        quantity: updates.quantity,
+        targetQuantityExact: updates.targetQuantityExact,
+        unitValueCents: updates.unitValueCents,
+        priority: updates.priority,
+      });
+      if (updated || !localMatch) {
+        if (!localMatch) {
+          saveLocalNeed({
+            campaignId,
+            type: updates.type,
+            name: updates.name,
+            description: updates.description?.trim() || undefined,
+            quantity: updates.quantity,
+            targetQuantityExact: updates.targetQuantityExact,
+            unitValueCents: updates.unitValueCents,
+            priority: updates.priority,
+          });
+        }
+        toast.success("Item atualizado localmente.");
+        await invalidateCampaignData();
+        return;
+      }
+    }
+
+    await updateNeed.mutateAsync({
+      needId,
+      campaignId,
+      name: updates.name,
+      description: updates.description,
+      quantity: updates.quantity,
+      targetQuantityExact: updates.targetQuantityExact,
+      unitValueCents: updates.unitValueCents,
+      type: updates.type,
+      priority: updates.priority,
+    });
+  }
+
   function handleSavePartner(event: React.FormEvent) {
     event.preventDefault();
     const values = {
@@ -727,7 +851,10 @@ export default function AdminDashboard() {
             )}
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
               <div><h2 className="text-2xl font-bold text-[#243128]">Campanhas</h2><p className="mt-1 text-[#66736a]">Acompanhe os projetos cadastrados.</p></div>
-              <Dialog open={isCreateCampaignOpen} onOpenChange={setIsCreateCampaignOpen}>
+              <Dialog open={isCreateCampaignOpen} onOpenChange={(open) => {
+                setIsCreateCampaignOpen(open);
+                resetCreateCampaignForm();
+              }}>
                 <DialogTrigger asChild><Button className="gap-2 bg-[#228B22] hover:bg-[#1a6b1a]"><Plus className="h-4 w-4" /> Nova campanha</Button></DialogTrigger>
                 <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
                   <DialogHeader><DialogTitle>Criar nova campanha</DialogTitle></DialogHeader>
@@ -773,7 +900,10 @@ export default function AdminDashboard() {
                       </div>
 
                       {campaignNeedsDrafts.length === 0 ? (
-                        <p className="text-sm text-[#66736a]">Adicione os itens agora na criação da campanha (ITEM, VALOR UNITÁRIO, QUANTIDADE PRECISO).</p>
+                        <div className="rounded-md border border-dashed border-[#d7dfd4] bg-[#f8fbf6] p-3 text-sm text-[#66736a]">
+                          <p className="font-semibold text-[#334139]">Adicione os itens agora na criação da campanha.</p>
+                          <p className="mt-1">Preencha o nome, a meta exata, o valor unitário e a quantidade textual. Isso define a meta real do item para o público.</p>
+                        </div>
                       ) : (
                         <div className="space-y-4">
                           {campaignNeedsDrafts.map((need, index) => (
@@ -798,14 +928,15 @@ export default function AdminDashboard() {
                                     placeholder="Ex.: TIJOLO CERÂMICO"
                                   />
                                 </Field>
-                                <Field label="QUANTIDADE PRECISO *">
+                                <Field label="QUANTIDADE TEXTUAL *">
                                   <Input
                                     value={need.quantity}
                                     onChange={(event) => setCampaignNeedsDrafts((current) => current.map((row, i) => i === index ? { ...row, quantity: event.target.value } : row))}
                                     placeholder="Ex.: 3.700 unidades"
                                   />
+                                  <p className="text-xs text-[#66736a]">Texto exibido para o público, como "3.700 unidades".</p>
                                 </Field>
-                                <Field label="META EXATA *">
+                                <Field label="META EXATA (unidades) *">
                                   <Input
                                     type="number"
                                     min={1}
@@ -814,6 +945,7 @@ export default function AdminDashboard() {
                                     onChange={(event) => setCampaignNeedsDrafts((current) => current.map((row, i) => i === index ? { ...row, targetQuantityExact: event.target.value } : row))}
                                     placeholder="Ex.: 3700"
                                   />
+                                  <p className="text-xs text-[#66736a]">Meta real do item, usada para calcular o progresso da campanha.</p>
                                 </Field>
                                 <Field label="VALOR UNITÁRIO (R$) *">
                                   <Input
@@ -1205,8 +1337,8 @@ export default function AdminDashboard() {
                     <div className="flex flex-wrap gap-2 lg:max-w-xs lg:justify-end">
                       <Button variant="outline" size="sm" className="gap-2" onClick={() => openEditCampaign(campaign)}><Edit2 className="h-4 w-4" /> Editar</Button>
                       <Button variant="outline" size="sm" className="gap-2" onClick={() => openCampaignUpdate(campaign)}><Megaphone className="h-4 w-4" /> Publicar evolução</Button>
-                      <Button variant="outline" size="sm" className="gap-2" onClick={() => openCampaignNeed(campaign)}><PackagePlus className="h-4 w-4" /> Novo item</Button>
-                      <Button variant="outline" size="sm" className="gap-2" onClick={() => { setManagingNeedsCampaign({ id: campaign.id, title: campaign.title }); setIsManageNeedsOpen(true); }}><Edit2 className="h-3 w-3" /> Gerenciar itens</Button>
+                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => openCampaignNeed(campaign)}><PackagePlus className="h-4 w-4" /> Novo item</Button>
+                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => { setManagingNeedsCampaign({ id: campaign.id, title: campaign.title }); setIsManageNeedsOpen(true); }}><Edit2 className="h-3 w-3" /> Gerenciar itens para doar</Button>
                       <Button variant="outline" size="sm" className="gap-2" onClick={() => setAccountabilityCampaign({ id: campaign.id, title: campaign.title })}><FileText className="h-4 w-4" /> Prestação de contas</Button>
                       <Button variant="outline" size="sm" className="gap-2 text-red-700 hover:text-red-800" onClick={() => setCampaignToDelete({ id: campaign.id, title: campaign.title })}><Trash2 className="h-4 w-4" /> Excluir</Button>
                       <Button asChild variant="ghost" size="sm" className="gap-2"><Link href={`/campaign/${campaign.id}`}><ExternalLink className="h-4 w-4" /> Ver no site</Link></Button>
@@ -1429,57 +1561,388 @@ export default function AdminDashboard() {
           campaign={managingNeedsCampaign}
           open={isManageNeedsOpen}
           onOpenChange={(open) => { setIsManageNeedsOpen(open); if (!open) setManagingNeedsCampaign(null); }}
-          onDelete={(needId, campaignId) => deleteNeed.mutate({ needId, campaignId })}
+          onCreate={handleCreateNeed}
+          onDelete={handleDeleteNeed}
+          onUpdate={handleUpdateNeed}
         />
       </div>
     </DashboardLayout>
   );
 }
 
-function ManageNeedsDialog({ campaign, open, onOpenChange, onDelete }: {
+function ManageNeedsDialog({ campaign, open, onOpenChange, onCreate, onDelete, onUpdate }: {
   campaign: { id: number; title: string } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCreate: (campaignId: number, payload: {
+    name: string;
+    description?: string;
+    quantity: string;
+    targetQuantityExact: number;
+    unitValueCents: number;
+    type: "material" | "labor" | "equipment" | "other";
+    priority: "high" | "medium" | "low";
+  }) => Promise<void>;
   onDelete: (needId: number, campaignId: number) => void;
+  onUpdate: (needId: number, campaignId: number, updates: {
+    name: string;
+    description?: string;
+    quantity: string;
+    targetQuantityExact: number;
+    unitValueCents: number;
+    type: "material" | "labor" | "equipment" | "other";
+    priority: "high" | "medium" | "low";
+  }) => Promise<void>;
 }) {
+  const [editingNeedId, setEditingNeedId] = useState<number | null>(null);
+  const [isCreatingNeed, setIsCreatingNeed] = useState(false);
+  const [newNeedDraft, setNewNeedDraft] = useState({
+    name: "",
+    quantity: "",
+    targetQuantityExact: "",
+    unitValue: "",
+    type: "material" as "material" | "labor" | "equipment" | "other",
+    priority: "medium" as "high" | "medium" | "low",
+    description: "",
+  });
+  const [creatingNeed, setCreatingNeed] = useState(false);
+  const [editDrafts, setEditDrafts] = useState<Record<number, {
+    name: string;
+    quantity: string;
+    targetQuantityExact: string;
+    unitValue: string;
+    type: "material" | "labor" | "equipment" | "other";
+    priority: "high" | "medium" | "low";
+    description: string;
+  }>>({});
+  const [savingNeedId, setSavingNeedId] = useState<number | null>(null);
+
   const needsQuery = trpc.campaigns.getNeeds.useQuery(
     { campaignId: campaign?.id ?? 0 },
     { enabled: open && Boolean(campaign) },
   );
 
+  if (!open || !campaign) return null;
+
+  const localNeedsForCampaign = campaign ? readLocalNeedsForCampaign(campaign.id) : [];
+  const needsForDisplay = mergeNeedsForManagement(
+    (needsQuery.data ?? []) as Array<{
+      id: number;
+      campaignId: number;
+      type: "material" | "labor" | "equipment" | "other";
+      name: string;
+      description: string | null;
+      quantity: string;
+      targetQuantityExact: number | null;
+      unitValueCents: number | null;
+      priority: "high" | "medium" | "low";
+    }>,
+    localNeedsForCampaign as Array<{
+      id: number;
+      campaignId: number;
+      type: "material" | "labor" | "equipment" | "other";
+      name: string;
+      description: string | undefined;
+      quantity: string;
+      targetQuantityExact: number | null | undefined;
+      unitValueCents: number | null | undefined;
+      priority: "high" | "medium" | "low";
+    }>,
+    campaign?.id,
+  );
+
+  function startEditing(need: NonNullable<NonNullable<typeof needsQuery.data>>[number]) {
+    setEditingNeedId(need.id);
+    setEditDrafts((current) => ({
+      ...current,
+      [need.id]: {
+        name: need.name ?? "",
+        quantity: need.quantity ?? "",
+        targetQuantityExact: need.targetQuantityExact != null ? String(need.targetQuantityExact) : "",
+        unitValue: need.unitValueCents != null ? (need.unitValueCents / 100).toFixed(2).replace(".", ",") : "",
+        type: need.type,
+        priority: need.priority,
+        description: need.description ?? "",
+      },
+    }));
+  }
+
+  async function saveEditing(need: NonNullable<NonNullable<typeof needsQuery.data>>[number]) {
+    const draft = editDrafts[need.id];
+    if (!draft) return;
+
+    const targetQuantityExact = Number.parseInt(draft.targetQuantityExact, 10);
+    if (!Number.isInteger(targetQuantityExact) || targetQuantityExact <= 0) {
+      toast.error("Informe uma meta exata válida.");
+      return;
+    }
+
+    const unitValueCents = parseCurrencyToCents(draft.unitValue);
+    if (unitValueCents === null || unitValueCents <= 0) {
+      toast.error("Informe um valor unitário válido.");
+      return;
+    }
+
+    if (!draft.name.trim() || !draft.quantity.trim()) {
+      toast.error("Nome e quantidade textual são obrigatórios.");
+      return;
+    }
+
+    try {
+      setSavingNeedId(need.id);
+      if (!campaign) return;
+      await onUpdate(need.id, campaign.id, {
+        name: draft.name.trim(),
+        description: draft.description.trim() || undefined,
+        quantity: draft.quantity.trim(),
+        targetQuantityExact,
+        unitValueCents,
+        type: draft.type,
+        priority: draft.priority,
+      });
+      setEditingNeedId(null);
+    } finally {
+      setSavingNeedId(null);
+    }
+  }
+
+  async function saveNewNeed() {
+    if (!campaign) return;
+
+    const targetQuantityExact = Number.parseInt(newNeedDraft.targetQuantityExact, 10);
+    if (!Number.isInteger(targetQuantityExact) || targetQuantityExact <= 0) {
+      toast.error("Informe uma meta exata válida para o novo item.");
+      return;
+    }
+
+    const unitValueCents = parseCurrencyToCents(newNeedDraft.unitValue);
+    if (unitValueCents === null || unitValueCents <= 0) {
+      toast.error("Informe um valor unitário válido para o novo item.");
+      return;
+    }
+
+    if (!newNeedDraft.name.trim() || !newNeedDraft.quantity.trim()) {
+      toast.error("Nome e quantidade textual são obrigatórios.");
+      return;
+    }
+
+    try {
+      setCreatingNeed(true);
+      await onCreate(campaign.id, {
+        name: newNeedDraft.name.trim(),
+        description: newNeedDraft.description.trim() || undefined,
+        quantity: newNeedDraft.quantity.trim(),
+        targetQuantityExact,
+        unitValueCents,
+        type: newNeedDraft.type,
+        priority: newNeedDraft.priority,
+      });
+      setIsCreatingNeed(false);
+      setNewNeedDraft({
+        name: "",
+        quantity: "",
+        targetQuantityExact: "",
+        unitValue: "",
+        type: "material",
+        priority: "medium",
+        description: "",
+      });
+    } finally {
+      setCreatingNeed(false);
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[80vh] max-w-xl overflow-y-auto">
-        <DialogHeader><DialogTitle>Itens de {campaign?.title}</DialogTitle></DialogHeader>
-        {needsQuery.isLoading ? (
-          <p className="text-sm text-[#66736a]">Carregando itens...</p>
-        ) : needsQuery.isError ? (
-          <p className="text-sm text-red-600">Erro ao carregar itens.</p>
-        ) : needsQuery.data?.length ? (
-          <div className="space-y-3">
-            {needsQuery.data.map((need) => (
-              <div key={need.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#e1e6df] p-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-[#243128]">{need.name}</p>
-                  {need.quantity && <p className="text-xs text-[#66736a]">{need.quantity}</p>}
-                  {need.unitValueCents ? <p className="text-xs text-[#66736a]">Valor unit.: {(need.unitValueCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p> : null}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 gap-1 text-red-700 hover:text-red-800"
-                  onClick={() => campaign && onDelete(need.id, campaign.id)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" /> Excluir
-                </Button>
-              </div>
-            ))}
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={() => onOpenChange(false)}>
+      <div className="max-h-[80vh] w-full max-w-xl overflow-y-auto rounded-lg border border-[#e1e6df] bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-[#243128]">Gerenciar itens para doar</h2>
+            <p className="mt-1 text-sm text-[#66736a]">Edite, remova ou ajuste os itens de doação desta campanha aqui.</p>
           </div>
-        ) : (
-          <p className="text-sm text-[#66736a]">Nenhum item cadastrado.</p>
-        )}
-      </DialogContent>
-    </Dialog>
+          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>Fechar</Button>
+        </div>
+
+        <div className="mt-5">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-[#334139]">Itens cadastrados</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsCreatingNeed((current) => !current)}>
+              {isCreatingNeed ? "Cancelar" : "+ Adicionar item"}
+            </Button>
+          </div>
+
+          {isCreatingNeed ? (
+            <div className="mb-4 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="ITEM *">
+                  <Input value={newNeedDraft.name} onChange={(event) => setNewNeedDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Ex.: TIJOLO CERÂMICO" />
+                </Field>
+                <Field label="QUANTIDADE TEXTUAL *">
+                  <Input value={newNeedDraft.quantity} onChange={(event) => setNewNeedDraft((current) => ({ ...current, quantity: event.target.value }))} placeholder="Ex.: 3.700 unidades" />
+                </Field>
+                <Field label="META EXATA (unidades) *">
+                  <Input type="number" min={1} step={1} value={newNeedDraft.targetQuantityExact} onChange={(event) => setNewNeedDraft((current) => ({ ...current, targetQuantityExact: event.target.value }))} placeholder="Ex.: 3700" />
+                </Field>
+                <Field label="VALOR UNITÁRIO (R$) *">
+                  <Input inputMode="decimal" value={newNeedDraft.unitValue} onChange={(event) => setNewNeedDraft((current) => ({ ...current, unitValue: event.target.value }))} placeholder="Ex.: 1,80" />
+                </Field>
+                <Field label="Tipo">
+                  <Select value={newNeedDraft.type} onValueChange={(type: typeof newNeedDraft.type) => setNewNeedDraft((current) => ({ ...current, type }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="material">Material</SelectItem>
+                      <SelectItem value="labor">Mão de obra</SelectItem>
+                      <SelectItem value="equipment">Equipamento</SelectItem>
+                      <SelectItem value="other">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Prioridade">
+                  <Select value={newNeedDraft.priority} onValueChange={(priority: typeof newNeedDraft.priority) => setNewNeedDraft((current) => ({ ...current, priority }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="high">Alta</SelectItem>
+                      <SelectItem value="medium">Média</SelectItem>
+                      <SelectItem value="low">Baixa</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+              <Field label="Descrição (opcional)">
+                <Textarea rows={2} value={newNeedDraft.description} onChange={(event) => setNewNeedDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Detalhes do item" />
+              </Field>
+              <div className="mt-3 flex justify-end gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsCreatingNeed(false)}>Cancelar</Button>
+                <Button type="button" size="sm" disabled={creatingNeed} onClick={() => void saveNewNeed()}>{creatingNeed ? "Salvando..." : "Salvar item"}</Button>
+              </div>
+            </div>
+          ) : null}
+
+          {needsQuery.isLoading && !localNeedsForCampaign.length ? (
+            <p className="text-sm text-[#66736a]">Carregando itens...</p>
+          ) : needsQuery.isError && !localNeedsForCampaign.length ? (
+            <p className="text-sm text-red-600">Erro ao carregar itens.</p>
+          ) : needsForDisplay.length ? (
+            <div className="space-y-3">
+              {needsForDisplay.map((need) => {
+                const draft = editDrafts[need.id];
+                const isEditing = editingNeedId === need.id;
+
+                return (
+                  <div key={need.id} className="rounded-lg border border-[#e1e6df] p-3">
+                    {isEditing && draft ? (
+                      <div className="space-y-3">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Field label="ITEM *">
+                            <Input
+                              value={draft.name}
+                              onChange={(event) => setEditDrafts((current) => ({ ...current, [need.id]: { ...current[need.id], name: event.target.value } }))}
+                              placeholder="Ex.: TIJOLO CERÂMICO"
+                            />
+                          </Field>
+                          <Field label="QUANTIDADE TEXTUAL *">
+                            <Input
+                              value={draft.quantity}
+                              onChange={(event) => setEditDrafts((current) => ({ ...current, [need.id]: { ...current[need.id], quantity: event.target.value } }))}
+                              placeholder="Ex.: 3.700 unidades"
+                            />
+                          </Field>
+                          <Field label="META EXATA (unidades) *">
+                            <Input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={draft.targetQuantityExact}
+                              onChange={(event) => setEditDrafts((current) => ({ ...current, [need.id]: { ...current[need.id], targetQuantityExact: event.target.value } }))}
+                              placeholder="Ex.: 3700"
+                            />
+                          </Field>
+                          <Field label="VALOR UNITÁRIO (R$) *">
+                            <Input
+                              inputMode="decimal"
+                              value={draft.unitValue}
+                              onChange={(event) => setEditDrafts((current) => ({ ...current, [need.id]: { ...current[need.id], unitValue: event.target.value } }))}
+                              placeholder="Ex.: 1,80"
+                            />
+                          </Field>
+                          <Field label="Tipo">
+                            <Select
+                              value={draft.type}
+                              onValueChange={(type: typeof draft.type) => setEditDrafts((current) => ({ ...current, [need.id]: { ...current[need.id], type } }))}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="material">Material</SelectItem>
+                                <SelectItem value="labor">Mão de obra</SelectItem>
+                                <SelectItem value="equipment">Equipamento</SelectItem>
+                                <SelectItem value="other">Outro</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </Field>
+                          <Field label="Prioridade">
+                            <Select
+                              value={draft.priority}
+                              onValueChange={(priority: typeof draft.priority) => setEditDrafts((current) => ({ ...current, [need.id]: { ...current[need.id], priority } }))}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="high">Alta</SelectItem>
+                                <SelectItem value="medium">Média</SelectItem>
+                                <SelectItem value="low">Baixa</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </Field>
+                        </div>
+                        <Field label="Descrição (opcional)">
+                          <Textarea
+                            rows={2}
+                            value={draft.description}
+                            onChange={(event) => setEditDrafts((current) => ({ ...current, [need.id]: { ...current[need.id], description: event.target.value } }))}
+                            placeholder="Detalhes do item"
+                          />
+                        </Field>
+                        <div className="flex justify-end gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={() => setEditingNeedId(null)}>Cancelar</Button>
+                          <Button type="button" size="sm" disabled={savingNeedId === need.id} onClick={() => void saveEditing(need)}>
+                            {savingNeedId === need.id ? "Salvando..." : "Salvar"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-[#243128]">{need.name}</p>
+                          {need.quantity && <p className="text-xs text-[#66736a]">{need.quantity}</p>}
+                          {need.targetQuantityExact != null ? <p className="text-xs font-medium text-[#228B22]">Meta por item: {need.targetQuantityExact} unidades</p> : null}
+                          {need.unitValueCents ? <p className="text-xs text-[#66736a]">Valor unit.: {(need.unitValueCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p> : null}
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={() => startEditing(need)}>Editar</Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 text-red-700 hover:text-red-800"
+                            onClick={() => void onDelete(need.id, campaign.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Excluir
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-[#d7dfd4] bg-[#f8fbf6] p-4 text-sm text-[#66736a]">
+              <p className="font-semibold text-[#334139]">Ainda não há itens para esta campanha.</p>
+              <p className="mt-1">Cadastre o primeiro item aqui para definir a meta por item e o valor unitário.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

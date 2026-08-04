@@ -169,30 +169,17 @@ function withFallbackRecantoContentIfEmpty<T extends {
     longDescription: campaign.longDescription || DEMO_CAMPAIGN.longDescription,
     category: campaign.category || DEMO_CAMPAIGN.category,
     updates: canonicalUpdates,
-    needs: hasNeeds ? campaign.needs : [...DEMO_CAMPAIGN.needs],
+    needs: hasNeeds ? campaign.needs : [],
     galleryImages: [...DEMO_CAMPAIGN.galleryImages],
   };
 }
 
 function withDefaultNeedsIfMissing<T extends {
   id: number;
+  title?: string | null;
   needs?: Array<Record<string, unknown>>;
 }>(campaign: T): T {
-  const hasNeeds = Array.isArray(campaign.needs) && campaign.needs.length > 0;
-  if (hasNeeds) return campaign;
-
-  return {
-    ...campaign,
-    needs: DEMO_CAMPAIGN.needs.map((need) => ({
-      ...need,
-      campaignId: campaign.id,
-      offeredQuantity: 0,
-      remainingQuantity: need.targetQuantityExact,
-      offeredValueCents: 0,
-      remainingValueCents: need.targetQuantityExact * need.unitValueCents,
-      fulfilled: 0,
-    })),
-  };
+  return campaign;
 }
 
 function supportsMutationQueries(db: unknown): boolean {
@@ -240,7 +227,7 @@ function mapFallbackCampaignToPublicShape(campaign: ReturnType<typeof whatsappSe
     category: campaign.category ?? "outro",
     goal,
     vipApartmentAmountCents: Math.max(0, Number(campaign.vipApartmentAmountCents ?? DEFAULT_VIP_APARTMENT_AMOUNT_CENTS)),
-    imageUrl: campaign.imageUrl ?? null,
+    imageUrl: campaign.imageUrl ?? (isCanonicalRecantoCampaign({ id: campaign.id ?? 0, title: campaign.title }) ? "/obra-paredes.jpg" : null),
     createdBy: campaign.createdBy ?? 1,
     status: campaign.status ?? "active",
     createdAt: campaign.createdAt,
@@ -250,7 +237,7 @@ function mapFallbackCampaignToPublicShape(campaign: ReturnType<typeof whatsappSe
     remaining: Math.max(0, goal - raised),
     progress,
     contributorsCount: 0,
-    galleryImages: campaign.imageUrl ? [campaign.imageUrl] : [],
+    galleryImages: campaign.imageUrl ? [campaign.imageUrl] : (isCanonicalRecantoCampaign({ id: campaign.id ?? 0, title: campaign.title }) ? ["/obra-paredes.jpg"] : []),
     needs: (campaign.needs ?? []).map((need) => ({
       id: need.id,
       campaignId: campaign.id,
@@ -665,34 +652,6 @@ async function ensureCanonicalRecantoCampaign(
   const campaignId = createdCampaign?.id;
   if (!campaignId) {
     throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível restaurar a campanha do Recanto." });
-  }
-
-  for (const need of DEMO_CAMPAIGN.needs) {
-    try {
-      await db.insert(campaignNeeds).values({
-        campaignId,
-        type: need.type,
-        name: need.name,
-        description: need.description,
-        quantity: need.quantity,
-        targetQuantityExact: need.targetQuantityExact,
-        unitValueCents: need.unitValueCents,
-        priority: need.priority,
-        fulfilled: need.fulfilled,
-      });
-    } catch (error) {
-      if (!isMissingColumnError(error)) throw error;
-
-      await db.insert(campaignNeeds).values({
-        campaignId,
-        type: need.type,
-        name: need.name,
-        description: need.description,
-        quantity: need.quantity,
-        priority: need.priority,
-        fulfilled: need.fulfilled,
-      });
-    }
   }
 
   await db.insert(campaignUpdates).values(
@@ -1508,12 +1467,6 @@ export const campaignsRouter = router({
       try {
         await requireCampaign(db, input.campaignId);
       } catch (error) {
-        if (error instanceof TRPCError && error.code === "NOT_FOUND") {
-          if (saveNeedInFallback()) {
-            return { success: true, message: "Necessidade criada com sucesso!" };
-          }
-        }
-
         throw error;
       }
 

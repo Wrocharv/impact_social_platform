@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { addLocalNeedProgress, readLocalNeedProgressForCampaign, readLocalNeedsForCampaign } from "@/lib/localNeeds";
+import { getMaterialContributionCopy, shouldShowMaterialContributionOption } from "@/lib/contributionFlow";
 import { AlertCircle, ChevronLeft, Heart, Package, Users, DollarSign, Zap } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -101,28 +102,6 @@ const DEFAULT_VIP_APARTMENT_AMOUNT_CENTS = 120_000_00;
 const DEFAULT_VIP_MEDIA_VIDEO_URL = "/89343f15-ccb1-4937-b353-a3cbb5f23bd6.mp4";
 const DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL = "/Parceiros/WhatsApp Video 2026-07-28 at 15.37.04.mp4";
 const DEFAULT_VIP_MEDIA_IMAGES = ["/render-quarto.jpg", "/render-hotel.jpg", "/obra-lavanderia.jpg"];
-const HOTEL_NEEDS_FALLBACK: NeedItem[] = [
-  {
-    id: 2,
-    name: "TIJOLO",
-    quantity: "12000",
-    priority: "high",
-    targetQuantityExact: 12000,
-    unitValueCents: 120,
-    offeredQuantity: 0,
-    remainingQuantity: 12000,
-  },
-  {
-    id: 1,
-    name: "CIMENTO",
-    quantity: "200",
-    priority: "high",
-    targetQuantityExact: 200,
-    unitValueCents: 4500,
-    offeredQuantity: 0,
-    remainingQuantity: 200,
-  },
-];
 
 interface WizardState {
   type: ContributionType | null;
@@ -374,9 +353,15 @@ export default function ContributionWizardPage() {
     });
   });
   const campaignNeedsMerged = sortNeeds(Array.from(mergedCampaignNeedsMap.values()));
-  const campaignNeeds = campaignNeedsMerged.length > 0
-    ? campaignNeedsMerged
-    : (campaignId === HOTEL_CAMPAIGN_ID ? HOTEL_NEEDS_FALLBACK : []);
+  const campaignNeeds = campaignNeedsMerged;
+  const isLegendario = campaign?.title?.trim().toUpperCase() === "LEGENDARIO SOLIDARIO";
+  const materialCopy = getMaterialContributionCopy(campaign?.title);
+  const hasMaterialFlow = shouldShowMaterialContributionOption({
+    campaignTitle: campaign?.title,
+    campaignNeeds: campaignNeedsMerged,
+    currentType: state.type,
+    initialType,
+  });
   const selectedNeed = campaignNeeds.find((need) => need.id === state.materialNeedId);
   const materialDonationTypeLabel =
     state.materialDonationType === "detailed"
@@ -730,7 +715,7 @@ export default function ContributionWizardPage() {
                 </div>
               )}
 
-              {campaignNeeds.length > 0 && !(isSingleRegistrationFlow && state.type === null) && step !== "vip-showcase" && (
+              {hasMaterialFlow && campaignNeeds.length > 0 && !(isSingleRegistrationFlow && state.type === null) && step !== "vip-showcase" && state.type !== "financial" && (
                 <div className="mb-6 rounded-lg border border-[#d5dfd3] bg-[#f5f8f4] p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#35523a]">
                     {state.type === "material" && selectedNeed ? "Item selecionado na campanha" : "De acordo com a lista da campanha"}
@@ -763,16 +748,18 @@ export default function ContributionWizardPage() {
                       </div>
                     </button>
 
-                    <button
-                      onClick={() => handleTypeSelect("material")}
-                      className="flex items-start gap-4 rounded-lg border-2 border-gray-200 p-4 text-left transition hover:border-green-500 hover:bg-green-50"
-                    >
-                      <Package className="h-6 w-6 text-green-600 flex-shrink-0 mt-1" />
-                      <div>
-                        <h3 className="font-semibold text-gray-900">📦 Doação de Material</h3>
-                        <p className="text-sm text-gray-600">Materiais de construção, alimentos, etc.</p>
-                      </div>
-                    </button>
+                    {hasMaterialFlow ? (
+                      <button
+                        onClick={() => handleTypeSelect("material")}
+                        className="flex items-start gap-4 rounded-lg border-2 border-gray-200 p-4 text-left transition hover:border-green-500 hover:bg-green-50"
+                      >
+                        <Package className="h-6 w-6 text-green-600 flex-shrink-0 mt-1" />
+                        <div>
+                          <h3 className="font-semibold text-gray-900">📦 {materialCopy.label}</h3>
+                          <p className="text-sm text-gray-600">{materialCopy.subtitle}</p>
+                        </div>
+                      </button>
+                    ) : null}
 
                     <button
                       onClick={() => handleTypeSelect("volunteer")}
@@ -1228,7 +1215,9 @@ export default function ContributionWizardPage() {
                       <p className="text-sm text-gray-600 mb-6">
                         {selectedNeed
                           ? "Confira o item da planilha e informe sua quantidade:"
-                          : "Descreva o material que você gostaria de doar:"}
+                          : isLegendario
+                            ? materialCopy.description
+                            : "Descreva o material que você gostaria de doar:"}
                       </p>
                       {campaignNeeds.length > 0 && (
                         <div>
@@ -1289,7 +1278,7 @@ export default function ContributionWizardPage() {
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
                           <Textarea
-                            placeholder="Ex: Cimento, tijolos, tintas, etc."
+                            placeholder={isLegendario ? materialCopy.placeholder : "Ex: Cimento, tijolos, tintas, etc."}
                             value={state.materialDescription}
                             onChange={(e) => setState({ ...state, materialDescription: e.target.value })}
                             disabled={loading}

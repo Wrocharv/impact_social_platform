@@ -1,0 +1,26 @@
+[
+  {
+    "id": 710001,
+    "campaignId": 100002,
+    "campaignNeedId": 1785877243249,
+    "donorName": "eeeeeeee",
+    "donorEmail": null,
+    "donorWhatsapp": "111111111",
+    "donorCity": "rrr",
+    "description": "DOACAO DETALHADA | MOCHILA | Quantidade: 1",
+    "quantity": "1",
+    "quantityExact": 1,
+    "estimatedAmount": null,
+    "deliveryMethod": "pickup",
+    "materialDeliveryFrequency": "unique",
+    "status": "pending",
+    "paymentStatusDetail": "awaiting_triage",
+    "validatedBy": null,
+    "validatedAt": null,
+    "validationNote": null,
+    "validatorName": null,
+    "validatorEmail": null,
+    "createdAt": "2026-08-04T21:01:09.335Z",
+    "updatedAt": "2026-08-04T21:01:09.335Z"
+  }
+]

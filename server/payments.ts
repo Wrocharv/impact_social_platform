@@ -177,7 +177,7 @@ function shouldUsePixDevFallback(error: unknown) {
 
 function shouldUsePixOperationalFallback(input: { paymentMethod?: "pix" | "card" | "boleto" | "cash" }, error: unknown) {
   if (input.paymentMethod !== "pix") return false;
-  return isMercadoPagoUnauthorized(error);
+  return isMercadoPagoUnauthorized(error) || isMercadoPagoNotConfigured(error);
 }
 
 function isMissingColumnError(error: unknown) {
@@ -320,7 +320,7 @@ export const paymentsRouter = router({
             environment: preference.environment,
           };
         } catch (error) {
-          if (enablePixOperationalFallback && shouldUsePixOperationalFallback(input, error)) {
+          if (shouldUsePixOperationalFallback(input, error)) {
             const origin = requestOrigin(ctx.req);
             return {
               checkoutUrl: buildPaymentPendingUrl(origin),
@@ -499,7 +499,7 @@ export const paymentsRouter = router({
           environment: preference.environment,
         };
       } catch (error) {
-        if (enablePixOperationalFallback && shouldUsePixOperationalFallback(input, error)) {
+        if (shouldUsePixOperationalFallback(input, error)) {
           const origin = requestOrigin(ctx.req);
           return {
             checkoutUrl: buildPaymentPendingUrl(origin),

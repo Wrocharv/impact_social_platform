@@ -264,7 +264,7 @@ describe("payments.createPaymentPreference", () => {
     expect(result.preferenceId).toBe("cash-manual");
   });
 
-  it("propaga mensagem útil quando o Mercado Pago não está configurado", async () => {
+  it("retorna fallback de confirmação quando o Mercado Pago não está configurado para PIX", async () => {
     const { db, values } = createDb([
       { id: 7, title: "Casa da Viúva", status: "active" },
     ]);
@@ -273,19 +273,20 @@ describe("payments.createPaymentPreference", () => {
 
     const caller = appRouter.createCaller(createContext());
 
-    await expect(
-      caller.payments.createPaymentPreference({
-        campaignId: 7,
-        amount: 5_000,
-        donorEmail: "doador@example.com",
-        donorName: "Maria",
-        donorWhatsapp: "11999999999",
-        donorCity: "São Paulo",
-        allowPublicDisplay: false,
-        paymentMethod: "pix",
-      }),
-    ).rejects.toMatchObject({ code: "BAD_GATEWAY", message: "MERCADO_PAGO_ACCESS_TOKEN não configurado" });
+    const result = await caller.payments.createPaymentPreference({
+      campaignId: 7,
+      amount: 5_000,
+      donorEmail: "doador@example.com",
+      donorName: "Maria",
+      donorWhatsapp: "11999999999",
+      donorCity: "São Paulo",
+      allowPublicDisplay: false,
+      paymentMethod: "pix",
+    });
+
     expect(values).toHaveBeenCalledTimes(1);
+    expect(result.preferenceId).toBe("pix-credential-fallback");
+    expect(result.checkoutUrl).toContain("/payment/pending");
   });
 
   it("segue para checkout mesmo quando salvar contribuicao falha por schema desatualizado", async () => {

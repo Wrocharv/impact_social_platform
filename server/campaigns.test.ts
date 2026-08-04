@@ -7,6 +7,9 @@ const { getDbMock, whatsappServiceMock } = vi.hoisted(() => ({
     getFallbackCampaigns: vi.fn(() => []),
     createFallbackCampaign: vi.fn(),
     updateFallbackCampaign: vi.fn(),
+    addFallbackCampaignNeed: vi.fn(() => true),
+    removeFallbackCampaignNeed: vi.fn(() => true),
+    updateFallbackCampaignNeed: vi.fn(() => true),
   },
 }));
 
@@ -188,6 +191,54 @@ describe("campaigns.listPublished", () => {
       contributorsCount: 0,
     });
   });
+
+  it("não injetar necessidades padrão em campanhas de fallback sem itens", async () => {
+    getDbMock.mockResolvedValue(null);
+    whatsappServiceMock.getFallbackCampaigns.mockReturnValue([{
+      id: 77,
+      title: "Campanha sem itens",
+      description: "Campanha criada para testar o estado vazio.",
+      longDescription: "Campanha criada para testar o estado vazio.",
+      category: "outro",
+      goal: 250_000,
+      raised: 0,
+      status: "active" as const,
+      imageUrl: null,
+      createdBy: 1,
+      createdAt: new Date("2026-07-28T00:00:00.000Z"),
+      updatedAt: new Date("2026-07-28T00:00:00.000Z"),
+    }]);
+
+    const caller = appRouter.createCaller(createPublicContext());
+    const detail = await caller.campaigns.getById({ id: 77 });
+
+    expect(detail).not.toBeNull();
+    expect(detail?.needs).toEqual([]);
+  });
+
+  it("não cria itens falsos para a campanha recanto quando ela ainda não tem necessidades", async () => {
+    getDbMock.mockResolvedValue(null);
+    whatsappServiceMock.getFallbackCampaigns.mockReturnValue([{
+      id: 100001,
+      title: "Construção Hotel Recanto de Paz",
+      description: "Campanha criada para testar o estado vazio do recanto.",
+      longDescription: "Campanha criada para testar o estado vazio do recanto.",
+      category: "outro",
+      goal: 150_000_000,
+      raised: 0,
+      status: "active" as const,
+      imageUrl: "/obra-paredes.jpg",
+      createdBy: 1,
+      createdAt: new Date("2026-07-28T00:00:00.000Z"),
+      updatedAt: new Date("2026-07-28T00:00:00.000Z"),
+    }]);
+
+    const caller = appRouter.createCaller(createPublicContext());
+    const detail = await caller.campaigns.getById({ id: 100001 });
+
+    expect(detail).not.toBeNull();
+    expect(detail?.needs).toEqual([]);
+  });
 });
 
 describe("campaigns.getAll fallback", () => {
@@ -330,6 +381,7 @@ describe("campaigns admin", () => {
     getDbMock.mockResolvedValue({
       select: vi.fn(() => existingCampaignQuery()),
       update: vi.fn(() => ({ set })),
+      delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue({}) })),
     });
     const caller = appRouter.createCaller(createAdminContext());
 
@@ -378,12 +430,42 @@ describe("campaigns admin", () => {
       type: "material",
       name: "Cimento",
       quantity: "20 sacos",
+      targetQuantityExact: 20,
+      unitValueCents: 4500,
       priority: "high",
     });
 
     expect(values).toHaveBeenCalledWith(expect.objectContaining({
       campaignId: 10,
       name: "Cimento",
+      priority: "high",
+    }));
+  });
+
+  it("atualiza uma necessidade existente com os campos informados", async () => {
+    const set = vi.fn().mockResolvedValue({});
+    const where = vi.fn().mockResolvedValue({});
+    set.mockReturnValue({ where });
+    getDbMock.mockResolvedValue({
+      update: vi.fn(() => ({ set })),
+    });
+    const caller = appRouter.createCaller(createAdminContext());
+
+    await caller.campaigns.updateNeed({
+      needId: 7,
+      campaignId: 10,
+      name: "Tijolo ecológico",
+      quantity: "3.700 unidades",
+      targetQuantityExact: 3700,
+      unitValueCents: 180,
+      priority: "high",
+    });
+
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({
+      name: "Tijolo ecológico",
+      quantity: "3.700 unidades",
+      targetQuantityExact: 3700,
+      unitValueCents: 180,
       priority: "high",
     }));
   });
@@ -405,6 +487,8 @@ describe("campaigns admin", () => {
       type: "labor",
       name: "Pintura",
       quantity: "2 voluntários",
+      targetQuantityExact: 2,
+      unitValueCents: 5000,
       priority: "medium",
     })).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(values).not.toHaveBeenCalled();
