@@ -5,28 +5,12 @@
     "description": "Apoie a construção do Hotel Recanto de Paz com materiais e contribuições para a obra.",
     "longDescription": "A campanha apresenta uma obra real, com evolução de etapas, atualizações de fotos e necessidades concretas de materiais. Apoie a construção do Hotel Recanto de Paz em cada fase.",
     "category": "outro",
-    "goal": 5000000,
+    "goal": 10000000,
     "vipApartmentAmountCents": 12000000,
     "raised": 0,
     "status": "active",
-    "imageUrl": "/obra-paredes.jpg",
     "createdBy": 1,
     "createdAt": "2026-07-29T10:00:00.000Z",
-    "updatedAt": "2026-08-03T16:57:56.587Z"
-  },
-  {
-    "id": 2,
-    "title": "Construção Hotel Recanto de Paz",
-    "description": "Apoie a construção do Hotel Recanto de Paz com materiais e contribuições para a obra.",
-    "longDescription": "A campanha apresenta uma obra real, com evolução de etapas, atualizações de fotos e necessidades concretas de materiais. Apoie a construção do Hotel Recanto de Paz em cada fase.",
-    "category": "outro",
-    "goal": 5000000,
-    "vipApartmentAmountCents": 12000000,
-    "raised": 0,
-    "imageUrl": "/obra-paredes.jpg",
-    "createdBy": 1,
-    "createdAt": "2026-08-01T01:51:19.000Z",
-    "updatedAt": "2026-08-03T17:05:51.122Z",
-    "status": "archived"
+    "updatedAt": "2026-08-04T11:06:19.859Z"
   }
 ]

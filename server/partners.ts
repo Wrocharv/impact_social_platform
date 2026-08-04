@@ -46,7 +46,7 @@ const defaultFallbackPartnerSeeds: Array<
       "https://images.unsplash.com/photo-1542204625-de293a2f0f9b?auto=format&fit=crop&w=900&q=80",
     address: "Rua Central, 120 - Centro",
     contactInfo: "(11) 99999-0101",
-    testimonialVideoUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+    testimonialVideoUrl: undefined,
     testimonialText:
       "Nossa empresa cresceu quando decidiu crescer junto com a comunidade. Vale a pena participar.",
     website: "https://www.parceriadobem.com.br",

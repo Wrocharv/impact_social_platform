@@ -7,7 +7,7 @@ import { Link, useRoute } from "wouter";
 
 type PartnerVideoSource =
   | { kind: "embed"; src: string }
-  | { kind: "file"; src: string; mimeType: string };
+  | { kind: "file"; src: string; mimeType?: string };
 
 function normalizeWhatsapp(value?: string | null) {
   if (!value) return null;
@@ -72,7 +72,7 @@ function toPartnerVideoSource(url?: string | null): PartnerVideoSource | null {
       : lower.includes(".ogg")
         ? "video/ogg"
         : lower.includes(".mov")
-          ? "video/quicktime"
+          ? undefined
         : "video/mp4";
 
     return { kind: "file", src: trimmedUrl, mimeType };
@@ -144,22 +144,6 @@ function getCustomPartnerVideo(name?: string | null) {
   return null;
 }
 
-function getPreferredPartnerVideo(name?: string | null) {
-  if (!name) return null;
-
-  const normalizedName = name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-
-  if (normalizedName.includes("predimais")) {
-    return "https://www.youtube.com/watch?v=aqz-KE-bpKQ";
-  }
-
-  return null;
-}
-
 function getFallbackPartnerWebsite(name?: string | null) {
   if (!name) return null;
 
@@ -208,9 +192,8 @@ export default function PartnerSpotlightPage() {
     website: partnerWebsiteUrl,
     contactInfo: partner.contactInfo,
   });
-  const preferredVideoUrl = getPreferredPartnerVideo(partner.name);
   const customVideoUrl = getCustomPartnerVideo(partner.name);
-  const videoSource = toPartnerVideoSource(preferredVideoUrl || partner.testimonialVideoUrl || customVideoUrl);
+  const videoSource = toPartnerVideoSource(customVideoUrl || partner.testimonialVideoUrl);
   const customBannerUrl = getCustomPartnerBanner(partner.name);
   const customLogoUrl = getCustomPartnerLogo(partner.name);
   const showFullWidthBanner = Boolean(customBannerUrl);
@@ -228,60 +211,36 @@ export default function PartnerSpotlightPage() {
             <p className="mt-4 max-w-2xl text-lg text-white/85">
               {partner.description || "Parceiro da rede Parceiros do Bem, apoiando campanhas sociais com presença e divulgação."}
             </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              {partnerWebsiteUrl && (
-                <a href={partnerWebsiteUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-white px-4 font-semibold text-[#1e4c34] hover:bg-[#eef8f0]">
-                  <ExternalLink className="h-4 w-4" /> Site oficial
-                </a>
-              )}
-              {whatsappUrl && (
-                <a href={whatsappUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/55 px-4 font-semibold text-white hover:bg-white/10">
-                  <MessageCircle className="h-4 w-4" /> WhatsApp
-                </a>
-              )}
-              {instagramUrl && (
-                <a href={instagramUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/55 px-4 font-semibold text-white hover:bg-white/10">
-                  <Instagram className="h-4 w-4" /> Instagram
-                </a>
-              )}
-            </div>
           </div>
         </section>
       )}
 
       {showFullWidthBanner && (
-        <section className="w-full overflow-hidden border-b border-[#dfe7dd] bg-[#0f2b1d]">
+        <section className="relative w-full overflow-hidden border-b border-[#dfe7dd] bg-[#0f2b1d]">
           <img
             src={encodeURI(customBannerUrl ?? "")}
             alt={`Banner de ${partner.name}`}
             className="h-[280px] w-full object-cover object-center md:h-[440px]"
           />
-          <div className="border-t border-[#dfe7dd] bg-[#f7faf6]">
-            <div className="container w-full max-w-6xl px-4 py-4 md:py-6">
-              <div className="flex flex-wrap gap-3">
-                {partnerWebsiteUrl && (
-                  <a href={partnerWebsiteUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#1e4c34] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#173b29]">
-                    <ExternalLink className="h-4 w-4" /> Site oficial
-                  </a>
-                )}
-                {whatsappUrl && (
-                  <a href={whatsappUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#1e4c34]/20 bg-white px-4 text-sm font-semibold text-[#1e4c34] shadow-sm transition hover:bg-[#eef8f0]">
-                    <MessageCircle className="h-4 w-4" /> WhatsApp
-                  </a>
-                )}
-                {instagramUrl && (
-                  <a href={instagramUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#1e4c34]/20 bg-white px-4 text-sm font-semibold text-[#1e4c34] shadow-sm transition hover:bg-[#eef8f0]">
-                    <Instagram className="h-4 w-4" /> Instagram
-                  </a>
-                )}
-              </div>
+          <div className="absolute bottom-3 left-[6%] z-10 -translate-x-[10%] md:bottom-5 md:left-[8%]">
+            <div className="flex flex-wrap gap-2 rounded-2xl border border-[#1e4c34]/25 bg-[#eef8f0]/92 p-2 shadow-[0_8px_24px_rgba(23,59,41,0.22)] backdrop-blur-sm md:gap-3 md:p-2.5">
+              {partnerWebsiteUrl && (
+                <a href={partnerWebsiteUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-9 items-center gap-2 rounded-full bg-[#1e4c34] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#173b29] md:min-h-10 md:px-4 md:text-sm">
+                  <ExternalLink className="h-4 w-4" /> Site oficial
+                </a>
+              )}
+              {whatsappUrl && (
+                <a href={whatsappUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[#1e4c34]/20 bg-white px-3 text-xs font-semibold text-[#1e4c34] shadow-sm transition hover:bg-[#eef8f0] md:min-h-10 md:px-4 md:text-sm">
+                  <MessageCircle className="h-4 w-4" /> WhatsApp
+                </a>
+              )}
             </div>
           </div>
         </section>
       )}
 
       <main className="container max-w-6xl space-y-8 px-4 py-10 md:py-14">
-        <Card className={`grid gap-6 border-[#dce6da] p-6 md:p-8 ${showFullWidthBanner ? "md:grid-cols-1" : "md:grid-cols-[1.1fr_1fr]"}`}>
+        <Card className={`grid gap-6 border-[#dce6da] p-6 ${showFullWidthBanner ? "md:grid-cols-1" : "md:grid-cols-[1.1fr_1fr]"} md:p-8`}>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#4f6656]">Apresentação</p>
             <h2 className="mt-2 text-2xl font-bold text-[#223126]">Conheça este parceiro</h2>
@@ -298,35 +257,54 @@ export default function PartnerSpotlightPage() {
               <p className="mt-1 text-sm text-[#3f5347]"><strong>Contato:</strong> {partner.contactInfo}</p>
             )}
           </div>
-          {showFullWidthBanner ? null : (
-            <div className="rounded-xl bg-[#eef4ec] p-4">
-              {featuredImage ? (
-                <img
-                  src={encodeURI(featuredImage)}
-                  alt={customBannerUrl ? `Banner de ${partner.name}` : `Logomarca de ${partner.name}`}
-                  className={`w-full rounded-lg ${customBannerUrl ? "h-40 object-cover" : "h-32 object-contain bg-white p-3"}`}
-                />
-              ) : (
-                <div className="flex h-32 items-center justify-center rounded-lg bg-white text-[#66806f]"><Handshake className="h-8 w-8" /></div>
-              )}
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="overflow-hidden rounded-lg bg-white">
-                  {partner.storePhotoUrl ? (
-                    <img src={partner.storePhotoUrl} alt={`Foto da loja de ${partner.name}`} className="h-28 w-full object-cover" />
-                  ) : (
-                    <div className="flex h-28 items-center justify-center text-xs text-[#6f8176]"><Store className="mr-1 h-4 w-4" /> Loja</div>
+          <div className="rounded-xl bg-[#eef4ec] p-4">
+            {!showFullWidthBanner && (
+              <>
+                {featuredImage ? (
+                  <img
+                    src={encodeURI(featuredImage)}
+                    alt={customBannerUrl ? `Banner de ${partner.name}` : `Logomarca de ${partner.name}`}
+                    className={`w-full rounded-lg ${customBannerUrl ? "h-40 object-cover" : "h-32 object-contain bg-white p-3"}`}
+                  />
+                ) : (
+                  <div className="flex h-32 items-center justify-center rounded-lg bg-white text-[#66806f]"><Handshake className="h-8 w-8" /></div>
+                )}
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {partnerWebsiteUrl && (
+                    <a href={partnerWebsiteUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#1e4c34] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#173b29]">
+                      <ExternalLink className="h-4 w-4" /> Site oficial
+                    </a>
+                  )}
+                  {whatsappUrl && (
+                    <a href={whatsappUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#1e4c34]/20 bg-white px-4 text-sm font-semibold text-[#1e4c34] shadow-sm transition hover:bg-[#eef8f0]">
+                      <MessageCircle className="h-4 w-4" /> WhatsApp
+                    </a>
+                  )}
+                  {instagramUrl && (
+                    <a href={instagramUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#1e4c34]/20 bg-white px-4 text-sm font-semibold text-[#1e4c34] shadow-sm transition hover:bg-[#eef8f0]">
+                      <Instagram className="h-4 w-4" /> Instagram
+                    </a>
                   )}
                 </div>
-                <div className="overflow-hidden rounded-lg bg-white">
-                  {partner.ownerPhotoUrl ? (
-                    <img src={partner.ownerPhotoUrl} alt={`Foto do responsável de ${partner.name}`} className="h-28 w-full object-cover" />
-                  ) : (
-                    <div className="flex h-28 items-center justify-center text-xs text-[#6f8176]">Responsável</div>
-                  )}
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="overflow-hidden rounded-lg bg-white">
+                    {partner.storePhotoUrl ? (
+                      <img src={partner.storePhotoUrl} alt={`Foto da loja de ${partner.name}`} className="h-28 w-full object-cover" />
+                    ) : (
+                      <div className="flex h-28 items-center justify-center text-xs text-[#6f8176]"><Store className="mr-1 h-4 w-4" /> Loja</div>
+                    )}
+                  </div>
+                  <div className="overflow-hidden rounded-lg bg-white">
+                    {partner.ownerPhotoUrl ? (
+                      <img src={partner.ownerPhotoUrl} alt={`Foto do responsável de ${partner.name}`} className="h-28 w-full object-cover" />
+                    ) : (
+                      <div className="flex h-28 items-center justify-center text-xs text-[#6f8176]">Responsável</div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </Card>
 
         <Card className="border-[#dce6da] p-6 md:p-8">
@@ -359,8 +337,13 @@ export default function PartnerSpotlightPage() {
                     allowFullScreen
                   />
                 ) : (
-                  <video className="h-full w-full" controls preload="metadata">
-                    <source src={encodeURI(videoSource.src)} type={videoSource.mimeType} />
+                  <video
+                    className="h-full w-full"
+                    src={encodeURI(videoSource.src)}
+                    controls
+                    playsInline
+                    preload="metadata"
+                  >
                     Seu navegador não suporta reprodução de vídeo.
                   </video>
                 )}

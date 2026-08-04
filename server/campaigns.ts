@@ -303,6 +303,11 @@ function isInternalLocalSeedCampaign(campaign: { id: number; title: string }) {
   return campaign.id >= 100000 && campaign.title.trim().toLowerCase() === "campanha local inicial";
 }
 
+function isLocalHostHeader(hostHeader: string | undefined) {
+  const host = String(hostHeader ?? "").toLowerCase();
+  return host.includes("localhost") || host.includes("127.0.0.1");
+}
+
 const PUBLIC_STATUSES = ["active", "completed"] as const;
 const APPROVED_CONTRIBUTION_STATUSES = ["approved", "completed"] as const;
 // Somente contribuições validadas entram no abatimento da meta de material.
@@ -949,9 +954,10 @@ export const campaignsRouter = router({
         })
         .optional(),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) {
+      const preferLocalFallback = isLocalHostHeader(ctx.req.headers.host);
+      if (!db || preferLocalFallback) {
         const mappedFallback = getMappedFallbackCampaigns({
           status: input?.status,
           query: input?.query,
@@ -1006,9 +1012,10 @@ export const campaignsRouter = router({
       }
     }),
 
-  getPublicStats: publicProcedure.query(async () => {
+  getPublicStats: publicProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) {
+    const preferLocalFallback = isLocalHostHeader(ctx.req.headers.host);
+    if (!db || preferLocalFallback) {
       const mappedActiveFallback = getMappedFallbackCampaigns({ status: "active" })
         .filter((campaign) => !isInternalLocalSeedCampaign(campaign));
       const mergedActiveCampaigns = dedupeCampaignsById(mappedActiveFallback);
@@ -1064,12 +1071,10 @@ export const campaignsRouter = router({
 
   getById: publicProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) {
-        const demoCampaign = getDemoCampaignById(input.id);
-        if (demoCampaign) return withMaterialProgressFromFallback(demoCampaign);
-
+      const preferLocalFallback = isLocalHostHeader(ctx.req.headers.host);
+      if (!db || preferLocalFallback) {
         const fallbackCampaigns = getMappedFallbackCampaigns();
         let fallbackCampaign = fallbackCampaigns.find((campaign) => campaign.id === input.id);
         if (!fallbackCampaign && input.id === 1) {
@@ -1077,9 +1082,15 @@ export const campaignsRouter = router({
             fallbackCampaigns.find((campaign) => !/recanto de paz/i.test(campaign.title))
             ?? fallbackCampaigns.find((campaign) => campaign.id !== DEMO_CAMPAIGN.id);
         }
-        if (!fallbackCampaign) return null;
 
-        return withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaign));
+        if (fallbackCampaign) {
+          return withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaign));
+        }
+
+        const demoCampaign = getDemoCampaignById(input.id);
+        if (demoCampaign) return withMaterialProgressFromFallback(demoCampaign);
+
+        return null;
       }
 
       const canonicalRecantoId = await ensureCanonicalRecantoCampaign(db);
