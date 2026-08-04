@@ -231,15 +231,15 @@ export default function PartnerSpotlightPage() {
       )}
 
       {showFullWidthBanner && (
-        <section className="relative w-full overflow-hidden border-b border-[#dfe7dd] bg-[#0f2b1d]">
+        <section className="w-full overflow-hidden border-b border-[#dfe7dd] bg-[#0f2b1d]">
           <img
             src={encodeURI(customBannerUrl ?? "")}
             alt={`Banner de ${partner.name}`}
             className="h-[280px] w-full object-cover object-center md:h-[440px]"
           />
-          <div className="absolute inset-0 z-10 flex items-end bg-gradient-to-t from-black/45 via-black/10 to-transparent">
-            <div className="container w-full max-w-6xl px-4 pb-4 md:pb-8">
-              <div className="mt-0 flex flex-wrap gap-3 rounded-2xl bg-white/85 p-3 shadow-lg backdrop-blur-sm md:inline-flex">
+          <div className="border-t border-[#dfe7dd] bg-[#f7faf6]">
+            <div className="container w-full max-w-6xl px-4 py-4 md:py-6">
+              <div className="flex flex-wrap gap-3">
                 {partnerWebsiteUrl && (
                   <a href={partnerWebsiteUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#1e4c34] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#173b29]">
                     <ExternalLink className="h-4 w-4" /> Site oficial
