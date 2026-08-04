@@ -158,18 +158,6 @@ function getFallbackPartnerWebsite(name?: string | null) {
   return null;
 }
 
-function shouldHideBannerHeading(name?: string | null) {
-  if (!name) return false;
-
-  const normalizedName = name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-
-  return normalizedName.includes("multipla escolha");
-}
-
 export default function PartnerSpotlightPage() {
   const [, params] = useRoute("/partner/:id");
   const partnerId = Number(params?.id ?? 0);
@@ -207,7 +195,6 @@ export default function PartnerSpotlightPage() {
   const customBannerUrl = getCustomPartnerBanner(partner.name);
   const customLogoUrl = getCustomPartnerLogo(partner.name);
   const showFullWidthBanner = Boolean(customBannerUrl);
-  const hideBannerHeading = shouldHideBannerHeading(partner.name);
   const featuredImage = customBannerUrl || customLogoUrl || partner.logoUrl;
 
   return (
@@ -250,15 +237,9 @@ export default function PartnerSpotlightPage() {
             alt={`Banner de ${partner.name}`}
             className="h-[280px] w-full object-cover object-center md:h-[440px]"
           />
-          <div className={`absolute inset-0 z-10 flex items-end ${hideBannerHeading ? "bg-gradient-to-t from-black/45 via-black/10 to-transparent" : "bg-gradient-to-t from-black/70 via-black/30 to-transparent"}`}>
+          <div className="absolute inset-0 z-10 flex items-end bg-gradient-to-t from-black/45 via-black/10 to-transparent">
             <div className="container w-full max-w-6xl px-4 pb-4 md:pb-8">
-              {!hideBannerHeading && (
-                <>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#d8efe1]">Parceiro em destaque</p>
-                  <h1 className="mt-2 max-w-3xl text-2xl font-bold leading-tight text-white md:text-4xl">{partner.name}</h1>
-                </>
-              )}
-              <div className={`${hideBannerHeading ? "mt-0" : "mt-4"} flex flex-wrap gap-3 rounded-2xl bg-white/85 p-3 shadow-lg backdrop-blur-sm md:inline-flex`}>
+              <div className="mt-0 flex flex-wrap gap-3 rounded-2xl bg-white/85 p-3 shadow-lg backdrop-blur-sm md:inline-flex">
                 {partnerWebsiteUrl && (
                   <a href={partnerWebsiteUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#1e4c34] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#173b29]">
                     <ExternalLink className="h-4 w-4" /> Site oficial
