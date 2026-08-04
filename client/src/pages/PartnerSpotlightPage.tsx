@@ -144,6 +144,22 @@ function getCustomPartnerVideo(name?: string | null) {
   return null;
 }
 
+function getPreferredPartnerVideo(name?: string | null) {
+  if (!name) return null;
+
+  const normalizedName = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+  if (normalizedName.includes("predimais")) {
+    return "https://www.youtube.com/watch?v=aqz-KE-bpKQ";
+  }
+
+  return null;
+}
+
 function getFallbackPartnerWebsite(name?: string | null) {
   if (!name) return null;
 
@@ -192,8 +208,9 @@ export default function PartnerSpotlightPage() {
     website: partnerWebsiteUrl,
     contactInfo: partner.contactInfo,
   });
+  const preferredVideoUrl = getPreferredPartnerVideo(partner.name);
   const customVideoUrl = getCustomPartnerVideo(partner.name);
-  const videoSource = toPartnerVideoSource(partner.testimonialVideoUrl || customVideoUrl);
+  const videoSource = toPartnerVideoSource(preferredVideoUrl || partner.testimonialVideoUrl || customVideoUrl);
   const customBannerUrl = getCustomPartnerBanner(partner.name);
   const customLogoUrl = getCustomPartnerLogo(partner.name);
   const showFullWidthBanner = Boolean(customBannerUrl);
