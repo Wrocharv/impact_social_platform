@@ -26,7 +26,7 @@ export default function AdminMobilePage() {
     longDescription: "",
     category: "outro" as any,
     goal: "",
-    vipApartmentAmount: "120.000,00",
+    vipApartmentAmount: "",
     imageUrl: "",
   });
 
@@ -57,7 +57,7 @@ export default function AdminMobilePage() {
   const createCampaignMutation = trpc.campaigns.create.useMutation({
     onSuccess: async () => {
       toast.success("✅ Campanha criada!");
-      setCampaignForm({ title: "", description: "", longDescription: "", category: "outro", goal: "", vipApartmentAmount: "120.000,00", imageUrl: "" });
+      setCampaignForm({ title: "", description: "", longDescription: "", category: "outro", goal: "", vipApartmentAmount: "", imageUrl: "" });
       setActiveTab("campaigns");
       await campaignsQuery.refetch();
     },
@@ -400,8 +400,10 @@ export default function AdminMobilePage() {
                       return;
                     }
 
-                    const vipApartmentAmountCents = parseCurrencyToCents(campaignForm.vipApartmentAmount);
-                    if (!vipApartmentAmountCents || vipApartmentAmountCents <= 0) {
+                    const vipApartmentAmountCents = campaignForm.vipApartmentAmount.trim().length > 0
+                      ? parseCurrencyToCents(campaignForm.vipApartmentAmount)
+                      : 0;
+                    if (vipApartmentAmountCents === null || vipApartmentAmountCents < 0) {
                       toast.error("Informe um valor VIP válido");
                       return;
                     }
@@ -433,7 +435,7 @@ export default function AdminMobilePage() {
 
 function parseCurrencyToCents(value: string): number | null {
   const normalized = value.trim();
-  if (!normalized) return null;
+  if (!normalized) return 0;
   const onlyAllowed = normalized.replace(/\s/g, "");
   if (!/^[-+]?\d{1,3}(\.\d{3})*(,\d{0,2})?$|^[-+]?\d+(,\d{0,2})?$|^[-+]?\d+(\.\d{0,2})?$/.test(onlyAllowed)) {
     return null;
@@ -441,6 +443,6 @@ function parseCurrencyToCents(value: string): number | null {
   const hasComma = onlyAllowed.includes(",");
   const normalizedNumber = hasComma ? onlyAllowed.replace(/\./g, "").replace(",", ".") : onlyAllowed;
   const parsed = Number(normalizedNumber);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
   return Math.round(parsed * 100);
 }

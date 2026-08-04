@@ -299,6 +299,36 @@ export const whatsappService = {
     return nextNeed;
   },
 
+  removeFallbackCampaignNeed(campaignId: number, needId: number) {
+    refreshFallbackCampaignsFromDisk();
+    const campaignIndex = fallbackCampaigns.findIndex((campaign) => campaign.id === campaignId);
+    if (campaignIndex < 0) return false;
+    const currentCampaign = fallbackCampaigns[campaignIndex];
+    fallbackCampaigns[campaignIndex] = {
+      ...currentCampaign,
+      needs: (currentCampaign.needs ?? []).filter((need) => need.id !== needId),
+      updatedAt: new Date(),
+    };
+    persistFallbackCampaignsToDisk();
+    return true;
+  },
+
+  updateFallbackCampaignNeed(campaignId: number, needId: number, fields: Record<string, unknown>) {
+    refreshFallbackCampaignsFromDisk();
+    const campaignIndex = fallbackCampaigns.findIndex((campaign) => campaign.id === campaignId);
+    if (campaignIndex < 0) return false;
+    const currentCampaign = fallbackCampaigns[campaignIndex];
+    fallbackCampaigns[campaignIndex] = {
+      ...currentCampaign,
+      needs: (currentCampaign.needs ?? []).map((need) =>
+        need.id === needId ? { ...need, ...fields } : need,
+      ),
+      updatedAt: new Date(),
+    };
+    persistFallbackCampaignsToDisk();
+    return true;
+  },
+
   deleteFallbackCampaign(id: number) {
     refreshFallbackCampaignsFromDisk();
     const index = fallbackCampaigns.findIndex((campaign) => campaign.id === id);

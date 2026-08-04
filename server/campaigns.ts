@@ -239,8 +239,8 @@ function mapFallbackCampaignToPublicShape(campaign: ReturnType<typeof whatsappSe
     longDescription: campaign.longDescription ?? campaign.description,
     category: campaign.category ?? "outro",
     goal,
-    vipApartmentAmountCents: Math.max(1, Number(campaign.vipApartmentAmountCents ?? DEFAULT_VIP_APARTMENT_AMOUNT_CENTS)),
-    imageUrl: campaign.imageUrl ?? "/obra-paredes.jpg",
+    vipApartmentAmountCents: Math.max(0, Number(campaign.vipApartmentAmountCents ?? DEFAULT_VIP_APARTMENT_AMOUNT_CENTS)),
+    imageUrl: campaign.imageUrl ?? null,
     createdBy: campaign.createdBy ?? 1,
     status: campaign.status ?? "active",
     createdAt: campaign.createdAt,
@@ -250,7 +250,7 @@ function mapFallbackCampaignToPublicShape(campaign: ReturnType<typeof whatsappSe
     remaining: Math.max(0, goal - raised),
     progress,
     contributorsCount: 0,
-    galleryImages: [campaign.imageUrl ?? "/obra-paredes.jpg"],
+    galleryImages: campaign.imageUrl ? [campaign.imageUrl] : [],
     needs: (campaign.needs ?? []).map((need) => ({
       id: need.id,
       campaignId: campaign.id,
@@ -494,7 +494,7 @@ const createCampaignSchema = z.object({
   longDescription: z.string().min(50, "Descrição longa deve ter pelo menos 50 caracteres"),
   category: z.enum(["moradia", "educacao", "saude", "alimentacao", "infraestrutura", "outro"]).optional().default("outro"),
   goal: z.number().int().positive("Meta deve ser um valor positivo"),
-  vipApartmentAmountCents: z.number().int().positive("Valor VIP deve ser um valor positivo").default(DEFAULT_VIP_APARTMENT_AMOUNT_CENTS),
+  vipApartmentAmountCents: z.number().int().min(0, "Valor VIP deve ser zero ou maior").default(0),
   initialRaised: z.number().int().min(0).default(0),
   imageUrl: z.string().optional(),
   needs: z.array(z.object({
@@ -539,7 +539,7 @@ const updateCampaignSchema = z.object({
   description: z.string().min(20).optional(),
   longDescription: z.string().min(50).optional(),
   goal: z.number().int().positive().optional(),
-  vipApartmentAmountCents: z.number().int().positive().optional(),
+  vipApartmentAmountCents: z.number().int().min(0).optional(),
   initialRaised: z.number().int().min(0).optional(),
   status: z.enum(["active", "completed", "paused", "archived"]).optional(),
   imageUrl: z.string().nullable().optional(),
@@ -582,7 +582,7 @@ const createCommentSchema = z.object({
 const uploadCampaignImageSchema = z.object({
   fileName: z.string().trim().min(1).max(255),
   mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
-  size: z.number().int().positive().max(5 * 1024 * 1024),
+  size: z.number().int().positive().max(2 * 1024 * 1024),
   base64: z.string().min(4).max(7_500_000),
 });
 
@@ -786,7 +786,7 @@ function normalizePublicCampaignRow(
     longDescription: row.longDescription ?? row.description,
     category: row.category ?? "outro",
     goal: row.goal,
-    vipApartmentAmountCents: Math.max(1, Number(row.vipApartmentAmountCents ?? DEFAULT_VIP_APARTMENT_AMOUNT_CENTS)),
+    vipApartmentAmountCents: Math.max(0, Number(row.vipApartmentAmountCents ?? DEFAULT_VIP_APARTMENT_AMOUNT_CENTS)),
     raised: row.raised,
     status: row.status,
     imageUrl: row.imageUrl ?? null,
@@ -890,8 +890,8 @@ export const campaignsRouter = router({
         const message = error instanceof Error ? error.message : "Falha ao enviar imagem da campanha.";
         const storageNotConfigured = /Storage config missing|BUILT_IN_FORGE_API_(URL|KEY)/i.test(message);
 
-        // Em ambiente local sem storage configurado, manter o fluxo usando data URL.
-        if (storageNotConfigured && process.env.NODE_ENV !== "production") {
+        // Sem storage configurado, usar data URL como fallback em qualquer ambiente.
+        if (storageNotConfigured) {
           return {
             success: true as const,
             url: `data:${input.mimeType};base64,${input.base64}`,
@@ -932,16 +932,40 @@ export const campaignsRouter = router({
       return mergedCampaigns;
     }
 
-    const rows = await db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
-    const metrics = await loadCampaignMetrics(
-      db,
-      rows.map((campaign) => campaign.id),
-    );
-    return rows.map((campaign) => ({
-      ...campaign,
-      initialRaised: campaign.raised,
-      ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
-    }));
+    try {
+      const rows = await db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
+
+      let metrics = new Map<number, CampaignMetrics>();
+      try {
+        metrics = await loadCampaignMetrics(
+          db,
+          rows.map((campaign) => campaign.id),
+        );
+      } catch (error) {
+        console.warn("[campaigns.getAll] Falling back to basic metrics after metrics query error:", error);
+        rows.forEach((campaign) => {
+          metrics.set(campaign.id, deriveCampaignMetrics(campaign.goal, campaign.raised, []));
+        });
+      }
+
+      return rows.map((campaign) => ({
+        ...campaign,
+        initialRaised: campaign.raised,
+        ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
+      }));
+    } catch (error) {
+      console.warn("[campaigns.getAll] Falling back to local campaigns after DB error:", error);
+
+      const fallbackCampaigns = getMappedFallbackCampaigns();
+      const mergedCampaigns = dedupeCampaignsById(fallbackCampaigns)
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+
+      if (mergedCampaigns.length === 0) {
+        return [mapFallbackCampaignToPublicShape(DEMO_CAMPAIGN)];
+      }
+
+      return mergedCampaigns;
+    }
   }),
 
   listPublished: publicProcedure
@@ -1229,20 +1253,63 @@ export const campaignsRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Autenticação necessária." });
       }
 
-      const insertResult = await db.insert(campaigns).values({
-        title: input.title,
-        description: input.description,
-        longDescription: input.longDescription,
-        category: input.category,
-        goal: input.goal,
-        vipApartmentAmountCents: input.vipApartmentAmountCents,
-        raised: input.initialRaised,
-        imageUrl: input.imageUrl,
-        createdBy: userId,
-        status: "active",
-      });
+      // Suporta schemas legados com menos colunas em campaigns.
+      const campaignInsertAttempts: Array<Record<string, unknown>> = [
+        {
+          title: input.title,
+          description: input.description,
+          longDescription: input.longDescription,
+          category: input.category,
+          goal: input.goal,
+          vipApartmentAmountCents: input.vipApartmentAmountCents,
+          raised: input.initialRaised,
+          imageUrl: input.imageUrl,
+          createdBy: userId,
+          status: "active",
+        },
+        {
+          title: input.title,
+          description: input.description,
+          longDescription: input.longDescription,
+          category: input.category,
+          goal: input.goal,
+          raised: input.initialRaised,
+          imageUrl: input.imageUrl,
+          createdBy: userId,
+          status: "active",
+        },
+        {
+          title: input.title,
+          description: input.description,
+          goal: input.goal,
+          raised: input.initialRaised,
+          createdBy: userId,
+        },
+      ];
 
-      let createdCampaignId = Number((insertResult as { insertId?: number }).insertId ?? 0);
+      let insertResult: { insertId?: number } | null = null;
+      let lastInsertError: unknown = null;
+
+      for (const attempt of campaignInsertAttempts) {
+        try {
+          const result = await db.insert(campaigns).values(attempt as never);
+          insertResult = result as { insertId?: number };
+          lastInsertError = null;
+          break;
+        } catch (error) {
+          lastInsertError = error;
+          if (!isMissingColumnError(error)) {
+            throw error;
+          }
+          console.warn("[campaigns.create] Retrying create with legacy-compatible payload after missing-column error:", error);
+        }
+      }
+
+      if (!insertResult && lastInsertError) {
+        throw lastInsertError;
+      }
+
+      let createdCampaignId = Number((insertResult as { insertId?: number } | null)?.insertId ?? 0);
 
       if (!createdCampaignId) {
         const [recentCampaign] = await db
@@ -1255,18 +1322,35 @@ export const campaignsRouter = router({
       }
 
       if (createdCampaignId && input.needs.length > 0) {
-        await db.insert(campaignNeeds).values(
-          input.needs.map((need) => ({
-            campaignId: createdCampaignId,
-            type: need.type,
-            name: need.name,
-            description: need.description,
-            quantity: need.quantity,
-            targetQuantityExact: need.targetQuantityExact,
-            unitValueCents: need.unitValueCents,
-            priority: need.priority,
-          })),
-        );
+        try {
+          await db.insert(campaignNeeds).values(
+            input.needs.map((need) => ({
+              campaignId: createdCampaignId,
+              type: need.type,
+              name: need.name,
+              description: need.description,
+              quantity: need.quantity,
+              targetQuantityExact: need.targetQuantityExact,
+              unitValueCents: need.unitValueCents,
+              priority: need.priority,
+            })),
+          );
+        } catch (error) {
+          if (!isMissingColumnError(error)) throw error;
+
+          console.warn("[campaigns.create] Retrying need inserts without target/value columns for legacy schema:", error);
+
+          await db.insert(campaignNeeds).values(
+            input.needs.map((need) => ({
+              campaignId: createdCampaignId,
+              type: need.type,
+              name: need.name,
+              description: need.description,
+              quantity: need.quantity,
+              priority: need.priority,
+            })),
+          );
+        }
       }
 
       return { success: true, message: "Campanha criada com sucesso!" };
@@ -1458,6 +1542,41 @@ export const campaignsRouter = router({
         throw error;
       }
       return { success: true, message: "Necessidade criada com sucesso!" };
+    }),
+
+  deleteNeed: adminProcedure
+    .input(z.object({ needId: z.number().int().positive(), campaignId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) {
+        whatsappService.removeFallbackCampaignNeed(input.campaignId, input.needId);
+        return { success: true };
+      }
+      await db.delete(campaignNeeds).where(eq(campaignNeeds.id, input.needId));
+      return { success: true };
+    }),
+
+  updateNeed: adminProcedure
+    .input(z.object({
+      needId: z.number().int().positive(),
+      campaignId: z.number().int().positive(),
+      name: z.string().min(1).optional(),
+      description: z.string().optional(),
+      quantity: z.string().min(1).optional(),
+      targetQuantityExact: z.number().int().positive().optional(),
+      unitValueCents: z.number().int().positive().optional(),
+      type: z.enum(["material", "labor", "equipment", "other"]).optional(),
+      priority: z.enum(["high", "medium", "low"]).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      const { needId, campaignId: _campaignId, ...updateFields } = input;
+      if (!db) {
+        whatsappService.updateFallbackCampaignNeed?.(input.campaignId, needId, updateFields);
+        return { success: true };
+      }
+      await db.update(campaignNeeds).set({ ...updateFields }).where(eq(campaignNeeds.id, needId));
+      return { success: true };
     }),
 
   getNeeds: publicProcedure

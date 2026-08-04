@@ -3,7 +3,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-echo "Cole a DATABASE_URL e pressione Enter:"
+echo "Modo: localhost com dados do site publicado"
+echo "ATENCAO: usando a DATABASE_URL de producao, toda alteracao no admin local afeta o site real."
+echo
+echo "Cole a DATABASE_URL de producao e pressione Enter:"
 read -r -s DATABASE_URL
 echo
 

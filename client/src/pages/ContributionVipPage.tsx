@@ -135,14 +135,14 @@ export default function ContributionVipPage() {
   const vipVideoUrl = videoCandidates[videoIndex] ?? null;
   const vipVideoEmbedUrl = vipVideoUrl ? toEmbedVideoUrl(vipVideoUrl) : null;
 
-  if (campaignId !== HOTEL_CAMPAIGN_ID) {
+  if (campaignId !== HOTEL_CAMPAIGN_ID || vipApartmentAmountCents <= 0) {
     return (
       <div className="min-h-screen bg-[#f8faf7]">
         <PublicHeader />
         <main className="container max-w-6xl px-4 py-16">
           <Card className="p-8 text-center">
             <h1 className="text-2xl font-bold text-[#2d2d2d]">VIP não disponível nesta campanha</h1>
-            <p className="mt-2 text-[#656565]">Aqui usamos somente materiais e doação financeira, como combinado para a campanha da irmã.</p>
+            <p className="mt-2 text-[#656565]">Aqui usamos somente materiais e doação financeira para esta campanha.</p>
             <Link
               href={`/contribute/help/${campaignId}`}
               className="mt-6 inline-flex min-h-11 items-center justify-center rounded-md bg-[#228B22] px-5 font-semibold text-white transition hover:bg-[#1b711b]"

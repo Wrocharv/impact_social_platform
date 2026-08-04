@@ -87,7 +87,7 @@ const EMPTY_CAMPAIGN_EDIT_FORM = {
   description: "",
   longDescription: "",
   goal: "",
-  vipApartmentAmount: "120.000,00",
+  vipApartmentAmount: "",
   vipImageUrls: "",
   vipVideoUrls: "",
   initialRaised: "",
@@ -125,6 +125,8 @@ export default function AdminDashboard() {
   const [isEditCampaignOpen, setIsEditCampaignOpen] = useState(false);
   const [isCampaignUpdateOpen, setIsCampaignUpdateOpen] = useState(false);
   const [isCampaignNeedOpen, setIsCampaignNeedOpen] = useState(false);
+  const [isManageNeedsOpen, setIsManageNeedsOpen] = useState(false);
+  const [managingNeedsCampaign, setManagingNeedsCampaign] = useState<{ id: number; title: string } | null>(null);
   const [editingCampaignId, setEditingCampaignId] = useState<number | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<{ id: number; title: string } | null>(null);
   const [accountabilityCampaign, setAccountabilityCampaign] = useState<{ id: number; title: string } | null>(null);
@@ -137,7 +139,7 @@ export default function AdminDashboard() {
     description: "",
     longDescription: "",
     goal: "",
-    vipApartmentAmount: "120.000,00",
+    vipApartmentAmount: "",
     initialRaised: "",
     imageUrl: "",
   });
@@ -176,7 +178,7 @@ export default function AdminDashboard() {
   const createCampaign = trpc.campaigns.create.useMutation({
     onSuccess: async () => {
       toast.success("Campanha criada com sucesso!");
-      setCampaignForm({ title: "", description: "", longDescription: "", goal: "", vipApartmentAmount: "120.000,00", initialRaised: "", imageUrl: "" });
+      setCampaignForm({ title: "", description: "", longDescription: "", goal: "", vipApartmentAmount: "", initialRaised: "", imageUrl: "" });
       setCampaignNeedsDrafts([]);
       setCampaignModelType("custom");
       setIsCreateCampaignOpen(false);
@@ -200,7 +202,21 @@ export default function AdminDashboard() {
     },
     onError: (error) => toast.error(error.message || "Erro ao publicar atualização"),
   });
-  const createCampaignNeed = trpc.campaigns.createNeed.useMutation();
+  const createCampaignNeed = trpc.campaigns.createNeed.useMutation({
+    onSuccess: async () => {
+      toast.success("Necessidade cadastrada com sucesso!");
+      closeCampaignNeedDialog();
+      await invalidateCampaignData();
+    },
+    onError: (error) => toast.error(error.message || "Erro ao cadastrar necessidade"),
+  });
+  const deleteNeed = trpc.campaigns.deleteNeed.useMutation({
+    onSuccess: async () => {
+      toast.success("Item removido.");
+      await invalidateCampaignData();
+    },
+    onError: (error) => toast.error(error.message || "Erro ao remover item"),
+  });
   const deleteCampaign = trpc.campaigns.delete.useMutation({
     onSuccess: async () => {
       toast.success("Campanha removida com sucesso!");
@@ -340,7 +356,7 @@ export default function AdminDashboard() {
       description: campaign.description,
       longDescription: campaign.longDescription ?? "",
       goal: String(campaign.goal / 100).replace(".", ","),
-      vipApartmentAmount: String((("vipApartmentAmountCents" in campaign ? campaign.vipApartmentAmountCents : undefined) ?? 12000000) / 100).replace(".", ","),
+      vipApartmentAmount: String((("vipApartmentAmountCents" in campaign ? campaign.vipApartmentAmountCents : undefined) ?? 0) / 100).replace(".", ","),
       vipImageUrls: "",
       vipVideoUrls: "",
       initialRaised: String((("initialRaised" in campaign ? campaign.initialRaised : undefined) ?? campaign.raised) / 100).replace(".", ","),
@@ -417,7 +433,7 @@ export default function AdminDashboard() {
     }
 
     const vipApartmentAmountCents = parseCurrencyToCents(campaignForm.vipApartmentAmount);
-    if (vipApartmentAmountCents === null || vipApartmentAmountCents <= 0) {
+    if (vipApartmentAmountCents === null || vipApartmentAmountCents < 0) {
       toast.error("Informe um valor VIP válido");
       return;
     }
@@ -486,7 +502,7 @@ export default function AdminDashboard() {
     }
 
     const vipApartmentAmountCents = parseCurrencyToCents(campaignEditForm.vipApartmentAmount);
-    if (vipApartmentAmountCents === null || vipApartmentAmountCents <= 0) {
+    if (vipApartmentAmountCents === null || vipApartmentAmountCents < 0) {
       toast.error("Informe um valor VIP válido");
       return;
     }
@@ -653,8 +669,8 @@ export default function AdminDashboard() {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("A imagem deve ter no máximo 5MB.");
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("A imagem deve ter no máximo 2MB.");
       return;
     }
 
@@ -674,7 +690,9 @@ export default function AdminDashboard() {
         setCampaignEditForm((current) => ({ ...current, imageUrl: result.url }));
       }
 
-      toast.success("Imagem da campanha enviada com sucesso.");
+      toast.success("Imagem pronta. Salve a campanha para aplicar.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao enviar imagem. Tente uma imagem menor.");
     } finally {
       setUploadingCampaignImage(null);
     }
@@ -734,26 +752,12 @@ export default function AdminDashboard() {
                       <Field label="Meta (R$) *"><Input inputMode="decimal" value={campaignForm.goal} onChange={(event) => setCampaignForm({ ...campaignForm, goal: event.target.value })} required placeholder="Ex.: 50.000,00" /></Field>
                       <Field label="Arrecadação inicial (R$)"><Input inputMode="decimal" value={campaignForm.initialRaised} onChange={(event) => setCampaignForm({ ...campaignForm, initialRaised: event.target.value })} placeholder="Ex.: 12.350,90" /></Field>
                     </div>
-                    <Field label="Valor VIP apartamento (R$) *"><Input inputMode="decimal" value={campaignForm.vipApartmentAmount} onChange={(event) => setCampaignForm({ ...campaignForm, vipApartmentAmount: event.target.value })} required placeholder="Ex.: 120.000,00" /></Field>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label="Imagem da campanha (arquivo)">
-                        <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleCampaignImageUpload("create", event.target.files?.[0])} />
-                        {uploadingCampaignImage === "create" && <p className="text-xs text-[#66736a]">Enviando imagem...</p>}
-                        {campaignForm.imageUrl && <p className="text-xs text-[#228B22] break-all">Arquivo enviado: {campaignForm.imageUrl}</p>}
-                      </Field>
-                      <Field label="Caminho da imagem na raiz (opcional)">
-                        <Input
-                          value={campaignForm.imageUrl}
-                          onChange={(event) => setCampaignForm({ ...campaignForm, imageUrl: event.target.value })}
-                          placeholder="Ex.: /obra-paredes.jpg"
-                        />
-                        <p className="mt-1 text-xs text-[#66736a]">Use um caminho da raiz do site (começando com /) ou envie pelo campo de arquivo.</p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <Button type="button" size="sm" variant="outline" onClick={() => setCampaignForm((current) => ({ ...current, imageUrl: "/obra-paredes.jpg" }))}>Usar imagem padrão da raiz</Button>
-                          <Button type="button" size="sm" variant="ghost" onClick={() => setCampaignForm((current) => ({ ...current, imageUrl: "" }))}>Limpar caminho</Button>
-                        </div>
-                      </Field>
-                    </div>
+                    <Field label="Valor VIP apartamento (R$) (opcional)"><Input inputMode="decimal" value={campaignForm.vipApartmentAmount} onChange={(event) => setCampaignForm({ ...campaignForm, vipApartmentAmount: event.target.value })} placeholder="Ex.: 120.000,00" /></Field>
+                    <Field label="Imagem da campanha">
+                      <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleCampaignImageUpload("create", event.target.files?.[0])} />
+                      {uploadingCampaignImage === "create" && <p className="text-xs text-[#66736a]">Enviando imagem...</p>}
+                      {campaignForm.imageUrl && <p className="text-xs text-[#228B22] break-all">Imagem pronta: {campaignForm.imageUrl.startsWith("data:") ? "arquivo carregado" : campaignForm.imageUrl}</p>}
+                    </Field>
 
                     <div className="rounded-lg border border-[#dce5d8] p-4">
                       <div className="mb-3 flex items-center justify-between">
@@ -1184,14 +1188,25 @@ export default function AdminDashboard() {
             </Card>
 
             <div className="space-y-4">
-              {campaignsQuery.isLoading ? <LoadingCard label="Carregando campanhas..." /> : campaignsQuery.isError ? <ErrorCard label="Não foi possível carregar as campanhas." onRetry={() => campaignsQuery.refetch()} /> : campaignsQuery.data?.length ? campaignsQuery.data.map((campaign) => (
+              {campaignsQuery.isLoading ? <LoadingCard label="Carregando campanhas..." /> : campaignsQuery.isError ? (
+                <Card className="border-[#f3d2ce] bg-[#fff7f6] p-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-sm text-[#b42318]">
+                      Não foi possível carregar as campanhas.
+                      {campaignsQuery.error?.message ? ` Motivo: ${campaignsQuery.error.message}` : ""}
+                    </p>
+                    <Button variant="outline" size="sm" onClick={() => campaignsQuery.refetch()}>Tentar novamente</Button>
+                  </div>
+                </Card>
+              ) : campaignsQuery.data?.length ? campaignsQuery.data.map((campaign) => (
                 <Card key={campaign.id} className="p-5 md:p-6">
                   <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
                     <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-3"><h3 className="text-lg font-bold text-[#243128]">{campaign.title}</h3><StatusBadge status={campaign.status} /></div><p className="mt-2 text-[#66736a]">{campaign.description}</p><div className="mt-5 grid gap-4 text-sm sm:grid-cols-3"><Metric label="Meta" value={formatCurrency(campaign.goal)} /><Metric label="Arrecadado" value={formatCurrency(campaign.raised)} accent /><Metric label="Progresso" value={`${campaign.progress}%`} /></div></div>
                     <div className="flex flex-wrap gap-2 lg:max-w-xs lg:justify-end">
                       <Button variant="outline" size="sm" className="gap-2" onClick={() => openEditCampaign(campaign)}><Edit2 className="h-4 w-4" /> Editar</Button>
                       <Button variant="outline" size="sm" className="gap-2" onClick={() => openCampaignUpdate(campaign)}><Megaphone className="h-4 w-4" /> Publicar evolução</Button>
-                      <Button variant="outline" size="sm" className="gap-2" onClick={() => openCampaignNeed(campaign)}><PackagePlus className="h-4 w-4" /> Necessidade</Button>
+                      <Button variant="outline" size="sm" className="gap-2" onClick={() => openCampaignNeed(campaign)}><PackagePlus className="h-4 w-4" /> Novo item</Button>
+                      <Button variant="outline" size="sm" className="gap-2" onClick={() => { setManagingNeedsCampaign({ id: campaign.id, title: campaign.title }); setIsManageNeedsOpen(true); }}><Edit2 className="h-3 w-3" /> Gerenciar itens</Button>
                       <Button variant="outline" size="sm" className="gap-2" onClick={() => setAccountabilityCampaign({ id: campaign.id, title: campaign.title })}><FileText className="h-4 w-4" /> Prestação de contas</Button>
                       <Button variant="outline" size="sm" className="gap-2 text-red-700 hover:text-red-800" onClick={() => setCampaignToDelete({ id: campaign.id, title: campaign.title })}><Trash2 className="h-4 w-4" /> Excluir</Button>
                       <Button asChild variant="ghost" size="sm" className="gap-2"><Link href={`/campaign/${campaign.id}`}><ExternalLink className="h-4 w-4" /> Ver no site</Link></Button>
@@ -1257,7 +1272,7 @@ export default function AdminDashboard() {
                 <Field label="Meta (R$) *"><Input inputMode="decimal" value={campaignEditForm.goal} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, goal: event.target.value })} required placeholder="Ex.: 50.000,00" /></Field>
                 <Field label="Arrecadação inicial (R$)"><Input inputMode="decimal" value={campaignEditForm.initialRaised} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, initialRaised: event.target.value })} placeholder="Ex.: 12.350,90" /></Field>
               </div>
-              <Field label="Valor VIP apartamento (R$) *"><Input inputMode="decimal" value={campaignEditForm.vipApartmentAmount} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, vipApartmentAmount: event.target.value })} required placeholder="Ex.: 120.000,00" /></Field>
+              <Field label="Valor VIP apartamento (R$) (opcional)"><Input inputMode="decimal" value={campaignEditForm.vipApartmentAmount} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, vipApartmentAmount: event.target.value })} placeholder="Ex.: 120.000,00" /></Field>
               <div className="rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4">
                 <p className="text-sm font-bold text-[#243128]">Configuração da página VIP</p>
                 <p className="mt-1 text-xs text-[#66736a]">Essas mídias aparecem na página VIP antes do pagamento. Use uma URL por linha (https://...) ou caminho local iniciando com /.</p>
@@ -1283,25 +1298,11 @@ export default function AdminDashboard() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Status *"><Select value={campaignEditForm.status} onValueChange={(status: typeof campaignEditForm.status) => setCampaignEditForm({ ...campaignEditForm, status })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Ativa</SelectItem><SelectItem value="paused">Pausada</SelectItem><SelectItem value="completed">Concluída</SelectItem><SelectItem value="archived">Arquivada</SelectItem></SelectContent></Select></Field>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Imagem da campanha (arquivo)">
-                  <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleCampaignImageUpload("edit", event.target.files?.[0])} />
-                  {uploadingCampaignImage === "edit" && <p className="text-xs text-[#66736a]">Enviando imagem...</p>}
-                  {campaignEditForm.imageUrl && <p className="text-xs text-[#228B22] break-all">Arquivo enviado: {campaignEditForm.imageUrl}</p>}
-                </Field>
-                <Field label="Caminho da imagem na raiz (opcional)">
-                  <Input
-                    value={campaignEditForm.imageUrl}
-                    onChange={(event) => setCampaignEditForm({ ...campaignEditForm, imageUrl: event.target.value })}
-                    placeholder="Ex.: /obra-paredes.jpg"
-                  />
-                  <p className="mt-1 text-xs text-[#66736a]">Use um caminho da raiz do site (começando com /) ou envie pelo campo de arquivo.</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Button type="button" size="sm" variant="outline" onClick={() => setCampaignEditForm((current) => ({ ...current, imageUrl: "/obra-paredes.jpg" }))}>Usar imagem padrão da raiz</Button>
-                    <Button type="button" size="sm" variant="ghost" onClick={() => setCampaignEditForm((current) => ({ ...current, imageUrl: "" }))}>Limpar caminho</Button>
-                  </div>
-                </Field>
-              </div>
+              <Field label="Imagem da campanha">
+                <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleCampaignImageUpload("edit", event.target.files?.[0])} />
+                {uploadingCampaignImage === "edit" && <p className="text-xs text-[#66736a]">Enviando imagem...</p>}
+                {campaignEditForm.imageUrl && <p className="text-xs text-[#228B22] break-all">Imagem atual: {campaignEditForm.imageUrl.startsWith("data:") ? "arquivo carregado" : campaignEditForm.imageUrl}</p>}
+              </Field>
               <p className="rounded-lg bg-[#fff8e6] p-3 text-sm text-[#70571a]">Campanhas pausadas ou arquivadas deixam de aparecer nas áreas públicas. Campanhas concluídas continuam disponíveis para prestação de contas.</p>
               <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={closeEditCampaignDialog}>Cancelar</Button><Button type="submit" disabled={updateCampaign.isPending}>{updateCampaign.isPending ? "Salvando..." : "Salvar alterações"}</Button></div>
             </form>
@@ -1423,8 +1424,62 @@ export default function AdminDashboard() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <ManageNeedsDialog
+          campaign={managingNeedsCampaign}
+          open={isManageNeedsOpen}
+          onOpenChange={(open) => { setIsManageNeedsOpen(open); if (!open) setManagingNeedsCampaign(null); }}
+          onDelete={(needId, campaignId) => deleteNeed.mutate({ needId, campaignId })}
+        />
       </div>
     </DashboardLayout>
+  );
+}
+
+function ManageNeedsDialog({ campaign, open, onOpenChange, onDelete }: {
+  campaign: { id: number; title: string } | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDelete: (needId: number, campaignId: number) => void;
+}) {
+  const needsQuery = trpc.campaigns.getNeeds.useQuery(
+    { campaignId: campaign?.id ?? 0 },
+    { enabled: open && Boolean(campaign) },
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[80vh] max-w-xl overflow-y-auto">
+        <DialogHeader><DialogTitle>Itens de {campaign?.title}</DialogTitle></DialogHeader>
+        {needsQuery.isLoading ? (
+          <p className="text-sm text-[#66736a]">Carregando itens...</p>
+        ) : needsQuery.isError ? (
+          <p className="text-sm text-red-600">Erro ao carregar itens.</p>
+        ) : needsQuery.data?.length ? (
+          <div className="space-y-3">
+            {needsQuery.data.map((need) => (
+              <div key={need.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#e1e6df] p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-[#243128]">{need.name}</p>
+                  {need.quantity && <p className="text-xs text-[#66736a]">{need.quantity}</p>}
+                  {need.unitValueCents ? <p className="text-xs text-[#66736a]">Valor unit.: {(need.unitValueCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p> : null}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-1 text-red-700 hover:text-red-800"
+                  onClick={() => campaign && onDelete(need.id, campaign.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Excluir
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-[#66736a]">Nenhum item cadastrado.</p>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 

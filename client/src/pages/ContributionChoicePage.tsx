@@ -71,6 +71,7 @@ export default function ContributionChoicePage() {
   const vipApartmentAmountCents = ("vipApartmentAmountCents" in campaign && typeof campaign.vipApartmentAmountCents === "number")
     ? campaign.vipApartmentAmountCents
     : SPECIAL_APARTMENT_DONATION_CENTS;
+  const hasVipOffer = vipApartmentAmountCents > 0;
 
   return (
     <div className="min-h-screen bg-[#f8faf7]">
@@ -86,7 +87,7 @@ export default function ContributionChoicePage() {
           <p className="mx-auto mt-3 max-w-3xl text-[#656565]">Cada formato agora está em uma página separada para não misturar os fluxos.</p>
         </div>
 
-        <div className={`mt-6 grid gap-4 ${isHotelCampaign ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+        <div className={`mt-6 grid gap-4 ${isHotelCampaign && hasVipOffer ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
           <Card className="flex h-full flex-col border-2 border-[#aeb4be] bg-gradient-to-b from-[#f4f4f5] via-[#d9dde3] to-[#bcc4cf] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
             {isHotelCampaign ? (
               <p className="flex items-center justify-center gap-2 text-base leading-none font-black uppercase tracking-[0.1em] text-[#69707c] md:text-lg">
@@ -122,7 +123,7 @@ export default function ContributionChoicePage() {
             </Link>
           </Card>
 
-          {isHotelCampaign ? (
+          {isHotelCampaign && hasVipOffer ? (
             <Card className="flex h-full flex-col border-2 border-[#c5961a] bg-gradient-to-b from-[#fff3bf] via-[#f0ce68] to-[#d9a729] p-5 shadow-[inset_0_1px_0_rgba(255,248,203,0.8)]">
               <p className="flex items-center justify-center gap-2 text-base leading-none font-black uppercase tracking-[0.1em] text-[#7a5100] md:text-lg">
                 <Crown className="h-4 w-4" aria-hidden="true" /> OURO
