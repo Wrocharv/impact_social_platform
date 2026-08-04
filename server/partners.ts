@@ -130,6 +130,18 @@ function getLocalOnlyFallbackPartners() {
   return fallbackPartners.filter((partner) => partner.isLocalOnly);
 }
 
+function applyCanonicalPartnerPresentation(partner: PartnerRecord): PartnerRecord {
+  if (partner.id === 4) {
+    return {
+      ...partner,
+      name: "Multipla Escolha",
+      website: partner.website?.trim() ? partner.website : "https://www.parceriadobem.com.br",
+    };
+  }
+
+  return partner;
+}
+
 type LegacyPartnerRecord = {
   id: number;
   name: string;
@@ -143,7 +155,7 @@ type LegacyPartnerRecord = {
 
 function mergeLegacyWithFallback(legacy: LegacyPartnerRecord): PartnerRecord {
   const fallback = getFallbackPartners().find((partner) => partner.id === legacy.id);
-  return {
+  return applyCanonicalPartnerPresentation({
     id: legacy.id,
     name: legacy.name,
     type: legacy.type,
@@ -160,7 +172,7 @@ function mergeLegacyWithFallback(legacy: LegacyPartnerRecord): PartnerRecord {
     createdAt: legacy.createdAt,
     updatedAt: legacy.updatedAt,
     isLocalOnly: false,
-  };
+  });
 }
 
 async function fetchLegacyPartners(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
@@ -187,7 +199,7 @@ function mergeDbWithLocalFallback(dbPartners: PartnerRecord[]) {
     .filter((partner) => !dbKeys.has(normalizePartnerKey(partner)))
     .map((partner) => toDisplayLocalPartner(partner));
 
-  return [...dbPartners, ...localPartners].sort((a, b) => {
+  return [...dbPartners, ...localPartners].map(applyCanonicalPartnerPresentation).sort((a, b) => {
     const byName = a.name.localeCompare(b.name);
     if (byName !== 0) return byName;
     return a.id - b.id;
@@ -467,12 +479,14 @@ export const partnersRouter = router({
     .query(async ({ input }) => {
       const localId = fromDisplayLocalPartnerId(input.id);
       if (localId !== null) {
-        return getLocalOnlyFallbackPartners().find((partner) => partner.id === localId) ?? null;
+        const localOnly = getLocalOnlyFallbackPartners().find((partner) => partner.id === localId) ?? null;
+        return localOnly ? applyCanonicalPartnerPresentation(localOnly) : null;
       }
 
       const db = await getDb();
       if (!db) {
-        return getFallbackPartners().find((partner) => partner.id === input.id) ?? null;
+        const fallback = getFallbackPartners().find((partner) => partner.id === input.id) ?? null;
+        return fallback ? applyCanonicalPartnerPresentation(fallback) : null;
       }
 
       try {
@@ -482,8 +496,9 @@ export const partnersRouter = router({
           .where(eq(partners.id, input.id))
           .limit(1);
 
-        if (partner) return partner;
-        return getLocalOnlyFallbackPartners().find((item) => item.id === input.id) ?? null;
+        if (partner) return applyCanonicalPartnerPresentation(partner as PartnerRecord);
+        const localOnly = getLocalOnlyFallbackPartners().find((item) => item.id === input.id) ?? null;
+        return localOnly ? applyCanonicalPartnerPresentation(localOnly) : null;
       } catch (error) {
         console.warn("[Partners] Full select failed in getPublicById, trying legacy mode:", error);
         try {
@@ -510,7 +525,8 @@ export const partnersRouter = router({
         }
 
         // Last resort: local fallback data.
-        return getFallbackPartners().find((partner) => partner.id === input.id) ?? null;
+        const fallback = getFallbackPartners().find((partner) => partner.id === input.id) ?? null;
+        return fallback ? applyCanonicalPartnerPresentation(fallback) : null;
       }
     }),
 
