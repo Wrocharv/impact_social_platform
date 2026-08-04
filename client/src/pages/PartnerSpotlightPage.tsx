@@ -71,6 +71,8 @@ function toPartnerVideoSource(url?: string | null): PartnerVideoSource | null {
       ? "video/webm"
       : lower.includes(".ogg")
         ? "video/ogg"
+        : lower.includes(".mov")
+          ? "video/quicktime"
         : "video/mp4";
 
     return { kind: "file", src: trimmedUrl, mimeType };
@@ -191,7 +193,7 @@ export default function PartnerSpotlightPage() {
     contactInfo: partner.contactInfo,
   });
   const customVideoUrl = getCustomPartnerVideo(partner.name);
-  const videoSource = toPartnerVideoSource(customVideoUrl || partner.testimonialVideoUrl);
+  const videoSource = toPartnerVideoSource(partner.testimonialVideoUrl || customVideoUrl);
   const customBannerUrl = getCustomPartnerBanner(partner.name);
   const customLogoUrl = getCustomPartnerLogo(partner.name);
   const showFullWidthBanner = Boolean(customBannerUrl);
