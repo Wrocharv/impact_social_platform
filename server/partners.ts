@@ -130,6 +130,57 @@ function getLocalOnlyFallbackPartners() {
   return fallbackPartners.filter((partner) => partner.isLocalOnly);
 }
 
+type LegacyPartnerRecord = {
+  id: number;
+  name: string;
+  type: "company" | "individual";
+  description: string | null;
+  logoUrl: string | null;
+  website: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function mergeLegacyWithFallback(legacy: LegacyPartnerRecord): PartnerRecord {
+  const fallback = getFallbackPartners().find((partner) => partner.id === legacy.id);
+  return {
+    id: legacy.id,
+    name: legacy.name,
+    type: legacy.type,
+    ownerName: fallback?.ownerName ?? null,
+    description: legacy.description ?? fallback?.description ?? null,
+    logoUrl: legacy.logoUrl ?? fallback?.logoUrl ?? null,
+    storePhotoUrl: fallback?.storePhotoUrl ?? null,
+    ownerPhotoUrl: fallback?.ownerPhotoUrl ?? null,
+    address: fallback?.address ?? null,
+    contactInfo: fallback?.contactInfo ?? null,
+    testimonialVideoUrl: fallback?.testimonialVideoUrl ?? null,
+    testimonialText: fallback?.testimonialText ?? null,
+    website: legacy.website ?? fallback?.website ?? null,
+    createdAt: legacy.createdAt,
+    updatedAt: legacy.updatedAt,
+    isLocalOnly: false,
+  };
+}
+
+async function fetchLegacyPartners(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
+  const legacyRows = await db
+    .select({
+      id: partners.id,
+      name: partners.name,
+      type: partners.type,
+      description: partners.description,
+      logoUrl: partners.logoUrl,
+      website: partners.website,
+      createdAt: partners.createdAt,
+      updatedAt: partners.updatedAt,
+    })
+    .from(partners)
+    .orderBy(asc(partners.name), asc(partners.id));
+
+  return legacyRows.map((row) => mergeLegacyWithFallback(row as LegacyPartnerRecord));
+}
+
 function mergeDbWithLocalFallback(dbPartners: PartnerRecord[]) {
   const dbKeys = new Set(dbPartners.map((partner) => normalizePartnerKey(partner)));
   const localPartners = getLocalOnlyFallbackPartners()
@@ -400,8 +451,14 @@ export const partnersRouter = router({
         .orderBy(asc(partners.name), asc(partners.id));
       return mergeDbWithLocalFallback(dbPartners as PartnerRecord[]);
     } catch (error) {
-      console.warn("[Partners] Falling back to local data in listPublished:", error);
-      return getFallbackPartners().sort((a, b) => a.name.localeCompare(b.name));
+      console.warn("[Partners] Full select failed in listPublished, trying legacy mode:", error);
+      try {
+        const legacyPartners = await fetchLegacyPartners(db);
+        return mergeDbWithLocalFallback(legacyPartners);
+      } catch (legacyError) {
+        console.warn("[Partners] Falling back to local data in listPublished:", legacyError);
+        return getFallbackPartners().sort((a, b) => a.name.localeCompare(b.name));
+      }
     }
   }),
 
@@ -428,8 +485,31 @@ export const partnersRouter = router({
         if (partner) return partner;
         return getLocalOnlyFallbackPartners().find((item) => item.id === input.id) ?? null;
       } catch (error) {
-        // Compatibility fallback for production databases that are missing newer partner columns.
-        console.warn("[Partners] Falling back to local data in getPublicById:", error);
+        console.warn("[Partners] Full select failed in getPublicById, trying legacy mode:", error);
+        try {
+          const [legacyPartner] = await db
+            .select({
+              id: partners.id,
+              name: partners.name,
+              type: partners.type,
+              description: partners.description,
+              logoUrl: partners.logoUrl,
+              website: partners.website,
+              createdAt: partners.createdAt,
+              updatedAt: partners.updatedAt,
+            })
+            .from(partners)
+            .where(eq(partners.id, input.id))
+            .limit(1);
+
+          if (legacyPartner) {
+            return mergeLegacyWithFallback(legacyPartner as LegacyPartnerRecord);
+          }
+        } catch (legacyError) {
+          console.warn("[Partners] Legacy select failed in getPublicById:", legacyError);
+        }
+
+        // Last resort: local fallback data.
         return getFallbackPartners().find((partner) => partner.id === input.id) ?? null;
       }
     }),
@@ -447,8 +527,14 @@ export const partnersRouter = router({
         .orderBy(asc(partners.name), asc(partners.id));
       return mergeDbWithLocalFallback(dbPartners as PartnerRecord[]);
     } catch (error) {
-      console.warn("[Partners] Falling back to local data in getAll:", error);
-      return getFallbackPartners().sort((a, b) => a.name.localeCompare(b.name));
+      console.warn("[Partners] Full select failed in getAll, trying legacy mode:", error);
+      try {
+        const legacyPartners = await fetchLegacyPartners(db);
+        return mergeDbWithLocalFallback(legacyPartners);
+      } catch (legacyError) {
+        console.warn("[Partners] Falling back to local data in getAll:", legacyError);
+        return getFallbackPartners().sort((a, b) => a.name.localeCompare(b.name));
+      }
     }
   }),
 
