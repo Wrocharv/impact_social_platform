@@ -163,7 +163,7 @@ export default function Home() {
             <p className="mb-5 text-base font-semibold uppercase tracking-[0.22em] text-white/85 sm:text-lg">
               Solidariedade com transparência
             </p>
-            <h1 className="mb-6 text-5xl font-bold uppercase leading-[1.05] md:text-6xl tracking-[0.06em]">
+            <h1 className="mb-6 text-3xl font-bold uppercase leading-[1.05] sm:text-4xl md:text-6xl tracking-[0.06em]">
               Juntos Transformamos Vidas
             </h1>
             <p className="mx-auto mb-9 max-w-2xl text-lg leading-relaxed text-white/90 md:text-xl">
