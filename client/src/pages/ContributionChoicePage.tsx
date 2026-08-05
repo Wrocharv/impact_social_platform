@@ -87,7 +87,6 @@ export default function ContributionChoicePage() {
           <p className="mx-auto mt-3 max-w-3xl text-[#656565]">Cada formato agora está em uma página separada para não misturar os fluxos.</p>
         </div>
 
-<<<<<<< HEAD
         <div className={`mt-6 grid gap-4 ${isHotelCampaign && hasVipOffer ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
           <Card className="flex h-full flex-col border-2 border-[#aeb4be] bg-gradient-to-b from-[#f4f4f5] via-[#d9dde3] to-[#bcc4cf] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
             {isHotelCampaign ? (
