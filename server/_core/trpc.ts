@@ -37,12 +37,37 @@ const isAdminUser = (user: TrpcContext["user"]) => {
   return user.role === "admin" || user.openId === ENV.ownerOpenId || isAdminByEmail;
 };
 
+const readSingleHeader = (value: string | string[] | undefined) => {
+  if (Array.isArray(value)) return value[0]?.trim() ?? "";
+  return value?.trim() ?? "";
+};
+
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
 
     if (!isAdminUser(ctx.user)) {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+    }
+
+    if (opts.type === "mutation" && ENV.adminChangeLockEnabled) {
+      const expectedDirection = ENV.adminChangeDirection;
+      if (!expectedDirection) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Trava de alteracoes ativa. Defina ADMIN_CHANGE_DIRECTION no servidor para liberar mutacoes administrativas com direcao explicita.",
+        });
+      }
+
+      const providedDirection = readSingleHeader(ctx.req.headers["x-change-direction"]);
+      if (providedDirection !== expectedDirection) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Trava de alteracoes ativa. Envie o header x-change-direction com a direcao aprovada para executar alteracoes administrativas.",
+        });
+      }
     }
 
     return next({

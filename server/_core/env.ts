@@ -4,6 +4,11 @@ const parseAdminEmails = (value: string | undefined) =>
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
 
+const parseBooleanFlag = (value: string | undefined) => {
+  const normalized = (value ?? "").trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+};
+
 export const ENV = {
   appId: process.env.VITE_APP_ID ?? "",
   cookieSecret: process.env.JWT_SECRET ?? "dev-local-cookie-secret",
@@ -19,4 +24,6 @@ export const ENV = {
   resendApiKey: process.env.RESEND_API_KEY ?? "",
   emailFrom: process.env.EMAIL_FROM ?? "",
   emailReplyTo: process.env.EMAIL_REPLY_TO ?? "",
+  adminChangeLockEnabled: parseBooleanFlag(process.env.ADMIN_CHANGE_LOCK_ENABLED),
+  adminChangeDirection: (process.env.ADMIN_CHANGE_DIRECTION ?? "").trim(),
 };

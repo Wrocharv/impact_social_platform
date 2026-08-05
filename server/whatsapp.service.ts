@@ -1,6 +1,6 @@
 // Serviço para gerenciar conversas e estado do chatbot WhatsApp
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
 import path from "path";
 
 type FallbackCampaign = {
@@ -78,7 +78,9 @@ type ConversationState = {
 };
 
 const conversations = new Map<string, ConversationState>();
-const fallbackCampaignsFile = path.resolve(process.cwd(), "server", ".whatsapp-fallback-campaigns.json");
+const fallbackCampaignsFile = process.env.WHATSAPP_FALLBACK_CAMPAIGNS_FILE?.trim()
+  ? path.resolve(process.cwd(), process.env.WHATSAPP_FALLBACK_CAMPAIGNS_FILE.trim())
+  : path.resolve(process.cwd(), "server", ".whatsapp-fallback-campaigns.json");
 
 function loadFallbackCampaignsFromDisk(): FallbackCampaign[] {
   try {
@@ -99,10 +101,33 @@ function loadFallbackCampaignsFromDisk(): FallbackCampaign[] {
   }
 }
 
-function persistFallbackCampaignsToDisk() {
+function persistFallbackCampaignsToDisk(options?: { allowDeletes?: boolean }) {
   try {
     mkdirSync(path.dirname(fallbackCampaignsFile), { recursive: true });
-    writeFileSync(fallbackCampaignsFile, JSON.stringify(fallbackCampaigns, null, 2));
+    const loadedFromDisk = loadFallbackCampaignsFromDisk();
+
+    const mergedById = new Map<number, FallbackCampaign>();
+    for (const campaign of loadedFromDisk) {
+      mergedById.set(campaign.id, campaign);
+    }
+    for (const campaign of fallbackCampaigns) {
+      mergedById.set(campaign.id, campaign);
+    }
+
+    const nextRows = options?.allowDeletes
+      ? fallbackCampaigns.slice()
+      : Array.from(mergedById.values()).sort((a, b) => a.id - b.id);
+
+    const tmpPath = `${fallbackCampaignsFile}.tmp`;
+    const backupPath = `${fallbackCampaignsFile}.bak`;
+    if (existsSync(fallbackCampaignsFile)) {
+      copyFileSync(fallbackCampaignsFile, backupPath);
+    }
+    writeFileSync(tmpPath, JSON.stringify(nextRows, null, 2));
+    renameSync(tmpPath, fallbackCampaignsFile);
+
+    fallbackCampaigns.length = 0;
+    fallbackCampaigns.push(...nextRows);
   } catch (error) {
     console.warn("[WhatsApp] Unable to persist fallback campaigns:", error);
   }
@@ -186,6 +211,7 @@ export const whatsappService = {
       priority?: "high" | "medium" | "low";
     }>;
   }) {
+    refreshFallbackCampaignsFromDisk();
     const highestExistingId = fallbackCampaigns.length > 0
       ? Math.max(...fallbackCampaigns.map((campaign) => campaign.id))
       : 0;
@@ -336,13 +362,13 @@ export const whatsappService = {
 
     fallbackCampaigns.splice(index, 1);
 
-    persistFallbackCampaignsToDisk();
+    persistFallbackCampaignsToDisk({ allowDeletes: true });
     return true;
   },
 
   resetFallbackCampaigns() {
     fallbackCampaigns.length = 0;
-    persistFallbackCampaignsToDisk();
+    persistFallbackCampaignsToDisk({ allowDeletes: true });
   },
 
   parseMessage(text: string): { command: string; args: string[] } {

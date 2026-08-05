@@ -13,15 +13,15 @@
     "estimatedAmount": null,
     "deliveryMethod": "pickup",
     "materialDeliveryFrequency": "unique",
-    "status": "pending",
-    "paymentStatusDetail": "awaiting_triage",
-    "validatedBy": null,
-    "validatedAt": null,
+    "status": "rejected",
+    "paymentStatusDetail": "material_rejected",
+    "validatedBy": 0,
+    "validatedAt": "2026-08-05T03:26:23.778Z",
     "validationNote": null,
-    "validatorName": null,
-    "validatorEmail": null,
+    "validatorName": "Administrador local",
+    "validatorEmail": "gospeltv@gmail.com",
     "createdAt": "2026-08-04T21:01:09.335Z",
-    "updatedAt": "2026-08-04T21:01:09.335Z"
+    "updatedAt": "2026-08-05T03:26:23.778Z"
   },
   {
     "id": 710002,
@@ -37,14 +37,14 @@
     "estimatedAmount": null,
     "deliveryMethod": "pickup",
     "materialDeliveryFrequency": "unique",
-    "status": "pending",
-    "paymentStatusDetail": "awaiting_triage",
-    "validatedBy": null,
-    "validatedAt": null,
+    "status": "rejected",
+    "paymentStatusDetail": "material_rejected",
+    "validatedBy": 0,
+    "validatedAt": "2026-08-05T03:26:14.871Z",
     "validationNote": null,
-    "validatorName": null,
-    "validatorEmail": null,
+    "validatorName": "Administrador local",
+    "validatorEmail": "gospeltv@gmail.com",
     "createdAt": "2026-08-05T01:07:47.341Z",
-    "updatedAt": "2026-08-05T01:07:47.341Z"
+    "updatedAt": "2026-08-05T03:26:14.871Z"
   }
 ]

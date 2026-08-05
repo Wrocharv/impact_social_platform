@@ -116,3 +116,8 @@ client/public/__manus__/version.json
 # Dev fallback data files
 server/.partners-fallback.json
 server/.whatsapp-fallback-campaigns.json
+
+# Documentos pessoais (nao publicar)
+PASSO_A_PASSO_SUBIR_ALTERACOES.txt
+PASSO_A_PASSO_SUBIR_ALTERACOES.docx
+PASSO_A_PASSO_SUBIR_ALTERACOES.pdf

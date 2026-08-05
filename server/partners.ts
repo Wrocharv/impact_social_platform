@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
 import path from "path";
 import { asc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
@@ -273,17 +273,44 @@ function loadPartnersFromDisk(): PartnerRecord[] {
 function persistPartnersToDisk() {
   try {
     mkdirSync(path.dirname(fallbackPartnersFile), { recursive: true });
-    writeFileSync(fallbackPartnersFile, JSON.stringify(fallbackPartners, null, 2));
+    const diskRows = loadPartnersFromDisk();
+    const mergedById = new Map<number, PartnerRecord>();
+    for (const row of diskRows) {
+      mergedById.set(row.id, row);
+    }
+    for (const row of fallbackPartners) {
+      mergedById.set(row.id, row);
+    }
+
+    const nextRows = Array.from(mergedById.values()).sort((a, b) => a.id - b.id);
+    const tmpPath = `${fallbackPartnersFile}.tmp`;
+    const backupPath = `${fallbackPartnersFile}.bak`;
+    if (existsSync(fallbackPartnersFile)) {
+      copyFileSync(fallbackPartnersFile, backupPath);
+    }
+    writeFileSync(tmpPath, JSON.stringify(nextRows, null, 2));
+    renameSync(tmpPath, fallbackPartnersFile);
+
+    fallbackPartners.length = 0;
+    fallbackPartners.push(...nextRows);
   } catch (error) {
     console.warn("[Partners] Unable to persist fallback partners:", error);
   }
 }
 
+function refreshFallbackPartnersFromDisk() {
+  const loaded = loadPartnersFromDisk();
+  fallbackPartners.length = 0;
+  fallbackPartners.push(...loaded);
+}
+
 function getFallbackPartners() {
+  refreshFallbackPartnersFromDisk();
   return fallbackPartners.slice();
 }
 
 function createFallbackPartner(input: Omit<PartnerRecord, "id" | "createdAt" | "updatedAt">) {
+  refreshFallbackPartnersFromDisk();
   const nextId = fallbackPartners.length > 0 ? Math.max(...fallbackPartners.map((partner) => partner.id)) + 1 : 1;
   const now = new Date();
   const partner: PartnerRecord = {
@@ -300,6 +327,7 @@ function createFallbackPartner(input: Omit<PartnerRecord, "id" | "createdAt" | "
 }
 
 function updateFallbackPartner(id: number, values: Partial<PartnerRecord>) {
+  refreshFallbackPartnersFromDisk();
   const index = fallbackPartners.findIndex((partner) => partner.id === id);
   if (index === -1) return null;
 
@@ -313,6 +341,7 @@ function updateFallbackPartner(id: number, values: Partial<PartnerRecord>) {
 }
 
 function deleteFallbackPartner(id: number) {
+  refreshFallbackPartnersFromDisk();
   const index = fallbackPartners.findIndex((partner) => partner.id === id);
   if (index === -1) return false;
 

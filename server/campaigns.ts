@@ -979,8 +979,15 @@ export const campaignsRouter = router({
           initialRaised: campaign.raised,
           ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
         }));
+        const mappedFallback = getMappedFallbackCampaigns({
+          status: input?.status,
+          query: input?.query,
+        }).filter((campaign) => !isInternalLocalSeedCampaign(campaign));
 
-        return dedupeCampaignsById(publishedRows).slice(0, input?.limit ?? 12);
+        const mergedCampaigns = dedupeCampaignsById([...publishedRows, ...mappedFallback])
+          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+
+        return mergedCampaigns.slice(0, input?.limit ?? 12);
       } catch (error) {
         console.warn("[campaigns.listPublished] Falling back to local campaigns after DB error:", error);
         const mappedFallback = getMappedFallbackCampaigns({
@@ -1082,7 +1089,14 @@ export const campaignsRouter = router({
       const responseCampaignId = isRecantoAlias ? input.id : campaignId;
 
       const campaign = await loadPublicCampaignByIdWithLegacyFallback(db, campaignId);
-      if (!campaign) return null;
+      if (!campaign) {
+        const fallbackCampaign = getMappedFallbackCampaigns().find((item) => item.id === input.id);
+        if (fallbackCampaign) {
+          return withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaign));
+        }
+
+        return null;
+      }
 
       const [updates, needs, documents, metrics, materialContributions] = await Promise.all([
         db
