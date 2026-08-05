@@ -357,7 +357,11 @@ export const paymentsRouter = router({
       }
 
       const [campaign] = await db
-        .select()
+        .select({
+          id: campaigns.id,
+          title: campaigns.title,
+          status: campaigns.status,
+        })
         .from(campaigns)
         .where(and(eq(campaigns.id, input.campaignId), eq(campaigns.status, "active")))
         .limit(1);
