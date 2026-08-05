@@ -305,6 +305,10 @@ function isLegendarioAlias(campaign: { id?: number; title?: string | null }) {
     || normalizedTitle.includes("irma valdelice");
 }
 
+function isLegendarioNeedsHiddenCampaignId(campaignId: number) {
+  return campaignId === LEGENDARIO_PUBLIC_ID || campaignId === 2;
+}
+
 function sanitizeLegendarioPublicCampaign<T extends {
   id: number;
   title?: string | null;
@@ -319,9 +323,6 @@ function sanitizeLegendarioPublicCampaign<T extends {
 }>(campaign: T, fallbackCampaign?: T): T {
   if (!isLegendarioAlias(campaign)) return campaign;
 
-  const fallbackNeeds = Array.isArray(fallbackCampaign?.needs) ? fallbackCampaign.needs : [];
-  const currentNeeds = Array.isArray(campaign.needs) ? campaign.needs : [];
-
   return {
     ...campaign,
     id: LEGENDARIO_PUBLIC_ID,
@@ -335,7 +336,7 @@ function sanitizeLegendarioPublicCampaign<T extends {
       : campaign.goal,
     vipApartmentAmountCents: fallbackCampaign?.vipApartmentAmountCents ?? campaign.vipApartmentAmountCents,
     imageUrl: fallbackCampaign?.imageUrl ?? campaign.imageUrl,
-    needs: currentNeeds.length > 0 ? currentNeeds : fallbackNeeds,
+    needs: [],
   };
 }
 
@@ -1781,6 +1782,10 @@ export const campaignsRouter = router({
   getNeeds: publicProcedure
     .input(z.object({ campaignId: z.number().int().positive() }))
     .query(async ({ input }) => {
+      if (isLegendarioNeedsHiddenCampaignId(input.campaignId)) {
+        return [];
+      }
+
       const db = await getDb();
       if (!db) {
         const fallbackCampaign = whatsappService
