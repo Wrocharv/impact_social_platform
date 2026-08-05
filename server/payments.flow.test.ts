@@ -397,6 +397,34 @@ describe("payments.createPaymentPreference", () => {
     expect(result.contributionId).toBe(700111);
     expect(result.preferenceId).toBe("cash-manual");
   });
+
+  it("cria preferência PIX para campanha fallback sem quebrar referência externa", async () => {
+    const { db, values } = createDb([]);
+    getDbMock.mockResolvedValue(db);
+    createPreferenceMock.mockResolvedValue({
+      id: "pref-fallback-1",
+      checkoutUrl: "https://sandbox.mercadopago.com/checkout/v1/redirect",
+      environment: "test",
+    });
+
+    const caller = appRouter.createCaller(createContext());
+    const result = await caller.payments.createPaymentPreference({
+      campaignId: 100001,
+      amount: 5_000,
+      donorEmail: "doador@example.com",
+      donorName: "Maria",
+      paymentMethod: "pix",
+    });
+
+    expect(values).not.toHaveBeenCalled();
+    expect(createPreferenceMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campaignId: 100001,
+        externalReference: expect.stringMatching(/^pdb-100001-/),
+      }),
+    );
+    expect(result).toMatchObject({ preferenceId: "pref-fallback-1", environment: "test" });
+  });
 });
 
 describe("contributions", () => {

@@ -363,6 +363,7 @@ export const paymentsRouter = router({
         .limit(1);
 
       if (!campaign && input.campaignId >= 100000) {
+        const externalReference = `pdb-${input.campaignId}-${randomUUID()}`;
         const fallbackCampaignTitle = input.campaignTitle?.trim() || `Campanha ${input.campaignId}`;
         const origin = requestOrigin(ctx.req);
 
