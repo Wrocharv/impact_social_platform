@@ -15,7 +15,7 @@
     "seed:manaim": "tsx server/seed-manaim-campaign.ts",
     "check": "tsc --noEmit",
     "check:campaign-policy": "node scripts/validate-critical-campaigns.mjs",
-    "ship": "bash scripts/ship-all.sh",
+    "ship": "LOCAL_ONLY=1 bash scripts/ship-all.sh",
     "format": "prettier --write .",
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"

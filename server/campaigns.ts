@@ -283,19 +283,55 @@ function normalizeCampaignTitleKey(title: string | null | undefined) {
 }
 
 function dedupeCampaignsById<T extends { id: number; title?: string | null }>(rows: T[]): T[] {
-  const seen = new Set<number>();
-  const seenTitles = new Set<string>();
+  const indexById = new Map<number, number>();
+  const indexByTitle = new Map<string, number>();
   const deduped: T[] = [];
 
+  const qualityScore = (row: T) => {
+    const candidate = row as T & { goal?: number; status?: string; needs?: unknown[]; updatedAt?: Date };
+    let score = 0;
+
+    if (typeof candidate.goal === "number" && candidate.goal > 0) score += 3;
+    if (candidate.status === "active" || candidate.status === "completed") score += 2;
+    if (Array.isArray(candidate.needs) && candidate.needs.length > 0) score += 1;
+    if (candidate.updatedAt instanceof Date) score += Math.min(1, candidate.updatedAt.getTime() / 10 ** 15);
+
+    return score;
+  };
+
+  const replaceAt = (idx: number, row: T) => {
+    const previous = deduped[idx];
+    const previousTitle = normalizeCampaignTitleKey(previous.title);
+    const nextTitle = normalizeCampaignTitleKey(row.title);
+
+    deduped[idx] = row;
+    indexById.set(row.id, idx);
+
+    if (previousTitle && previousTitle !== nextTitle && indexByTitle.get(previousTitle) === idx) {
+      indexByTitle.delete(previousTitle);
+    }
+    if (nextTitle) {
+      indexByTitle.set(nextTitle, idx);
+    }
+  };
+
   for (const row of rows) {
-    if (seen.has(row.id)) continue;
-
     const titleKey = normalizeCampaignTitleKey(row.title);
-    if (titleKey && seenTitles.has(titleKey)) continue;
+    const idxById = indexById.get(row.id);
+    const idxByTitle = titleKey ? indexByTitle.get(titleKey) : undefined;
+    const existingIdx = idxById ?? idxByTitle;
 
-    seen.add(row.id);
-    if (titleKey) seenTitles.add(titleKey);
-    deduped.push(row);
+    if (existingIdx === undefined) {
+      const nextIndex = deduped.length;
+      deduped.push(row);
+      indexById.set(row.id, nextIndex);
+      if (titleKey) indexByTitle.set(titleKey, nextIndex);
+      continue;
+    }
+
+    if (qualityScore(row) > qualityScore(deduped[existingIdx])) {
+      replaceAt(existingIdx, row);
+    }
   }
 
   return deduped;
@@ -840,6 +876,71 @@ async function loadPublicCampaignByIdWithLegacyFallback(
   return rows[0] ?? null;
 }
 
+async function loadPublicCampaignByTitleWithLegacyFallback(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  title: string,
+) {
+  const condition = and(
+    eq(campaigns.title, title),
+    inArray(campaigns.status, PUBLIC_STATUSES),
+  );
+
+  const rows = await loadPublishedCampaignRowsWithLegacyFallback(db, condition, 1);
+  return rows[0] ?? null;
+}
+
+async function loadPublicCampaignByRawIdLegacy(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  campaignId: number,
+) {
+  try {
+    const rows = await db
+      .select({
+        id: campaigns.id,
+        title: campaigns.title,
+        description: campaigns.description,
+        longDescription: campaigns.longDescription,
+        category: campaigns.category,
+        goal: campaigns.goal,
+        vipApartmentAmountCents: campaigns.vipApartmentAmountCents,
+        raised: campaigns.raised,
+        status: campaigns.status,
+        imageUrl: campaigns.imageUrl,
+        createdBy: campaigns.createdBy,
+        createdAt: campaigns.createdAt,
+        updatedAt: campaigns.updatedAt,
+        startDate: campaigns.startDate,
+        endDate: campaigns.endDate,
+      })
+      .from(campaigns)
+      .where(eq(campaigns.id, campaignId))
+      .limit(1);
+
+    return rows[0] ? normalizePublicCampaignRow(rows[0]) : null;
+  } catch (error) {
+    if (!isMissingColumnError(error)) throw error;
+
+    const rows = await db
+      .select({
+        id: campaigns.id,
+        title: campaigns.title,
+        description: campaigns.description,
+        goal: campaigns.goal,
+        raised: campaigns.raised,
+        status: campaigns.status,
+        imageUrl: campaigns.imageUrl,
+        createdBy: campaigns.createdBy,
+        createdAt: campaigns.createdAt,
+        updatedAt: campaigns.updatedAt,
+      })
+      .from(campaigns)
+      .where(eq(campaigns.id, campaignId))
+      .limit(1);
+
+    return rows[0] ? normalizePublicCampaignRow(rows[0]) : null;
+  }
+}
+
 export const campaignsRouter = router({
   uploadImage: adminProcedure
     .input(uploadCampaignImageSchema)
@@ -1079,8 +1180,9 @@ export const campaignsRouter = router({
     .query(async ({ input, ctx }) => {
       const db = await getDb();
       const preferLocalFallback = isLocalHostHeader(ctx.req.headers.host);
+      const fallbackCampaigns = getMappedFallbackCampaigns();
+      const fallbackCampaignByInputId = fallbackCampaigns.find((item) => item.id === input.id);
       if (!db || preferLocalFallback) {
-        const fallbackCampaigns = getMappedFallbackCampaigns();
         let fallbackCampaign = fallbackCampaigns.find((campaign) => campaign.id === input.id);
         if (!fallbackCampaign && input.id === 1) {
           fallbackCampaign =
@@ -1101,9 +1203,28 @@ export const campaignsRouter = router({
       const canonicalRecantoId = await ensureCanonicalRecantoCampaign(db);
       const isRecantoAlias = input.id === 1;
       const campaignId = isRecantoAlias ? canonicalRecantoId : input.id;
-      const responseCampaignId = isRecantoAlias ? input.id : campaignId;
 
-      const campaign = await loadPublicCampaignByIdWithLegacyFallback(db, campaignId);
+      let campaign = await loadPublicCampaignByIdWithLegacyFallback(db, campaignId);
+      let responseCampaignId = isRecantoAlias ? input.id : campaignId;
+
+      if (!campaign && fallbackCampaignByInputId) {
+        // Compatibilidade: quando a URL usa ID fallback (100001/100002), tenta localizar a campanha real por título no banco.
+        const byTitle = await loadPublicCampaignByTitleWithLegacyFallback(db, fallbackCampaignByInputId.title);
+        if (byTitle) {
+          campaign = byTitle;
+          responseCampaignId = input.id;
+        }
+      }
+
+      if (!campaign && input.id === 100002) {
+        // Compatibilidade extra: bancos legados podem manter o Legendário no id 2 sem o novo ID público.
+        const legacyLegendario = await loadPublicCampaignByRawIdLegacy(db, 2);
+        if (legacyLegendario) {
+          campaign = legacyLegendario;
+          responseCampaignId = 100002;
+        }
+      }
+
       if (!campaign) {
         let fallbackCampaign = getMappedFallbackCampaigns().find((item) => item.id === input.id);
         if (!fallbackCampaign && input.id === 1) {
@@ -1153,6 +1274,13 @@ export const campaignsRouter = router({
       ]);
       const campaignMetrics =
         metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, []);
+      const effectiveGoal = campaign.goal > 0
+        ? campaign.goal
+        : Math.max(0, Number(fallbackCampaignByInputId?.goal ?? 0));
+      const effectiveMetrics =
+        effectiveGoal > 0
+          ? deriveCampaignMetrics(effectiveGoal, campaign.raised, [])
+          : campaignMetrics;
       const vipMediaConfigUpdate = updates.find((update) => update.title === VIP_MEDIA_CONFIG_TITLE);
       const vipMediaImages = vipMediaConfigUpdate ? parseMediaUrls(vipMediaConfigUpdate.imageUrls) : [];
       const vipMediaVideos = vipMediaConfigUpdate ? parseMediaUrls(vipMediaConfigUpdate.videoUrls) : [];
@@ -1204,7 +1332,8 @@ export const campaignsRouter = router({
         ...canonicalizedCampaign,
         id: responseCampaignId,
         initialRaised: campaign.raised,
-        ...campaignMetrics,
+        ...effectiveMetrics,
+        goal: effectiveGoal > 0 ? effectiveGoal : campaign.goal,
         updates: updates.map((update) => ({
           ...update,
           campaignId: responseCampaignId,

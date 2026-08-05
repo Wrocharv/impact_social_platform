@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { createHash } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { campaigns, contributions, paymentWebhookEvents } from "../drizzle/schema";
 import { getDb } from "./db";
 import { getMercadoPagoPayment, validateMercadoPagoWebhook } from "./mercadopago";
@@ -19,6 +19,43 @@ function firstString(value: unknown): string | undefined {
   if (typeof value === "string" && value.trim()) return value.trim();
   if (typeof value === "number") return String(value);
   return undefined;
+}
+
+function isMissingColumnError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { message?: unknown; code?: unknown; sqlMessage?: unknown; cause?: unknown };
+
+  if (candidate.code === "ER_BAD_FIELD_ERROR") return true;
+  if (typeof candidate.message === "string" && candidate.message.includes("Unknown column")) return true;
+  if (typeof candidate.sqlMessage === "string" && candidate.sqlMessage.includes("Unknown column")) return true;
+
+  if (candidate.cause && typeof candidate.cause === "object") {
+    return isMissingColumnError(candidate.cause);
+  }
+
+  return false;
+}
+
+async function tryUpdateContributionLegacy(
+  db: { execute: (query: unknown) => Promise<unknown> },
+  input: { contributionId: number; status: ContributionStatus; paymentId: string; paidAt: Date | null },
+) {
+  const attempts = [
+    sql`update contributions set status = ${input.status}, paymentId = ${input.paymentId}, paidAt = ${input.paidAt}, updatedAt = ${new Date()} where id = ${input.contributionId}`,
+    sql`update contributions set status = ${input.status}, paymentId = ${input.paymentId}, updatedAt = ${new Date()} where id = ${input.contributionId}`,
+    sql`update contributions set status = ${input.status}, paymentId = ${input.paymentId} where id = ${input.contributionId}`,
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      await db.execute(attempt);
+      return true;
+    } catch (error) {
+      if (!isMissingColumnError(error)) throw error;
+    }
+  }
+
+  return false;
 }
 
 export function mapMercadoPagoStatus(status?: string): ContributionStatus {
@@ -156,17 +193,31 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
       .filter(Boolean)
       .join(":") || null;
 
-    await db
-      .update(contributions)
-      .set({
+    try {
+      await db
+        .update(contributions)
+        .set({
+          status,
+          paymentId: String(payment.id),
+          paymentStatusDetail: payment.status_detail || payment.status || null,
+          paymentMethod,
+          paidAt,
+          updatedAt: new Date(),
+        })
+        .where(eq(contributions.id, contribution.id));
+    } catch (error) {
+      if (!isMissingColumnError(error)) throw error;
+      const updated = await tryUpdateContributionLegacy(db as { execute: (query: unknown) => Promise<unknown> }, {
+        contributionId: contribution.id,
         status,
         paymentId: String(payment.id),
-        paymentStatusDetail: payment.status_detail || payment.status || null,
-        paymentMethod,
         paidAt,
-        updatedAt: new Date(),
-      })
-      .where(eq(contributions.id, contribution.id));
+      });
+
+      if (!updated) {
+        throw error;
+      }
+    }
 
     await db
       .update(paymentWebhookEvents)

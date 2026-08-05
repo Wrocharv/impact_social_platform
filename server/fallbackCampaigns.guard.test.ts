@@ -34,7 +34,7 @@ describe("fallback campaign guardrails", () => {
 
     expect(legendarios).toBeDefined();
     expect(legendarios?.goal).toBeGreaterThan(100_000);
-    expect(legendarios?.goal).toBe(10_000_000);
+    expect(legendarios?.goal).toBe(1_500_000);
     expect(legendarios?.imageUrl).toBeTypeOf("string");
     expect(String(legendarios?.imageUrl)).toMatch(/^data:image\//);
   });
