@@ -22,5 +22,29 @@
     "validatorEmail": null,
     "createdAt": "2026-08-04T21:01:09.335Z",
     "updatedAt": "2026-08-04T21:01:09.335Z"
+  },
+  {
+    "id": 710002,
+    "campaignId": 100001,
+    "campaignNeedId": 1785891954856,
+    "donorName": "WELLINGTON CARLOS ALMEIDA ROCHA",
+    "donorEmail": null,
+    "donorWhatsapp": "64999058919",
+    "donorCity": "RIO VERDE GO",
+    "description": "DOACAO DETALHADA | CIMENTO | Quantidade: 10",
+    "quantity": "10",
+    "quantityExact": 10,
+    "estimatedAmount": null,
+    "deliveryMethod": "pickup",
+    "materialDeliveryFrequency": "unique",
+    "status": "pending",
+    "paymentStatusDetail": "awaiting_triage",
+    "validatedBy": null,
+    "validatedAt": null,
+    "validationNote": null,
+    "validatorName": null,
+    "validatorEmail": null,
+    "createdAt": "2026-08-05T01:07:47.341Z",
+    "updatedAt": "2026-08-05T01:07:47.341Z"
   }
 ]
