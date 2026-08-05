@@ -16,6 +16,8 @@ import { storagePut } from "./storage";
 import { whatsappService } from "./whatsapp.service";
 
 const DEFAULT_VIP_APARTMENT_AMOUNT_CENTS = 120_000_00;
+const LEGENDARIO_PUBLIC_ID = 100002;
+const LEGENDARIO_PUBLIC_TITLE = "LEGENDARIO SOLIDARIO";
 
 const DEMO_CAMPAIGN = {
   id: 100001,
@@ -294,6 +296,47 @@ function normalizeCampaignTitleKey(title: string | null | undefined) {
     .toLowerCase()
     .trim()
     .replace(/\s+/g, " ");
+}
+
+function isLegendarioAlias(campaign: { id?: number; title?: string | null }) {
+  const normalizedTitle = normalizeCampaignTitleKey(campaign.title);
+  return campaign.id === LEGENDARIO_PUBLIC_ID
+    || normalizedTitle.includes("legendario solidario")
+    || normalizedTitle.includes("irma valdelice");
+}
+
+function sanitizeLegendarioPublicCampaign<T extends {
+  id: number;
+  title?: string | null;
+  status?: string;
+  description?: string | null;
+  longDescription?: string | null;
+  category?: string | null;
+  goal?: number;
+  vipApartmentAmountCents?: number;
+  imageUrl?: string | null;
+  needs?: unknown[];
+}>(campaign: T, fallbackCampaign?: T): T {
+  if (!isLegendarioAlias(campaign)) return campaign;
+
+  const fallbackNeeds = Array.isArray(fallbackCampaign?.needs) ? fallbackCampaign.needs : [];
+  const currentNeeds = Array.isArray(campaign.needs) ? campaign.needs : [];
+
+  return {
+    ...campaign,
+    id: LEGENDARIO_PUBLIC_ID,
+    title: LEGENDARIO_PUBLIC_TITLE,
+    status: "active",
+    description: fallbackCampaign?.description ?? campaign.description,
+    longDescription: fallbackCampaign?.longDescription ?? campaign.longDescription,
+    category: fallbackCampaign?.category ?? campaign.category,
+    goal: typeof fallbackCampaign?.goal === "number" && fallbackCampaign.goal > 0
+      ? fallbackCampaign.goal
+      : campaign.goal,
+    vipApartmentAmountCents: fallbackCampaign?.vipApartmentAmountCents ?? campaign.vipApartmentAmountCents,
+    imageUrl: fallbackCampaign?.imageUrl ?? campaign.imageUrl,
+    needs: currentNeeds.length > 0 ? currentNeeds : fallbackNeeds,
+  };
 }
 
 function dedupeCampaignsById<T extends { id: number; title?: string | null }>(rows: T[]): T[] {
@@ -1118,8 +1161,12 @@ export const campaignsRouter = router({
           .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
 
         const stableCampaigns = forceCriticalPublicCampaignsFromFallback(mergedCampaigns, mappedFallback);
+        const legendarioFallback = mappedFallback.find((campaign) => campaign.id === LEGENDARIO_PUBLIC_ID);
+        const normalizedPublicCampaigns = stableCampaigns.map((campaign) =>
+          sanitizeLegendarioPublicCampaign(campaign, legendarioFallback),
+        );
 
-        return stableCampaigns.slice(0, input?.limit ?? 12);
+        return normalizedPublicCampaigns.slice(0, input?.limit ?? 12);
       } catch (error) {
         console.warn("[campaigns.listPublished] Falling back to local campaigns after DB error:", error);
         const mappedFallback = getMappedFallbackCampaigns({
@@ -1347,24 +1394,30 @@ export const campaignsRouter = router({
         };
       });
 
-      return withFallbackRecantoContentIfEmpty({
-        ...canonicalizedCampaign,
-        id: responseCampaignId,
-        initialRaised: campaign.raised,
-        ...effectiveMetrics,
-        goal: effectiveGoal > 0 ? effectiveGoal : campaign.goal,
-        updates: updates.map((update) => ({
-          ...update,
-          campaignId: responseCampaignId,
-          images: parseMediaUrls(update.imageUrls),
-          videos: parseMediaUrls(update.videoUrls),
-        })),
-        vipMediaImages,
-        vipMediaVideos,
-        needs: needsWithProgress,
-        documents,
-        galleryImages,
-      });
+      const legendarioFallback = fallbackCampaigns.find((item) => item.id === LEGENDARIO_PUBLIC_ID);
+      const normalizedDetail = sanitizeLegendarioPublicCampaign(
+        withFallbackRecantoContentIfEmpty({
+          ...canonicalizedCampaign,
+          id: responseCampaignId,
+          initialRaised: campaign.raised,
+          ...effectiveMetrics,
+          goal: effectiveGoal > 0 ? effectiveGoal : campaign.goal,
+          updates: updates.map((update) => ({
+            ...update,
+            campaignId: responseCampaignId,
+            images: parseMediaUrls(update.imageUrls),
+            videos: parseMediaUrls(update.videoUrls),
+          })),
+          vipMediaImages,
+          vipMediaVideos,
+          needs: needsWithProgress,
+          documents,
+          galleryImages,
+        }),
+        legendarioFallback,
+      );
+
+      return normalizedDetail;
     }),
 
   create: adminProcedure
