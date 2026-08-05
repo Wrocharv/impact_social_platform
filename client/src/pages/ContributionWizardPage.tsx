@@ -98,6 +98,7 @@ const sortNeeds = (needs: NeedItem[]) =>
   });
 
 const HOTEL_CAMPAIGN_ID = 100001;
+const HOTEL_LEGACY_CAMPAIGN_ID = 1;
 const DEFAULT_VIP_APARTMENT_AMOUNT_CENTS = 120_000_00;
 const DEFAULT_VIP_MEDIA_VIDEO_URL = "/89343f15-ccb1-4937-b353-a3cbb5f23bd6.mp4";
 const DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL = "/Parceiros/WhatsApp Video 2026-07-28 at 15.37.04.mp4";
@@ -326,6 +327,13 @@ export default function ContributionWizardPage() {
   const createPayment = trpc.payments.createPaymentPreference.useMutation();
 
   const campaign = campaignQuery.data;
+  const campaignTitle = typeof campaign?.title === "string" ? campaign.title.toLowerCase() : "";
+  const campaignDataId = typeof campaign?.id === "number" ? campaign.id : campaignId;
+  const isHotelCampaign =
+    campaignId === HOTEL_CAMPAIGN_ID
+    || campaignDataId === HOTEL_CAMPAIGN_ID
+    || campaignTitle.includes("hotel recanto de paz")
+    || (campaignId === HOTEL_LEGACY_CAMPAIGN_ID && campaignTitle.includes("hotel recanto de paz"));
   const vipApartmentAmountCents = (campaign && "vipApartmentAmountCents" in campaign && typeof campaign.vipApartmentAmountCents === "number")
     ? campaign.vipApartmentAmountCents
     : DEFAULT_VIP_APARTMENT_AMOUNT_CENTS;
@@ -393,7 +401,7 @@ export default function ContributionWizardPage() {
     ? Math.max(0, selectedNeedRemaining - selectedNeedQuantityExact)
     : selectedNeedRemaining;
   const selectedNeedExceedsGoal = hasSelectedNeed && selectedNeedQuantityExact > selectedNeedRemaining;
-  const isVipApartmentOffer = campaignId === HOTEL_CAMPAIGN_ID && initialOffer === "apartment" && state.type === "financial";
+  const isVipApartmentOffer = isHotelCampaign && initialOffer === "apartment" && state.type === "financial";
   const configuredVipImages = Array.isArray((campaign as { vipMediaImages?: unknown })?.vipMediaImages)
     ? ((campaign as { vipMediaImages?: unknown }).vipMediaImages as unknown[])
       .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
@@ -623,7 +631,7 @@ export default function ContributionWizardPage() {
             <CardHeader>
               <CardTitle>Como você gostaria de contribuir?</CardTitle>
               {campaign && <CardDescription>Campanha: {campaign.title}</CardDescription>}
-              {campaignId === HOTEL_CAMPAIGN_ID ? (
+              {isHotelCampaign ? (
                 <div className="mt-4 rounded-lg border border-[#d7c18a] bg-gradient-to-r from-[#fff9e7] via-[#fff4d6] to-[#ffeab5] p-3 text-left">
                   <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#8a5b00]">Acesso rápido VIP</p>
                   <p className="mt-1 text-sm text-[#5b3a00]">Quero doar um apartamento completo.</p>

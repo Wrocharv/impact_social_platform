@@ -1084,7 +1084,7 @@ export const campaignsRouter = router({
         let fallbackCampaign = fallbackCampaigns.find((campaign) => campaign.id === input.id);
         if (!fallbackCampaign && input.id === 1) {
           fallbackCampaign =
-            fallbackCampaigns.find((campaign) => !/recanto de paz/i.test(campaign.title))
+            fallbackCampaigns.find((campaign) => /recanto de paz/i.test(campaign.title))
             ?? fallbackCampaigns.find((campaign) => campaign.id !== DEMO_CAMPAIGN.id);
         }
 
@@ -1099,13 +1099,16 @@ export const campaignsRouter = router({
       }
 
       const canonicalRecantoId = await ensureCanonicalRecantoCampaign(db);
-      const isRecantoAlias = input.id === DEMO_CAMPAIGN.id || input.id === 2;
+      const isRecantoAlias = input.id === 1;
       const campaignId = isRecantoAlias ? canonicalRecantoId : input.id;
       const responseCampaignId = isRecantoAlias ? input.id : campaignId;
 
       const campaign = await loadPublicCampaignByIdWithLegacyFallback(db, campaignId);
       if (!campaign) {
-        const fallbackCampaign = getMappedFallbackCampaigns().find((item) => item.id === input.id);
+        let fallbackCampaign = getMappedFallbackCampaigns().find((item) => item.id === input.id);
+        if (!fallbackCampaign && input.id === 1) {
+          fallbackCampaign = getMappedFallbackCampaigns().find((item) => /recanto de paz/i.test(item.title));
+        }
         if (fallbackCampaign) {
           return withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaign));
         }

@@ -67,6 +67,7 @@ export default function ContributionChoicePage() {
   const isHotelCampaign =
     campaignId === HOTEL_CAMPAIGN_ID ||
     campaignDataId === HOTEL_CAMPAIGN_ID ||
+    campaignTitle.includes("hotel recanto de paz") ||
     (campaignId === HOTEL_LEGACY_CAMPAIGN_ID && campaignTitle.includes("hotel recanto de paz"));
   const vipApartmentAmountCents = ("vipApartmentAmountCents" in campaign && typeof campaign.vipApartmentAmountCents === "number")
     ? campaign.vipApartmentAmountCents

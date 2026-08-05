@@ -8,6 +8,7 @@ import { Link, useRoute } from "wouter";
 
 const SPECIAL_APARTMENT_DONATION_CENTS = 120_000_00;
 const HOTEL_CAMPAIGN_ID = 100001;
+const HOTEL_LEGACY_CAMPAIGN_ID = 1;
 const DEFAULT_VIP_MEDIA_VIDEO_URL = "/89343f15-ccb1-4937-b353-a3cbb5f23bd6.mp4";
 const DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL = "/Parceiros/WhatsApp Video 2026-07-28 at 15.37.04.mp4";
 const DEFAULT_VIP_MEDIA_IMAGES = ["/render-quarto.jpg", "/render-hotel.jpg", "/obra-lavanderia.jpg"];
@@ -93,6 +94,13 @@ export default function ContributionVipPage() {
   }
 
   const campaign = campaignQuery.data;
+  const campaignTitle = typeof campaign.title === "string" ? campaign.title.toLowerCase() : "";
+  const campaignDataId = typeof campaign.id === "number" ? campaign.id : campaignId;
+  const isHotelCampaign =
+    campaignId === HOTEL_CAMPAIGN_ID
+    || campaignDataId === HOTEL_CAMPAIGN_ID
+    || campaignTitle.includes("hotel recanto de paz")
+    || (campaignId === HOTEL_LEGACY_CAMPAIGN_ID && campaignTitle.includes("hotel recanto de paz"));
   const vipApartmentAmountCents = ("vipApartmentAmountCents" in campaign && typeof campaign.vipApartmentAmountCents === "number")
     ? campaign.vipApartmentAmountCents
     : SPECIAL_APARTMENT_DONATION_CENTS;
@@ -135,7 +143,7 @@ export default function ContributionVipPage() {
   const vipVideoUrl = videoCandidates[videoIndex] ?? null;
   const vipVideoEmbedUrl = vipVideoUrl ? toEmbedVideoUrl(vipVideoUrl) : null;
 
-  if (campaignId !== HOTEL_CAMPAIGN_ID || vipApartmentAmountCents <= 0) {
+  if (!isHotelCampaign || vipApartmentAmountCents <= 0) {
     return (
       <div className="min-h-screen bg-[#f8faf7]">
         <PublicHeader />
