@@ -276,7 +276,9 @@ function getMappedFallbackCampaigns(input?: { status?: "active" | "completed"; q
 function forceCriticalPublicCampaignsFromFallback<
   T extends { id: number },
 >(rows: T[], fallbackRows: T[]): T[] {
-  const criticalIds = new Set([100001, 100002]);
+  // Keep only the Recanto campaign pinned to fallback.
+  // Legendario should prefer DB rows when available to preserve managed needs.
+  const criticalIds = new Set([100001]);
   const fallbackById = new Map(fallbackRows.map((row) => [row.id, row]));
 
   return rows.map((row) => {
@@ -1196,7 +1198,7 @@ export const campaignsRouter = router({
       const preferLocalFallback = isLocalHostHeader(ctx.req.headers.host);
       const fallbackCampaigns = getMappedFallbackCampaigns();
       const fallbackCampaignByInputId = fallbackCampaigns.find((item) => item.id === input.id);
-      if (fallbackCampaignByInputId && (input.id === 100001 || input.id === 100002)) {
+      if (fallbackCampaignByInputId && input.id === 100001) {
         return withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaignByInputId));
       }
       if (!db || preferLocalFallback) {
