@@ -15,6 +15,21 @@
     "updatedAt": "2026-08-03T16:57:56.587Z"
   },
   {
+    "id": 100002,
+    "title": "LEGENDÁRIO SOLIDARIO",
+    "description": "Legendário Solidário é uma campanha que transforma união, fé e generosidade em cuidado para quem mais precisa. Juntos, podemos servir, abençoar famílias e deixar um legado de esperança.",
+    "longDescription": "O Legendário Solidário nasceu com o propósito de transformar vidas por meio da fé, da união e do serviço ao próximo. Mais do que viver experiências marcantes, ser Legendário também é compreender que fomos chamados para servir e fazer a diferença na vida das pessoas. Por meio desta campanha, vamos mobilizar homens, famílias, empresas e parceiros para apoiar pessoas que enfrentam dificuldades e precisam de uma oportunidade para recomeçar. Cada contribuição, independentemente do valor, representa alimento, cuidado, dignidade e esperança.",
+    "category": "outro",
+    "goal": 10000000,
+    "vipApartmentAmountCents": 12000000,
+    "raised": 0,
+    "status": "active",
+    "imageUrl": "/legendario-solidario.jpg",
+    "createdBy": 1,
+    "createdAt": "2026-08-01T01:51:19.000Z",
+    "updatedAt": "2026-08-04T11:06:19.859Z"
+  },
+  {
     "id": 2,
     "title": "Construção Hotel Recanto de Paz",
     "description": "Apoie a construção do Hotel Recanto de Paz com materiais e contribuições para a obra.",
