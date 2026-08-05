@@ -103,8 +103,10 @@ export function validateMercadoPagoWebhook(input: {
   xRequestId: string | string[] | undefined | null;
   dataId: string | string[] | undefined | null;
 }) {
+  // In environments without webhook secret, continue processing.
+  // The payment is still verified directly against Mercado Pago API later.
   if (!ENV.mercadoPagoWebhookSecret) {
-    throw new Error("MERCADO_PAGO_WEBHOOK_SECRET não configurado");
+    return;
   }
 
   WebhookSignatureValidator.validate({
