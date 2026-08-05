@@ -1245,6 +1245,11 @@ export const campaignsRouter = router({
       const preferLocalFallback = isLocalHostHeader(ctx.req.headers.host);
       const fallbackCampaigns = getMappedFallbackCampaigns();
       const fallbackCampaignByInputId = fallbackCampaigns.find((item) => item.id === input.id);
+      const fallbackLegendarioCampaign = fallbackCampaigns.find((item) => item.id === LEGENDARIO_PUBLIC_ID);
+      const isLegendarioLegacyAlias = input.id === 2;
+      const effectiveFallbackCampaign = isLegendarioLegacyAlias
+        ? (fallbackCampaignByInputId ?? fallbackLegendarioCampaign)
+        : fallbackCampaignByInputId;
       if (fallbackCampaignByInputId && input.id === 100001) {
         return withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaignByInputId));
       }
@@ -1268,21 +1273,26 @@ export const campaignsRouter = router({
 
       const canonicalRecantoId = await ensureCanonicalRecantoCampaign(db);
       const isRecantoAlias = input.id === 1;
-      const campaignId = isRecantoAlias ? canonicalRecantoId : input.id;
+      const campaignId = isRecantoAlias
+        ? canonicalRecantoId
+        : (isLegendarioLegacyAlias ? LEGENDARIO_PUBLIC_ID : input.id);
+      const isLegendarioRequest = campaignId === LEGENDARIO_PUBLIC_ID || isLegendarioLegacyAlias;
 
       let campaign = await loadPublicCampaignByIdWithLegacyFallback(db, campaignId);
-      let responseCampaignId = isRecantoAlias ? input.id : campaignId;
+      let responseCampaignId = isRecantoAlias
+        ? input.id
+        : (isLegendarioRequest ? LEGENDARIO_PUBLIC_ID : campaignId);
 
-      if (!campaign && fallbackCampaignByInputId) {
+      if (!campaign && effectiveFallbackCampaign) {
         // Compatibilidade: quando a URL usa ID fallback (100001/100002), tenta localizar a campanha real por título no banco.
-        const byTitle = await loadPublicCampaignByTitleWithLegacyFallback(db, fallbackCampaignByInputId.title);
+        const byTitle = await loadPublicCampaignByTitleWithLegacyFallback(db, effectiveFallbackCampaign.title);
         if (byTitle) {
           campaign = byTitle;
-          responseCampaignId = input.id;
+          responseCampaignId = isLegendarioRequest ? LEGENDARIO_PUBLIC_ID : input.id;
         }
       }
 
-      if (!campaign && input.id === 100002) {
+      if (!campaign && isLegendarioRequest) {
         // Compatibilidade extra: bancos legados podem manter o Legendário no id 2 sem o novo ID público.
         const legacyLegendario = await loadPublicCampaignByRawIdLegacy(db, 2);
         if (legacyLegendario) {
@@ -1293,6 +1303,9 @@ export const campaignsRouter = router({
 
       if (!campaign) {
         let fallbackCampaign = getMappedFallbackCampaigns().find((item) => item.id === input.id);
+        if (!fallbackCampaign && isLegendarioLegacyAlias) {
+          fallbackCampaign = getMappedFallbackCampaigns().find((item) => item.id === LEGENDARIO_PUBLIC_ID);
+        }
         if (!fallbackCampaign && input.id === 1) {
           fallbackCampaign = getMappedFallbackCampaigns().find((item) => /recanto de paz/i.test(item.title));
         }
@@ -1342,7 +1355,7 @@ export const campaignsRouter = router({
         metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, []);
       const effectiveGoal = campaign.goal > 0
         ? campaign.goal
-        : Math.max(0, Number(fallbackCampaignByInputId?.goal ?? 0));
+        : Math.max(0, Number(effectiveFallbackCampaign?.goal ?? 0));
       const effectiveMetrics =
         effectiveGoal > 0
           ? deriveCampaignMetrics(effectiveGoal, campaign.raised, [])
