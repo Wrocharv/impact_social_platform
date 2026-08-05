@@ -273,6 +273,18 @@ function getMappedFallbackCampaigns(input?: { status?: "active" | "completed"; q
     });
 }
 
+function forceCriticalPublicCampaignsFromFallback<
+  T extends { id: number },
+>(rows: T[], fallbackRows: T[]): T[] {
+  const criticalIds = new Set([100001, 100002]);
+  const fallbackById = new Map(fallbackRows.map((row) => [row.id, row]));
+
+  return rows.map((row) => {
+    if (!criticalIds.has(row.id)) return row;
+    return fallbackById.get(row.id) ?? row;
+  });
+}
+
 function normalizeCampaignTitleKey(title: string | null | undefined) {
   return String(title ?? "")
     .normalize("NFD")
@@ -1103,7 +1115,9 @@ export const campaignsRouter = router({
         const mergedCampaigns = dedupeCampaignsById([...publishedRows, ...mappedFallback])
           .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
 
-        return mergedCampaigns.slice(0, input?.limit ?? 12);
+        const stableCampaigns = forceCriticalPublicCampaignsFromFallback(mergedCampaigns, mappedFallback);
+
+        return stableCampaigns.slice(0, input?.limit ?? 12);
       } catch (error) {
         console.warn("[campaigns.listPublished] Falling back to local campaigns after DB error:", error);
         const mappedFallback = getMappedFallbackCampaigns({
@@ -1182,6 +1196,9 @@ export const campaignsRouter = router({
       const preferLocalFallback = isLocalHostHeader(ctx.req.headers.host);
       const fallbackCampaigns = getMappedFallbackCampaigns();
       const fallbackCampaignByInputId = fallbackCampaigns.find((item) => item.id === input.id);
+      if (fallbackCampaignByInputId && (input.id === 100001 || input.id === 100002)) {
+        return withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaignByInputId));
+      }
       if (!db || preferLocalFallback) {
         let fallbackCampaign = fallbackCampaigns.find((campaign) => campaign.id === input.id);
         if (!fallbackCampaign && input.id === 1) {
