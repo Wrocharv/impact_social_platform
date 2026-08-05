@@ -273,13 +273,28 @@ function getMappedFallbackCampaigns(input?: { status?: "active" | "completed"; q
     });
 }
 
-function dedupeCampaignsById<T extends { id: number }>(rows: T[]): T[] {
+function normalizeCampaignTitleKey(title: string | null | undefined) {
+  return String(title ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function dedupeCampaignsById<T extends { id: number; title?: string | null }>(rows: T[]): T[] {
   const seen = new Set<number>();
+  const seenTitles = new Set<string>();
   const deduped: T[] = [];
 
   for (const row of rows) {
     if (seen.has(row.id)) continue;
+
+    const titleKey = normalizeCampaignTitleKey(row.title);
+    if (titleKey && seenTitles.has(titleKey)) continue;
+
     seen.add(row.id);
+    if (titleKey) seenTitles.add(titleKey);
     deduped.push(row);
   }
 
