@@ -362,6 +362,86 @@ export const paymentsRouter = router({
         .where(and(eq(campaigns.id, input.campaignId), eq(campaigns.status, "active")))
         .limit(1);
 
+      if (!campaign && input.campaignId >= 100000) {
+        const fallbackCampaignTitle = input.campaignTitle?.trim() || `Campanha ${input.campaignId}`;
+        const origin = requestOrigin(ctx.req);
+
+        if (isCashPayment) {
+          const fallbackContribution = createFallbackCashContribution({
+            campaignId: input.campaignId,
+            amount: input.amount,
+            donorName: input.donorName?.trim() || "Doador",
+            donorWhatsapp: input.donorWhatsapp,
+            donorCity: input.donorCity,
+          });
+
+          return {
+            checkoutUrl: buildContributionConfirmationUrl({
+              baseUrl: origin,
+              campaignId: input.campaignId,
+              campaignTitle: fallbackCampaignTitle,
+              donorName: input.donorName?.trim() || "Doador",
+              amountCents: input.amount,
+              paymentMethod: "cash",
+              paymentStatus: "awaiting_validation",
+            }),
+            contributionId: fallbackContribution.id,
+            preferenceId: "cash-fallback-campaign",
+            environment: ENV.isProduction ? "production" as const : "test" as const,
+          };
+        }
+
+        try {
+          const preference = await createMercadoPagoPreference({
+            campaignId: input.campaignId,
+            campaignTitle: fallbackCampaignTitle,
+            amountCents: input.amount,
+            donorEmail,
+            donorName: input.donorName?.trim() || "Doador",
+            externalReference,
+            baseUrl: origin,
+          });
+
+          return {
+            checkoutUrl: preference.checkoutUrl,
+            contributionId: undefined,
+            preferenceId: preference.id,
+            environment: preference.environment,
+          };
+        } catch (error) {
+          if (shouldUsePixOperationalFallback(input, error)) {
+            return {
+              checkoutUrl: buildPaymentPendingUrl(origin),
+              contributionId: undefined,
+              preferenceId: "pix-credential-fallback",
+              environment: "test" as const,
+            };
+          }
+
+          if (!ENV.isProduction && enablePixDevFallback && shouldUsePixDevFallback(error)) {
+            return {
+              checkoutUrl: buildContributionConfirmationUrl({
+                baseUrl: origin,
+                campaignId: input.campaignId,
+                campaignTitle: fallbackCampaignTitle,
+                donorName: input.donorName?.trim() || "Doador",
+                amountCents: input.amount,
+              }),
+              contributionId: undefined,
+              preferenceId: "dev-fallback",
+              environment: "test" as const,
+            };
+          }
+
+          const message = getReadableErrorMessage(error);
+          console.error("[MercadoPago] Falha ao criar preferência para campanha fallback", error);
+          throw new TRPCError({
+            code: "BAD_GATEWAY",
+            message,
+          });
+        }
+      }
+
       if (!campaign) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Campanha ativa não encontrada" });
       }
