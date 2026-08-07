@@ -74,6 +74,17 @@ const parseBrlAmount = (value: string) => {
 
 const normalizeCpfDigits = (value: string) => value.replace(/\D/g, "").slice(0, 11);
 
+const isValidCpf = (value: string) => {
+  const d = normalizeCpfDigits(value);
+  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+  const calc = (len: number) => {
+    const sum = d.slice(0, len).split("").reduce((acc, n, i) => acc + Number(n) * (len + 1 - i), 0);
+    const r = 11 - (sum % 11);
+    return r >= 10 ? 0 : r;
+  };
+  return calc(9) === Number(d[9]) && calc(10) === Number(d[10]);
+};
+
 const formatCpf = (value: string) => {
   const digits = normalizeCpfDigits(value);
   if (digits.length <= 3) return digits;
@@ -521,7 +532,7 @@ export default function ContributionWizardPage() {
   const isValid = {
     type: state.type !== null,
     donorInfo:
-      normalizeCpfDigits(state.donorCpf).length === 11 &&
+      isValidCpf(state.donorCpf) &&
       state.donorName.trim().length >= 2 &&
       state.donorWhatsapp.trim().length >= 8 &&
       state.donorCity.trim().length >= 2,
@@ -539,7 +550,11 @@ export default function ContributionWizardPage() {
 
   const donorInfoErrors = {
     name: state.donorName.trim().length < 2 ? "Nome deve ter pelo menos 2 caracteres" : "",
-    cpf: normalizeCpfDigits(state.donorCpf).length !== 11 ? "CPF deve ter 11 dígitos" : "",
+    cpf: !isValidCpf(state.donorCpf)
+      ? normalizeCpfDigits(state.donorCpf).length !== 11
+        ? "CPF deve ter 11 dígitos"
+        : "CPF inválido — verifique os números"
+      : "",
     whatsapp: state.donorWhatsapp.trim().length < 8 ? "WhatsApp deve ter pelo menos 8 caracteres" : "",
     city: state.donorCity.trim().length < 2 ? "Cidade deve ter pelo menos 2 caracteres" : "",
   };

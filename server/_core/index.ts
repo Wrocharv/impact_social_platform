@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
@@ -102,6 +103,21 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  // Run pending SQL migrations on startup (safe to run repeatedly — uses IF NOT EXISTS / MODIFY COLUMN)
+  if (process.env.DATABASE_URL) {
+    try {
+      const { getDb } = await import("../db");
+      const { migrate } = await import("drizzle-orm/mysql2/migrator");
+      const db = await getDb();
+      if (db) {
+        await migrate(db, { migrationsFolder: path.resolve(process.cwd(), "drizzle") });
+        console.log("[Database] Migrations applied successfully.");
+      }
+    } catch (err) {
+      console.error("[Database] Migration error (non-fatal):", err);
+    }
+  }
+
   const app = express();
   const server = createServer(app);
   const publicAppUrl = process.env.PUBLIC_APP_URL?.trim() || "https://www.parceriadobem.com.br";
