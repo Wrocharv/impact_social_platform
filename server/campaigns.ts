@@ -1435,9 +1435,17 @@ export const campaignsRouter = router({
           condition,
           input?.limit ?? 12,
         );
+        const mappedFallback = getMappedFallbackCampaigns({
+          status: input?.status,
+          query: input?.query,
+        }).filter((campaign) => !isInternalLocalSeedCampaign(campaign));
+        // Also load metrics for fallback campaign IDs not in DB rows
+        const fallbackOnlyIds = mappedFallback
+          .filter((c) => !rows.find((r) => r.id === c.id))
+          .map((c) => c.id);
         const metrics = await loadCampaignMetrics(
           db,
-          rows.map((campaign) => campaign.id),
+          [...rows.map((campaign) => campaign.id), ...fallbackOnlyIds],
         );
 
         const publishedRows = rows.map((campaign) => ({
@@ -1445,10 +1453,6 @@ export const campaignsRouter = router({
           initialRaised: campaign.raised,
           ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
         }));
-        const mappedFallback = getMappedFallbackCampaigns({
-          status: input?.status,
-          query: input?.query,
-        }).filter((campaign) => !isInternalLocalSeedCampaign(campaign));
 
         const mergedCampaigns = dedupeCampaignsById([...publishedRows, ...mappedFallback])
           .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
@@ -1497,12 +1501,17 @@ export const campaignsRouter = router({
         .select({ id: campaigns.id, goal: campaigns.goal, initialRaised: campaigns.raised })
         .from(campaigns)
         .where(eq(campaigns.status, "active"));
-      const metrics = await loadCampaignMetrics(
-        db,
-        activeCampaigns.map((campaign) => campaign.id),
-      );
 
-      return activeCampaigns.reduce(
+      // Include fallback campaigns not in the DB
+      const activeFallbackCampaigns = getMappedFallbackCampaigns({ status: "active" })
+        .filter((c) => !isInternalLocalSeedCampaign(c) && !activeCampaigns.find((db) => db.id === c.id));
+      const allActiveIds = [
+        ...activeCampaigns.map((c) => c.id),
+        ...activeFallbackCampaigns.map((c) => c.id),
+      ];
+      const metrics = await loadCampaignMetrics(db, allActiveIds);
+
+      const dbSummary = activeCampaigns.reduce(
         (summary, campaign) => {
           const campaignMetrics =
             metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.initialRaised, []);
@@ -1510,12 +1519,23 @@ export const campaignsRouter = router({
           summary.contributorsCount += campaignMetrics.contributorsCount;
           return summary;
         },
-        {
-          activeCampaigns: activeCampaigns.length,
-          raised: 0,
-          contributorsCount: 0,
-        },
+        { raised: 0, contributorsCount: 0 },
       );
+      const fallbackSummary = activeFallbackCampaigns.reduce(
+        (summary, campaign) => {
+          const campaignMetrics = metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, []);
+          summary.raised += campaignMetrics.raised;
+          summary.contributorsCount += campaignMetrics.contributorsCount;
+          return summary;
+        },
+        { raised: 0, contributorsCount: 0 },
+      );
+
+      return {
+        activeCampaigns: activeCampaigns.length + activeFallbackCampaigns.length,
+        raised: dbSummary.raised + fallbackSummary.raised,
+        contributorsCount: dbSummary.contributorsCount + fallbackSummary.contributorsCount,
+      };
     } catch (error) {
       console.warn("[campaigns.getPublicStats] Falling back to local stats after DB error:", error);
       const mappedActiveFallback = getMappedFallbackCampaigns({ status: "active" })
