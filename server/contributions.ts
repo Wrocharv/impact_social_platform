@@ -811,9 +811,9 @@ export const contributionsRouter = router({
 
       const conditions = [
         eq(contributions.type, "financial"),
-        eq(contributions.status, "pending"),
         or(
           and(
+            or(eq(contributions.status, "pending"), isNull(contributions.status)),
             eq(contributions.paymentMethod, "cash"),
             or(
               inArray(contributions.paymentStatusDetail, CASH_PENDING_DETAILS),
@@ -821,8 +821,12 @@ export const contributionsRouter = router({
             ),
           ),
           and(
+            or(eq(contributions.status, "pending"), isNull(contributions.status)),
             isNull(contributions.paymentMethod),
-            inArray(contributions.paymentStatusDetail, CASH_PENDING_DETAILS),
+            or(
+              inArray(contributions.paymentStatusDetail, CASH_PENDING_DETAILS),
+              isNull(contributions.paymentStatusDetail),
+            ),
           ),
         ),
       ];
@@ -853,8 +857,7 @@ export const contributionsRouter = router({
 
         const legacyConditions = [
           eq(contributions.type, "financial"),
-          eq(contributions.status, "pending"),
-          eq(contributions.paymentMethod, "cash"),
+          or(eq(contributions.status, "pending"), isNull(contributions.status)),
         ];
 
         if (input?.campaignId) {
