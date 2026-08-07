@@ -328,19 +328,6 @@ export default function CheckoutPage() {
                     <p className="mt-1 text-xs text-[#6b7280]">Digite 1000 ou 1.000,00. O sistema converte automaticamente para reais.</p>
                   </div>
 
-                  {/* Donor Name */}
-                  <div>
-                    <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">
-                      Seu Nome (opcional)
-                    </label>
-                    <Input
-                      type="text"
-                      placeholder="Como você gostaria de ser reconhecido?"
-                      value={donorName}
-                      onChange={(e) => setDonorName(e.target.value)}
-                    />
-                  </div>
-
                   <div>
                     <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">
                       CPF *
@@ -351,6 +338,19 @@ export default function CheckoutPage() {
                       placeholder="000.000.000-00"
                       value={donorCpf}
                       onChange={(e) => setDonorCpf(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Donor Name */}
+                  <div>
+                    <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">
+                      Seu Nome (opcional)
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="Como você gostaria de ser reconhecido?"
+                      value={donorName}
+                      onChange={(e) => setDonorName(e.target.value)}
                     />
                   </div>
 

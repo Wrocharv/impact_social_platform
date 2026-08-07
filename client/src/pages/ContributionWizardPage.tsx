@@ -873,6 +873,21 @@ export default function ContributionWizardPage() {
 
                   <div className="space-y-3">
                     <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">CPF *</label>
+                      <Input
+                        autoComplete="off"
+                        inputMode="numeric"
+                        placeholder="000.000.000-00"
+                        value={state.donorCpf}
+                        onChange={(e) => setState({ ...state, donorCpf: e.target.value })}
+                        disabled={loading}
+                        className={donorInfoErrors.cpf ? "border-red-500" : ""}
+                        autoFocus
+                      />
+                      {donorInfoErrors.cpf && <p className="text-xs text-red-500 mt-1">{donorInfoErrors.cpf}</p>}
+                    </div>
+
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo *</label>
                       <Input
                         autoComplete="off"
@@ -883,20 +898,6 @@ export default function ContributionWizardPage() {
                         className={donorInfoErrors.name ? "border-red-500" : ""}
                       />
                       {donorInfoErrors.name && <p className="text-xs text-red-500 mt-1">{donorInfoErrors.name}</p>}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">CPF *</label>
-                      <Input
-                        autoComplete="off"
-                        inputMode="numeric"
-                        placeholder="000.000.000-00"
-                        value={state.donorCpf}
-                        onChange={(e) => setState({ ...state, donorCpf: e.target.value })}
-                        disabled={loading}
-                        className={donorInfoErrors.cpf ? "border-red-500" : ""}
-                      />
-                      {donorInfoErrors.cpf && <p className="text-xs text-red-500 mt-1">{donorInfoErrors.cpf}</p>}
                     </div>
 
                     <div>
