@@ -1498,13 +1498,19 @@ export const campaignsRouter = router({
       }
 
       const activeCampaigns = await db
-        .select({ id: campaigns.id, goal: campaigns.goal, initialRaised: campaigns.raised })
+        .select({ id: campaigns.id, goal: campaigns.goal, initialRaised: campaigns.raised, title: campaigns.title })
         .from(campaigns)
         .where(eq(campaigns.status, "active"));
 
-      // Include fallback campaigns not in the DB
+      // Include fallback campaigns not already represented in DB (dedup by ID and title)
+      const dbIds = new Set(activeCampaigns.map((c) => c.id));
+      const dbTitleKeys = new Set(activeCampaigns.map((c) => normalizeCampaignTitleKey(c.title)));
       const activeFallbackCampaigns = getMappedFallbackCampaigns({ status: "active" })
-        .filter((c) => !isInternalLocalSeedCampaign(c) && !activeCampaigns.find((db) => db.id === c.id));
+        .filter((c) =>
+          !isInternalLocalSeedCampaign(c)
+          && !dbIds.has(c.id)
+          && !dbTitleKeys.has(normalizeCampaignTitleKey(c.title)),
+        );
       const allActiveIds = [
         ...activeCampaigns.map((c) => c.id),
         ...activeFallbackCampaigns.map((c) => c.id),
