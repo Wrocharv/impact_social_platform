@@ -282,6 +282,13 @@ export const paymentsRouter = router({
 
       if (!db) {
         if (isCashPayment) {
+          if (ENV.isProduction) {
+            throw new TRPCError({
+              code: "SERVICE_UNAVAILABLE",
+              message: "Não foi possível registrar a doação em dinheiro para validação presencial. Tente novamente em instantes.",
+            });
+          }
+
           const origin = requestOrigin(ctx.req);
           const fallbackCampaignTitle = input.campaignTitle?.trim() || `Campanha ${input.campaignId}`;
           const donorName = input.donorName?.trim() || "Doador";
@@ -459,6 +466,14 @@ export const paymentsRouter = router({
               preferenceId: "cash-fallback-campaign-db",
               environment: ENV.isProduction ? "production" as const : "test" as const,
             };
+          }
+
+          if (ENV.isProduction) {
+            throw new TRPCError({
+              code: "SERVICE_UNAVAILABLE",
+              message: "Não foi possível registrar a doação em dinheiro para validação presencial. Tente novamente em instantes.",
+              cause: persistError,
+            });
           }
 
           console.error("[Payments] Fallback cash persistência no banco falhou; usando arquivo local", persistError);
