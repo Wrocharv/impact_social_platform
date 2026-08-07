@@ -1673,6 +1673,14 @@ export const campaignsRouter = router({
       const vipContributionConfigUpdate = updates.find((update) => update.title === VIP_CONTRIBUTION_CONFIG_TITLE);
       const vipMediaImages = vipMediaConfigUpdate ? parseMediaUrls(vipMediaConfigUpdate.imageUrls) : [];
       const vipMediaVideos = vipMediaConfigUpdate ? parseMediaUrls(vipMediaConfigUpdate.videoUrls) : [];
+      const fallbackVipMediaImages = Array.isArray(matchingFallbackCampaign?.vipMediaImages)
+        ? matchingFallbackCampaign.vipMediaImages.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : [];
+      const fallbackVipMediaVideos = Array.isArray(matchingFallbackCampaign?.vipMediaVideos)
+        ? matchingFallbackCampaign.vipMediaVideos.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : [];
+      const effectiveVipMediaImages = fallbackVipMediaImages.length > 0 ? fallbackVipMediaImages : vipMediaImages;
+      const effectiveVipMediaVideos = fallbackVipMediaVideos.length > 0 ? fallbackVipMediaVideos : vipMediaVideos;
       const vipContributionConfig = vipContributionConfigUpdate
         ? parseVipContributionConfigFromDescription(vipContributionConfigUpdate.description)
         : null;
@@ -1680,13 +1688,17 @@ export const campaignsRouter = router({
         new Set(
           [
             campaign.imageUrl,
-            ...vipMediaImages,
+            ...effectiveVipMediaImages,
             ...updates.flatMap((update) => parseMediaUrls(update.imageUrls)),
           ].filter((url): url is string => Boolean(url)),
         ),
       );
 
       const canonicalizedCampaign = withCanonicalRecantoCover(campaign);
+      const effectiveVipApartmentAmountCents =
+        typeof matchingFallbackCampaign?.vipApartmentAmountCents === "number"
+          ? matchingFallbackCampaign.vipApartmentAmountCents
+          : canonicalizedCampaign.vipApartmentAmountCents;
       const materialProgressByNeed = new Map<number, { offeredQuantity: number; offeredValueCents: number }>();
 
       materialContributions.forEach((row) => {
@@ -1725,6 +1737,7 @@ export const campaignsRouter = router({
         withFallbackRecantoContentIfEmpty({
           ...canonicalizedCampaign,
           id: responseCampaignId,
+          vipApartmentAmountCents: effectiveVipApartmentAmountCents,
           initialRaised: campaign.raised,
           ...effectiveMetrics,
           goal: effectiveGoal > 0 ? effectiveGoal : campaign.goal,
@@ -1734,8 +1747,8 @@ export const campaignsRouter = router({
             images: parseMediaUrls(update.imageUrls),
             videos: parseMediaUrls(update.videoUrls),
           })),
-          vipMediaImages,
-          vipMediaVideos,
+          vipMediaImages: effectiveVipMediaImages,
+          vipMediaVideos: effectiveVipMediaVideos,
           vipContributionTitle: vipContributionConfig?.title ?? "Inscrição completa",
           vipContributionSubtitle: vipContributionConfig?.subtitle ?? "Contribuição especial com acesso ao fluxo completo de pagamento",
           vipContributionDescription: vipContributionConfig?.description ?? "Escolha este fluxo para apoiar a campanha com uma contribuição especial e os métodos de pagamento disponíveis.",
