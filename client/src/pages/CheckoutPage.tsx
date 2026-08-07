@@ -24,6 +24,18 @@ export default function CheckoutPage() {
   const [lastLookupKey, setLastLookupKey] = useState("");
   const { currentDonor, isLoaded, saveDonor, clearSavedDonors, findDonorByCpf, findDonorByName, findDonorByWhatsapp } = useDonorStorage();
 
+  function normalizeCpfDigits(value: string) {
+    return value.replace(/\D/g, "").slice(0, 11);
+  }
+
+  function formatCpf(value: string) {
+    const digits = normalizeCpfDigits(value);
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+    if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`;
+  }
+
   function parseBrlAmount(value: string) {
     const normalized = value.trim().replace(/\s+/g, "");
     if (!normalized) return NaN;
@@ -73,7 +85,7 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (!isLoaded || !currentDonor) return;
     setDonorName((current) => current || currentDonor.donorName || "");
-    setDonorCpf((current) => current || currentDonor.donorCpf || "");
+    setDonorCpf((current) => current || formatCpf(currentDonor.donorCpf || ""));
     setDonorWhatsapp((current) => current || currentDonor.donorWhatsapp || "");
     setDonorEmail((current) => current || currentDonor.donorEmail || "");
     setDonorCity((current) => current || currentDonor.donorCity || "");
@@ -83,7 +95,7 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (!isLoaded) return;
 
-    const normalizedCpf = donorCpf.replace(/\D/g, "");
+    const normalizedCpf = normalizeCpfDigits(donorCpf);
     const normalizedWhatsapp = donorWhatsapp.replace(/\D/g, "");
     const normalizedName = donorName.trim().toLowerCase();
     const lookupKey = `${normalizedCpf}|${normalizedWhatsapp}|${normalizedName}`;
@@ -97,7 +109,7 @@ export default function CheckoutPage() {
 
     setLastLookupKey(lookupKey);
     setDonorName((current) => current || matchedDonor.donorName || "");
-    setDonorCpf((current) => current || matchedDonor.donorCpf || "");
+    setDonorCpf((current) => current || formatCpf(matchedDonor.donorCpf || ""));
     setDonorWhatsapp((current) => current || matchedDonor.donorWhatsapp || "");
     setDonorEmail((current) => current || matchedDonor.donorEmail || "");
     setDonorCity((current) => current || matchedDonor.donorCity || "");
@@ -114,7 +126,8 @@ export default function CheckoutPage() {
     e.preventDefault();
 
     const amountInCents = Math.round(parseBrlAmount(amount) * 100);
-    if (!Number.isInteger(amountInCents) || amountInCents < 100 || donorCpf.replace(/\D/g, "").length < 11 || !donorEmail.trim() || donorWhatsapp.replace(/\D/g, "").length < 8 || donorCity.trim().length < 2) {
+    const normalizedCpf = normalizeCpfDigits(donorCpf);
+    if (!Number.isInteger(amountInCents) || amountInCents < 100 || normalizedCpf.length !== 11 || !donorEmail.trim() || donorWhatsapp.replace(/\D/g, "").length < 8 || donorCity.trim().length < 2) {
       toast.error("Preencha os campos obrigatórios, incluindo CPF, WhatsApp e cidade");
       return;
     }
@@ -123,7 +136,7 @@ export default function CheckoutPage() {
 
     saveDonor({
       donorName: donorName.trim() || "Doador",
-      donorCpf: donorCpf.trim(),
+      donorCpf: normalizedCpf,
       donorWhatsapp: donorWhatsapp.trim(),
       donorEmail: donorEmail.trim(),
       donorCity: donorCity.trim(),
@@ -137,7 +150,7 @@ export default function CheckoutPage() {
         paymentMethod,
         donorEmail: donorEmail.trim(),
         donorName: donorName.trim() || undefined,
-        donorCpf: donorCpf.trim() || undefined,
+        donorCpf: normalizedCpf || undefined,
         donorWhatsapp: donorWhatsapp.trim(),
         donorCity: donorCity.trim(),
         donorChurch: donorChurch.trim() || undefined,
@@ -354,7 +367,8 @@ export default function CheckoutPage() {
                       inputMode="numeric"
                       placeholder="000.000.000-00"
                       value={donorCpf}
-                      onChange={(e) => setDonorCpf(e.target.value)}
+                      onChange={(e) => setDonorCpf(formatCpf(e.target.value))}
+                      maxLength={14}
                     />
                   </div>
 

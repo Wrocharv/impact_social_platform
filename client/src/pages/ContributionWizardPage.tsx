@@ -72,6 +72,16 @@ const parseBrlAmount = (value: string) => {
   return Number(normalized);
 };
 
+const normalizeCpfDigits = (value: string) => value.replace(/\D/g, "").slice(0, 11);
+
+const formatCpf = (value: string) => {
+  const digits = normalizeCpfDigits(value);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`;
+};
+
 const toEmbedVideoUrl = (rawUrl: string) => {
   try {
     const url = new URL(rawUrl);
@@ -238,7 +248,7 @@ export default function ContributionWizardPage() {
       setState((prev) => ({
         ...prev,
         donorName: currentDonor.donorName,
-        donorCpf: currentDonor.donorCpf,
+        donorCpf: formatCpf(currentDonor.donorCpf),
         donorWhatsapp: currentDonor.donorWhatsapp,
         donorEmail: currentDonor.donorEmail,
         donorCity: currentDonor.donorCity,
@@ -306,13 +316,13 @@ export default function ContributionWizardPage() {
   useEffect(() => {
     if (step !== "donor-info") return;
 
-    const normalizedCpf = state.donorCpf.replace(/\D/g, "");
+    const normalizedCpf = normalizeCpfDigits(state.donorCpf);
     const normalizedWhatsapp = state.donorWhatsapp.replace(/\D/g, "");
     const normalizedName = state.donorName.trim().toLowerCase();
     const normalizedEmail = state.donorEmail.trim().toLowerCase();
     const normalizedEmailLookup = /^\S+@\S+\.\S+$/.test(normalizedEmail) ? normalizedEmail : "";
 
-    if (normalizedCpf.length < 11 && normalizedWhatsapp.length < 8 && normalizedName.length < 3 && !normalizedEmailLookup) return;
+    if (normalizedCpf.length !== 11 && normalizedWhatsapp.length < 8 && normalizedName.length < 3 && !normalizedEmailLookup) return;
 
     const lookupKey = `${normalizedCpf}|${normalizedWhatsapp}|${normalizedName}|${normalizedEmail}`;
     if (lookupKey === lastLookupKey) return;
@@ -323,7 +333,7 @@ export default function ContributionWizardPage() {
 
       try {
         profile = await utils.contributions.getDonorProfileLookup.fetch({
-          donorCpf: normalizedCpf.length >= 11 ? state.donorCpf : undefined,
+          donorCpf: normalizedCpf.length === 11 ? normalizedCpf : undefined,
           donorWhatsapp: normalizedWhatsapp.length >= 8 ? state.donorWhatsapp : undefined,
           donorName: normalizedName.length >= 3 ? state.donorName : undefined,
           donorEmail: normalizedEmailLookup || undefined,
@@ -339,7 +349,7 @@ export default function ContributionWizardPage() {
         const next = {
           ...prev,
           donorName: resolvedProfile.donorName || prev.donorName,
-          donorCpf: resolvedProfile.donorCpf || prev.donorCpf,
+          donorCpf: resolvedProfile.donorCpf ? formatCpf(resolvedProfile.donorCpf) : prev.donorCpf,
           donorWhatsapp: resolvedProfile.donorWhatsapp || prev.donorWhatsapp,
           donorEmail: resolvedProfile.donorEmail || prev.donorEmail,
           donorCity: resolvedProfile.donorCity || prev.donorCity,
@@ -505,6 +515,7 @@ export default function ContributionWizardPage() {
   const isValid = {
     type: state.type !== null,
     donorInfo:
+      normalizeCpfDigits(state.donorCpf).length === 11 &&
       state.donorName.trim().length >= 2 &&
       state.donorWhatsapp.trim().length >= 8 &&
       state.donorCity.trim().length >= 2,
@@ -522,7 +533,7 @@ export default function ContributionWizardPage() {
 
   const donorInfoErrors = {
     name: state.donorName.trim().length < 2 ? "Nome deve ter pelo menos 2 caracteres" : "",
-    cpf: state.donorCpf.replace(/\D/g, "").length < 11 ? "CPF deve ter 11 dígitos" : "",
+    cpf: normalizeCpfDigits(state.donorCpf).length !== 11 ? "CPF deve ter 11 dígitos" : "",
     whatsapp: state.donorWhatsapp.trim().length < 8 ? "WhatsApp deve ter pelo menos 8 caracteres" : "",
     city: state.donorCity.trim().length < 2 ? "Cidade deve ter pelo menos 2 caracteres" : "",
   };
@@ -910,7 +921,8 @@ export default function ContributionWizardPage() {
                         inputMode="numeric"
                         placeholder="000.000.000-00"
                         value={state.donorCpf}
-                        onChange={(e) => setState({ ...state, donorCpf: e.target.value })}
+                        onChange={(e) => setState({ ...state, donorCpf: formatCpf(e.target.value) })}
+                        maxLength={14}
                         disabled={loading}
                         className={donorInfoErrors.cpf ? "border-red-500" : ""}
                         autoFocus

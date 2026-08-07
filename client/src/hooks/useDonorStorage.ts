@@ -20,7 +20,7 @@ function normalizeWhatsapp(value: string) {
 }
 
 function normalizeCpf(value: string) {
-  return value.replace(/\D/g, "");
+  return value.replace(/\D/g, "").slice(0, 11);
 }
 
 /**
@@ -48,11 +48,20 @@ export function useDonorStorage() {
       let parsedDonors: DonorData[] = [];
 
       if (stored) {
-        parsedDonors = JSON.parse(stored);
+        parsedDonors = (JSON.parse(stored) as DonorData[]).map((donor) => ({
+          ...donor,
+          donorCpf: normalizeCpf(donor.donorCpf || ""),
+          donorWhatsapp: normalizeWhatsapp(donor.donorWhatsapp || ""),
+        }));
         setDonors(parsedDonors);
       }
       if (storedCurrent) {
-        setCurrentDonor(JSON.parse(storedCurrent));
+        const parsedCurrent = JSON.parse(storedCurrent) as DonorData;
+        setCurrentDonor({
+          ...parsedCurrent,
+          donorCpf: normalizeCpf(parsedCurrent.donorCpf || ""),
+          donorWhatsapp: normalizeWhatsapp(parsedCurrent.donorWhatsapp || ""),
+        });
       }
     } catch (error) {
       console.error("Erro ao carregar doadores:", error);
