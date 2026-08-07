@@ -13,6 +13,7 @@ import {
 } from "../drizzle/schema";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
+import { listFallbackApprovedCashContributions } from "./cashValidationFallback";
 import { listFallbackTrackedMaterialContributions } from "./materialValidationFallback";
 import { storagePut } from "./storage";
 import { whatsappService } from "./whatsapp.service";
@@ -664,6 +665,27 @@ async function loadCampaignMetrics(
     });
     grouped.set(row.campaignId, campaignRows);
   });
+
+  if (process.env.NODE_ENV === "development") {
+    const approvedFallbackCash = listFallbackApprovedCashContributions();
+    const existingIds = new Set(rows.map((row) => row.id));
+
+    approvedFallbackCash.forEach((row) => {
+      if (!campaignIds.includes(row.campaignId)) return;
+      if (existingIds.has(row.id)) return;
+
+      const campaignRows = grouped.get(row.campaignId) ?? [];
+      campaignRows.push({
+        amount: row.amount,
+        contributorKey: row.donorWhatsapp
+          ? `whatsapp:${row.donorWhatsapp}`
+          : row.donorName
+            ? `name:${row.donorName.toLowerCase()}`
+            : `contribution:${row.id}`,
+      });
+      grouped.set(row.campaignId, campaignRows);
+    });
+  }
 
   const campaignRows = await db
     .select({ id: campaigns.id, goal: campaigns.goal, initialRaised: campaigns.raised })
@@ -1483,7 +1505,21 @@ export const campaignsRouter = router({
     if (!db) {
       const mappedActiveFallback = getMappedFallbackCampaigns({ status: "active" })
         .filter((campaign) => !isInternalLocalSeedCampaign(campaign));
-      const mergedActiveCampaigns = dedupeCampaignsById(mappedActiveFallback);
+      const mergedActiveCampaigns = dedupeCampaignsById(mappedActiveFallback).map((campaign) => ({
+        ...campaign,
+        ...deriveCampaignMetrics(
+          campaign.goal,
+          campaign.raised,
+          listFallbackApprovedCashContributions(campaign.id).map((row) => ({
+            amount: row.amount,
+            contributorKey: row.donorWhatsapp
+              ? `whatsapp:${row.donorWhatsapp}`
+              : row.donorName
+                ? `name:${row.donorName.toLowerCase()}`
+                : `contribution:${row.id}`,
+          })),
+        ),
+      }));
 
       return {
         activeCampaigns: mergedActiveCampaigns.length,
@@ -1576,8 +1612,24 @@ export const campaignsRouter = router({
         }
 
         if (fallbackCampaign) {
+          const fallbackMetrics = deriveCampaignMetrics(
+            fallbackCampaign.goal,
+            fallbackCampaign.raised,
+            listFallbackApprovedCashContributions(fallbackCampaign.id).map((row) => ({
+              amount: row.amount,
+              contributorKey: row.donorWhatsapp
+                ? `whatsapp:${row.donorWhatsapp}`
+                : row.donorName
+                  ? `name:${row.donorName.toLowerCase()}`
+                  : `contribution:${row.id}`,
+            })),
+          );
+
           return withFallbackRecantoContentIfEmpty(
-            withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaign)),
+            withMaterialProgressFromFallback({
+              ...withDefaultNeedsIfMissing(fallbackCampaign),
+              ...fallbackMetrics,
+            }),
           );
         }
 
@@ -1707,10 +1759,13 @@ export const campaignsRouter = router({
       const effectiveGoal = campaign.goal > 0
         ? campaign.goal
         : Math.max(0, Number(effectiveFallbackCampaign?.goal ?? 0));
-      const effectiveMetrics =
-        effectiveGoal > 0
-          ? deriveCampaignMetrics(effectiveGoal, campaign.raised, [])
-          : campaignMetrics;
+      const effectiveMetrics = effectiveGoal > 0
+        ? {
+            ...campaignMetrics,
+            remaining: Math.max(0, effectiveGoal - campaignMetrics.raised),
+            progress: Math.min(100, Math.round((campaignMetrics.raised / effectiveGoal) * 100)),
+          }
+        : campaignMetrics;
       const vipMediaConfigUpdate = updates.find((update) => update.title === VIP_MEDIA_CONFIG_TITLE);
       const vipContributionConfigUpdate = updates.find((update) => update.title === VIP_CONTRIBUTION_CONFIG_TITLE);
       const vipMediaImages = vipMediaConfigUpdate ? parseMediaUrls(vipMediaConfigUpdate.imageUrls) : [];

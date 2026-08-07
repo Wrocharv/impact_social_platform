@@ -161,6 +161,76 @@ describe("resolveVipContributionConfig", () => {
 });
 
 describe("campaigns.getById", () => {
+  it("soma as doações aprovadas ao total exibido no detalhe público", async () => {
+    const campaignRow = {
+      id: 55,
+      title: "Campanha com aprovações",
+      description: "Descrição da campanha",
+      longDescription: "Descrição longa da campanha",
+      goal: 20_000,
+      raised: 5_000,
+      status: "active",
+      imageUrl: null,
+      createdBy: 1,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+      startDate: null,
+      endDate: null,
+    };
+
+    const makeRowsQuery = (rows: Array<Record<string, unknown>>) => ({
+      then: (resolve: (value: Array<Record<string, unknown>>) => unknown) => resolve(rows),
+      limit: async () => rows,
+      orderBy: () => makeRowsQuery(rows),
+    });
+
+    getDbMock.mockResolvedValue({
+      select: vi.fn((projection: Record<string, unknown> | undefined) => {
+        if (projection && Object.keys(projection).length === 1 && "id" in projection) {
+          return { from: () => ({ where: () => ({ limit: async () => ([{ id: 1 }]) }) }) };
+        }
+
+        if (projection && "campaignId" in projection && "amount" in projection && "userId" in projection) {
+          return { from: () => ({ where: async () => ([
+            { id: 1, campaignId: 55, amount: 2_000, userId: null, donorEmail: "apoiador@example.com" },
+            { id: 2, campaignId: 55, amount: 500, userId: 8, donorEmail: null },
+          ]) }) };
+        }
+
+        if (projection && "campaignNeedId" in projection) {
+          return { from: () => ({ where: async () => ([]) }) };
+        }
+
+        if (projection && "initialRaised" in projection && "goal" in projection && "id" in projection) {
+          return {
+            from: () => ({
+              where: async () => ([{ id: 55, goal: 20_000, initialRaised: 5_000 }]),
+            }),
+          };
+        }
+
+        if (projection && "title" in projection && "description" in projection && "goal" in projection) {
+          return { from: () => ({ where: () => makeRowsQuery([campaignRow]) }) };
+        }
+
+        return { from: () => ({ where: () => makeRowsQuery([]) }) };
+      }),
+    });
+
+    const caller = appRouter.createCaller(createPublicContext());
+    const detail = await caller.campaigns.getById({ id: 55 });
+
+    expect(detail).not.toBeNull();
+    expect(detail).toMatchObject({
+      id: 55,
+      initialRaised: 5_000,
+      raised: 7_500,
+      remaining: 12_500,
+      progress: 38,
+      contributorsCount: 2,
+    });
+  });
+
   it("preserva a visibilidade do VIP quando a campanha define helpTierOptions", async () => {
     const dbRows = [{
       id: 55,
@@ -170,6 +240,7 @@ describe("campaigns.getById", () => {
       goal: 20_000,
       vipApartmentAmountCents: 7_500_00,
       raised: 0,
+      helpTierOptions: ["material", "financial"],
       status: "active",
       imageUrl: null,
       createdBy: 1,

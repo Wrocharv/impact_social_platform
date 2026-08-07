@@ -153,6 +153,28 @@ export function listFallbackRecentCashValidations(input?: { campaignId?: number;
     }));
 }
 
+export function listFallbackApprovedCashContributions(campaignId?: number) {
+  return readRows()
+    .filter((row) => {
+      if (campaignId && row.campaignId !== campaignId) return false;
+      return row.status === "approved" && row.paymentStatusDetail === "cash_validated_in_person";
+    })
+    .sort((left, right) => {
+      const rightTs = (right.validatedAt ?? right.updatedAt).getTime();
+      const leftTs = (left.validatedAt ?? left.updatedAt).getTime();
+      return rightTs - leftTs;
+    })
+    .map((row) => ({
+      id: row.id,
+      campaignId: row.campaignId,
+      amount: row.amount,
+      donorName: row.donorName,
+      donorWhatsapp: row.donorWhatsapp,
+      donorCity: row.donorCity,
+      validatedAt: row.validatedAt,
+    }));
+}
+
 export function reviewFallbackCashContribution(input: {
   contributionId: number;
   decision: "approve" | "reject";
