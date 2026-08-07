@@ -206,6 +206,41 @@ function mergeDbWithLocalFallback(dbPartners: PartnerRecord[]) {
   });
 }
 
+function preferText(primary?: string | null, secondary?: string | null) {
+  const normalizedPrimary = typeof primary === "string" ? primary.trim() : "";
+  if (normalizedPrimary.length > 0) return primary;
+
+  const normalizedSecondary = typeof secondary === "string" ? secondary.trim() : "";
+  if (normalizedSecondary.length > 0) return secondary;
+
+  return primary ?? secondary ?? null;
+}
+
+function enrichPartnerWithFallback(partner: PartnerRecord): PartnerRecord {
+  const normalizedKey = normalizePartnerKey(partner);
+  const fallback = getFallbackPartners().find((item) => item.id === partner.id)
+    ?? getFallbackPartners().find((item) => normalizePartnerKey(item) === normalizedKey);
+
+  if (!fallback) {
+    return applyCanonicalPartnerPresentation(partner);
+  }
+
+  return applyCanonicalPartnerPresentation({
+    ...partner,
+    name: preferText(partner.name, fallback.name) ?? partner.name,
+    ownerName: preferText(partner.ownerName, fallback.ownerName),
+    description: preferText(partner.description, fallback.description),
+    logoUrl: preferText(partner.logoUrl, fallback.logoUrl),
+    storePhotoUrl: preferText(partner.storePhotoUrl, fallback.storePhotoUrl),
+    ownerPhotoUrl: preferText(partner.ownerPhotoUrl, fallback.ownerPhotoUrl),
+    address: preferText(partner.address, fallback.address),
+    contactInfo: preferText(partner.contactInfo, fallback.contactInfo),
+    testimonialVideoUrl: preferText(partner.testimonialVideoUrl, fallback.testimonialVideoUrl),
+    testimonialText: preferText(partner.testimonialText, fallback.testimonialText),
+    website: preferText(partner.website, fallback.website),
+  });
+}
+
 function loadPartnersFromDisk(): PartnerRecord[] {
   try {
     const toDefaultPartners = () => {
@@ -490,7 +525,8 @@ export const partnersRouter = router({
         .select()
         .from(partners)
         .orderBy(asc(partners.name), asc(partners.id));
-      return mergeDbWithLocalFallback(dbPartners as PartnerRecord[]);
+      const enriched = (dbPartners as PartnerRecord[]).map(enrichPartnerWithFallback);
+      return mergeDbWithLocalFallback(enriched);
     } catch (error) {
       console.warn("[Partners] Full select failed in listPublished, trying legacy mode:", error);
       try {
@@ -525,7 +561,7 @@ export const partnersRouter = router({
           .where(eq(partners.id, input.id))
           .limit(1);
 
-        if (partner) return applyCanonicalPartnerPresentation(partner as PartnerRecord);
+        if (partner) return enrichPartnerWithFallback(partner as PartnerRecord);
         const localOnly = getLocalOnlyFallbackPartners().find((item) => item.id === input.id) ?? null;
         return localOnly ? applyCanonicalPartnerPresentation(localOnly) : null;
       } catch (error) {
@@ -570,7 +606,8 @@ export const partnersRouter = router({
         .select()
         .from(partners)
         .orderBy(asc(partners.name), asc(partners.id));
-      return mergeDbWithLocalFallback(dbPartners as PartnerRecord[]);
+      const enriched = (dbPartners as PartnerRecord[]).map(enrichPartnerWithFallback);
+      return mergeDbWithLocalFallback(enriched);
     } catch (error) {
       console.warn("[Partners] Full select failed in getAll, trying legacy mode:", error);
       try {
