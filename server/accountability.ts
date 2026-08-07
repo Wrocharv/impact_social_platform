@@ -23,6 +23,7 @@ const expenseCategorySchema = z.enum([
   "transport",
   "fees",
   "other",
+  "beneficiary_transfer",
 ]);
 
 const documentTypeSchema = z.enum(["invoice", "receipt", "report", "other"]);

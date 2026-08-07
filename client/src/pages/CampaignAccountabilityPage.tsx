@@ -185,7 +185,9 @@ function Metric({ label, value, accent = false, warning = false }: { label: stri
 }
 
 function categoryLabel(category: string) {
+  // beneficiary_transfer must come first to show prominently
   const labels: Record<string, string> = {
+    beneficiary_transfer: "Repasse a beneficiário",
     materials: "Materiais",
     labor: "Mão de obra",
     equipment: "Equipamentos",

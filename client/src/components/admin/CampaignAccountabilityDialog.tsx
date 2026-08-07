@@ -13,7 +13,7 @@ import { toast } from "sonner";
 type CampaignReference = { id: number; title: string };
 
 const EMPTY_EXPENSE = {
-  category: "materials" as "materials" | "labor" | "equipment" | "services" | "transport" | "fees" | "other",
+  category: "beneficiary_transfer" as "materials" | "labor" | "equipment" | "services" | "transport" | "fees" | "other" | "beneficiary_transfer",
   title: "",
   description: "",
   amount: "",
@@ -29,6 +29,7 @@ const EMPTY_DOCUMENT = {
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
+  beneficiary_transfer: "Repasse a beneficiário",
   materials: "Materiais",
   labor: "Mão de obra",
   equipment: "Equipamentos",

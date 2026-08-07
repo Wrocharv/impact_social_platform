@@ -278,6 +278,7 @@ export const campaignExpenses = mysqlTable("campaignExpenses", {
     "transport",
     "fees",
     "other",
+    "beneficiary_transfer",
   ]).notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
