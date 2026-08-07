@@ -28,18 +28,35 @@ export default function CheckoutPage() {
     const normalized = value.trim().replace(/\s+/g, "");
     if (!normalized) return NaN;
 
-    const hasComma = normalized.includes(",");
-    const hasDot = normalized.includes(".");
+    const lastComma = normalized.lastIndexOf(",");
+    const lastDot = normalized.lastIndexOf(".");
+    const hasComma = lastComma !== -1;
+    const hasDot = lastDot !== -1;
 
     if (hasComma && hasDot) {
-      return Number(normalized.replace(/\./g, "").replace(",", "."));
+      const decimalSeparator = lastComma > lastDot ? "," : ".";
+      const thousandSeparator = decimalSeparator === "," ? "." : ",";
+      const decimalNormalized = normalized
+        .replace(new RegExp(`\\${thousandSeparator}`, "g"), "")
+        .replace(decimalSeparator, ".");
+      return Number(decimalNormalized);
     }
 
-    if (hasComma) {
-      return Number(normalized.replace(",", "."));
+    if (hasComma || hasDot) {
+      const separator = hasComma ? "," : ".";
+      const parts = normalized.split(separator);
+
+      if (parts.length === 2) {
+        const decimalPart = parts[1] ?? "";
+        if (decimalPart.length <= 2) {
+          return Number(`${parts[0]}.${decimalPart}`);
+        }
+      }
+
+      return Number(normalized.replace(/[.,]/g, ""));
     }
 
-    return Number(normalized.replace(/\./g, ""));
+    return Number(normalized);
   }
 
   const handleForgetSavedDonor = () => {

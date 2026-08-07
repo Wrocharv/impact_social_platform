@@ -41,19 +41,35 @@ const formatCurrency = (valueInCents: number) =>
 const parseBrlAmount = (value: string) => {
   const normalized = value.trim().replace(/\s+/g, "");
   if (!normalized) return NaN;
-
-  const hasComma = normalized.includes(",");
-  const hasDot = normalized.includes(".");
+  const lastComma = normalized.lastIndexOf(",");
+  const lastDot = normalized.lastIndexOf(".");
+  const hasComma = lastComma !== -1;
+  const hasDot = lastDot !== -1;
 
   if (hasComma && hasDot) {
-    return Number(normalized.replace(/\./g, "").replace(",", "."));
+    const decimalSeparator = lastComma > lastDot ? "," : ".";
+    const thousandSeparator = decimalSeparator === "," ? "." : ",";
+    const decimalNormalized = normalized
+      .replace(new RegExp(`\\${thousandSeparator}`, "g"), "")
+      .replace(decimalSeparator, ".");
+    return Number(decimalNormalized);
   }
 
-  if (hasComma) {
-    return Number(normalized.replace(",", "."));
+  if (hasComma || hasDot) {
+    const separator = hasComma ? "," : ".";
+    const parts = normalized.split(separator);
+
+    if (parts.length === 2) {
+      const decimalPart = parts[1] ?? "";
+      if (decimalPart.length <= 2) {
+        return Number(`${parts[0]}.${decimalPart}`);
+      }
+    }
+
+    return Number(normalized.replace(/[.,]/g, ""));
   }
 
-  return Number(normalized.replace(/\./g, ""));
+  return Number(normalized);
 };
 
 const toEmbedVideoUrl = (rawUrl: string) => {
@@ -189,6 +205,7 @@ export default function ContributionWizardPage() {
     return "type";
   });
   const [lastLookupKey, setLastLookupKey] = useState("");
+  const [financialAmountInput, setFinancialAmountInput] = useState("");
   const [vipMediaReviewed, setVipMediaReviewed] = useState(false);
   const [vipVideoIndex, setVipVideoIndex] = useState(0);
   const [vipVideoFailed, setVipVideoFailed] = useState(false);
@@ -1216,8 +1233,13 @@ export default function ContributionWizardPage() {
                           type="text"
                           placeholder="Ex.: 1000 ou 1.000,00"
                           inputMode="decimal"
-                          value={state.amount || ""}
-                          onChange={(e) => setState({ ...state, amount: e.target.value ? parseBrlAmount(e.target.value) : undefined })}
+                          value={financialAmountInput || (state.amount ? String(state.amount).replace(".", ",") : "")}
+                          onChange={(e) => {
+                            const inputValue = e.target.value;
+                            setFinancialAmountInput(inputValue);
+                            const parsed = parseBrlAmount(inputValue);
+                            setState({ ...state, amount: Number.isFinite(parsed) ? parsed : undefined });
+                          }}
                           disabled={loading}
                         />
                         <p className="mt-1 text-xs text-gray-500">Digite 1000 ou 1.000,00. O sistema entende os dois formatos automaticamente.</p>
