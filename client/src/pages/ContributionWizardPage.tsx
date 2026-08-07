@@ -38,6 +38,23 @@ type NeedItem = {
 
 const formatCurrency = (valueInCents: number) =>
   (valueInCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const parseBrlAmount = (value: string) => {
+  const normalized = value.trim().replace(/\s+/g, "");
+  if (!normalized) return NaN;
+
+  const hasComma = normalized.includes(",");
+  const hasDot = normalized.includes(".");
+
+  if (hasComma && hasDot) {
+    return Number(normalized.replace(/\./g, "").replace(",", "."));
+  }
+
+  if (hasComma) {
+    return Number(normalized.replace(",", "."));
+  }
+
+  return Number(normalized.replace(/\./g, ""));
+};
 
 const toEmbedVideoUrl = (rawUrl: string) => {
   try {
@@ -1186,14 +1203,14 @@ export default function ContributionWizardPage() {
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Valor (R$) *</label>
                         <Input
-                          type="number"
-                          placeholder="100,00"
-                          step="0.01"
-                          min="1"
+                          type="text"
+                          placeholder="Ex.: 1000 ou 1.000,00"
+                          inputMode="decimal"
                           value={state.amount || ""}
-                          onChange={(e) => setState({ ...state, amount: e.target.value ? parseFloat(e.target.value) : undefined })}
+                          onChange={(e) => setState({ ...state, amount: e.target.value ? parseBrlAmount(e.target.value) : undefined })}
                           disabled={loading}
                         />
+                        <p className="mt-1 text-xs text-gray-500">Digite 1000 ou 1.000,00. O sistema entende os dois formatos automaticamente.</p>
                       </div>
 
                       <div>
@@ -1348,8 +1365,6 @@ export default function ContributionWizardPage() {
                           type="number"
                           min={1}
                           step={1}
-                          placeholder="Ex: 100"
-                          value={state.materialQuantity}
                           onChange={(e) => setState({ ...state, materialQuantity: e.target.value })}
                           disabled={loading}
                         />

@@ -320,11 +320,12 @@ export default function CheckoutPage() {
                     <Input
                       type="text"
                       inputMode="decimal"
-                      placeholder="Ex.: 1.000,00"
+                      placeholder="Ex.: 1000 ou 1.000,00"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       className="text-lg"
                     />
+                    <p className="mt-1 text-xs text-[#6b7280]">Digite 1000 ou 1.000,00. O sistema converte automaticamente para reais.</p>
                   </div>
 
                   {/* Donor Name */}
