@@ -482,6 +482,7 @@ export default function ContributionWizardPage() {
 
   const donorInfoErrors = {
     name: state.donorName.trim().length < 2 ? "Nome deve ter pelo menos 2 caracteres" : "",
+    cpf: state.donorCpf.replace(/\D/g, "").length < 11 ? "CPF deve ter 11 dígitos" : "",
     whatsapp: state.donorWhatsapp.trim().length < 8 ? "WhatsApp deve ter pelo menos 8 caracteres" : "",
     city: state.donorCity.trim().length < 2 ? "Cidade deve ter pelo menos 2 caracteres" : "",
   };
@@ -499,7 +500,7 @@ export default function ContributionWizardPage() {
   const handleNextStep = () => {
     if (step === "type" && isValid.type) {
       setStep("donor-info");
-    } else if (step === "donor-info" && isValid.donorInfo) {
+    } else if (step === "donor-info" && isValid.donorInfo && !donorInfoErrors.cpf) {
       if (isSingleRegistrationFlow && state.type === null) {
         saveDonor({
           donorName: state.donorName,
@@ -868,7 +869,7 @@ export default function ContributionWizardPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">CPF (opcional)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">CPF *</label>
                       <Input
                         autoComplete="off"
                         inputMode="numeric"
@@ -876,7 +877,9 @@ export default function ContributionWizardPage() {
                         value={state.donorCpf}
                         onChange={(e) => setState({ ...state, donorCpf: e.target.value })}
                         disabled={loading}
+                        className={donorInfoErrors.cpf ? "border-red-500" : ""}
                       />
+                      {donorInfoErrors.cpf && <p className="text-xs text-red-500 mt-1">{donorInfoErrors.cpf}</p>}
                     </div>
 
                     <div>

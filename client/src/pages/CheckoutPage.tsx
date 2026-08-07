@@ -97,8 +97,8 @@ export default function CheckoutPage() {
     e.preventDefault();
 
     const amountInCents = Math.round(parseBrlAmount(amount) * 100);
-    if (!Number.isInteger(amountInCents) || amountInCents < 100 || !donorEmail.trim() || donorWhatsapp.replace(/\D/g, "").length < 8 || donorCity.trim().length < 2) {
-      toast.error("Preencha os campos obrigatórios (incluindo WhatsApp e cidade)");
+    if (!Number.isInteger(amountInCents) || amountInCents < 100 || donorCpf.replace(/\D/g, "").length < 11 || !donorEmail.trim() || donorWhatsapp.replace(/\D/g, "").length < 8 || donorCity.trim().length < 2) {
+      toast.error("Preencha os campos obrigatórios, incluindo CPF, WhatsApp e cidade");
       return;
     }
 
@@ -342,7 +342,7 @@ export default function CheckoutPage() {
 
                   <div>
                     <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">
-                      CPF (opcional)
+                      CPF *
                     </label>
                     <Input
                       type="text"
