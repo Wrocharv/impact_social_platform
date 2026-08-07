@@ -804,9 +804,10 @@ export const contributionsRouter = router({
   getPendingCashValidations: adminProcedure
     .input(z.object({ campaignId: z.number().int().positive().optional() }).optional())
     .query(async ({ input }) => {
+      const fallbackPending = listFallbackPendingCashValidations(input?.campaignId);
       const db = await getDb();
       if (!db) {
-        return listFallbackPendingCashValidations(input?.campaignId);
+        return fallbackPending;
       }
 
       const conditions = [
@@ -836,7 +837,7 @@ export const contributionsRouter = router({
       }
 
       try {
-        return await db
+        const rows = await db
           .select({
             id: contributions.id,
             campaignId: contributions.campaignId,
@@ -850,6 +851,20 @@ export const contributionsRouter = router({
           .from(contributions)
           .where(and(...conditions))
           .orderBy(desc(contributions.createdAt));
+
+        if (!fallbackPending.length) {
+          return rows;
+        }
+
+        const existingIds = new Set(rows.map((row) => row.id));
+        const merged = [...rows];
+        for (const fallbackRow of fallbackPending) {
+          if (!existingIds.has(fallbackRow.id)) {
+            merged.push(fallbackRow);
+          }
+        }
+
+        return merged;
       } catch (error) {
         if (!isMissingColumnError(error)) {
           throw error;
@@ -876,12 +891,44 @@ export const contributionsRouter = router({
           .where(and(...legacyConditions))
           .orderBy(desc(contributions.createdAt));
 
-        return legacyRows.map((row) => ({
+        const mappedLegacyRows: Array<{
+          id: number;
+          campaignId: number;
+          donorName: string | null;
+          donorWhatsapp: string;
+          donorCity: string;
+          amount: number | null;
+          createdAt: Date;
+          paymentStatusDetail: string | null;
+        }> = legacyRows.map((row) => ({
           ...row,
           donorWhatsapp: "",
           donorCity: "",
           paymentStatusDetail: null,
         }));
+
+        if (!fallbackPending.length) {
+          return mappedLegacyRows;
+        }
+
+        const existingIds = new Set(mappedLegacyRows.map((row) => row.id));
+        const merged = [...mappedLegacyRows];
+        for (const fallbackRow of fallbackPending) {
+          if (!existingIds.has(fallbackRow.id)) {
+            merged.push({
+              id: fallbackRow.id,
+              campaignId: fallbackRow.campaignId,
+              donorName: fallbackRow.donorName,
+              donorWhatsapp: fallbackRow.donorWhatsapp ?? "",
+              donorCity: fallbackRow.donorCity ?? "",
+              amount: fallbackRow.amount,
+              createdAt: fallbackRow.createdAt,
+              paymentStatusDetail: fallbackRow.paymentStatusDetail ?? null,
+            });
+          }
+        }
+
+        return merged;
       }
     }),
 
