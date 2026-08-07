@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { getSiteContent } from "@/lib/siteContent";
 
-const DEFAULT_HOME_PRESENTATION_VIDEO_URL = "/partner-demo.mp4";
+const DEFAULT_HOME_PRESENTATION_VIDEO_URL = "";
 
 const formatCurrency = (value: number) =>
   (value / 100).toLocaleString("pt-BR", {

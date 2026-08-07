@@ -10,8 +10,8 @@ import { Link, useRoute } from "wouter";
 const SPECIAL_APARTMENT_DONATION_CENTS = 120_000_00;
 const HOTEL_CAMPAIGN_ID = 100001;
 const HOTEL_LEGACY_CAMPAIGN_ID = 1;
-const DEFAULT_VIP_MEDIA_VIDEO_URL = "/vip-demo.mp4";
-const DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL = "/vip-demo.mp4";
+const DEFAULT_VIP_MEDIA_VIDEO_URL = "";
+const DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL = "";
 const DEFAULT_VIP_MEDIA_IMAGES = ["/render-quarto.jpg", "/render-hotel.jpg", "/obra-lavanderia.jpg"];
 
 const formatCurrency = (valueInCents: number) =>

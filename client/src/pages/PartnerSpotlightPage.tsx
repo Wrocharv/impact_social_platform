@@ -134,11 +134,11 @@ function getCustomPartnerVideo(name?: string | null) {
     .trim();
 
   if (normalizedName === "a predimais" || normalizedName.includes("predimais")) {
-    return "/partner-demo.mp4";
+    return null;
   }
 
   if (normalizedName.includes("multipla escolha")) {
-    return "/partner-demo.mp4";
+    return null;
   }
 
   return null;

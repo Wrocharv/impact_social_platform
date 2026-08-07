@@ -108,8 +108,8 @@ const sortNeeds = (needs: NeedItem[]) =>
 const HOTEL_CAMPAIGN_ID = 100001;
 const HOTEL_LEGACY_CAMPAIGN_ID = 1;
 const DEFAULT_VIP_APARTMENT_AMOUNT_CENTS = 120_000_00;
-const DEFAULT_VIP_MEDIA_VIDEO_URL = "/vip-demo.mp4";
-const DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL = "/vip-demo.mp4";
+const DEFAULT_VIP_MEDIA_VIDEO_URL = "";
+const DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL = "";
 const DEFAULT_VIP_MEDIA_IMAGES = ["/render-quarto.jpg", "/render-hotel.jpg", "/obra-lavanderia.jpg"];
 
 interface WizardState {
