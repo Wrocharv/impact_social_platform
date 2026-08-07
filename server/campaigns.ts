@@ -1636,6 +1636,11 @@ export const campaignsRouter = router({
 
       const matchingFallbackCampaign = findMatchingFallbackCampaign(campaign, fallbackCampaigns) ?? effectiveFallbackCampaign;
 
+      // Include fallback ID so donations saved with 100002 are counted even when DB campaign has a different real ID
+      const metricsIds = responseCampaignId !== campaign.id
+        ? [campaign.id, responseCampaignId]
+        : [campaign.id];
+
       const [updates, dbNeeds, documents, metrics, materialContributions] = await Promise.all([
         db
           .select()
@@ -1648,7 +1653,7 @@ export const campaignsRouter = router({
           .from(transparencyDocuments)
           .where(eq(transparencyDocuments.campaignId, campaign.id))
           .orderBy(desc(transparencyDocuments.uploadedAt)),
-        loadCampaignMetrics(db, [campaign.id]),
+        loadCampaignMetrics(db, metricsIds),
         (async () => {
           try {
             return await db
@@ -1686,8 +1691,19 @@ export const campaignsRouter = router({
             createdAt: campaign.createdAt,
           }))
         : dbNeeds;
-      const campaignMetrics =
-        metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, []);
+      // Merge metrics from fallback ID (e.g. 100002) into the real campaign ID metrics
+      const fallbackMetrics = responseCampaignId !== campaign.id ? metrics.get(responseCampaignId) : undefined;
+      const baseMetrics = metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, []);
+      const campaignMetrics = fallbackMetrics
+        ? {
+            raised: baseMetrics.raised + fallbackMetrics.raised,
+            remaining: Math.max(0, baseMetrics.remaining - fallbackMetrics.raised),
+            progress: campaign.goal > 0
+              ? Math.min(100, Math.round(((baseMetrics.raised + fallbackMetrics.raised) / campaign.goal) * 100))
+              : baseMetrics.progress,
+            contributorsCount: baseMetrics.contributorsCount + fallbackMetrics.contributorsCount,
+          }
+        : baseMetrics;
       const effectiveGoal = campaign.goal > 0
         ? campaign.goal
         : Math.max(0, Number(effectiveFallbackCampaign?.goal ?? 0));
