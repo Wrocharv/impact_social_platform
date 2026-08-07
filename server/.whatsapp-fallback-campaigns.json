@@ -12,7 +12,7 @@
     "imageUrl": "/obra-paredes.jpg",
     "createdBy": 1,
     "createdAt": "2026-07-29T10:00:00.000Z",
-    "updatedAt": "2026-08-07T01:31:06.447Z",
+    "updatedAt": "2026-08-07T03:17:50.751Z",
     "needs": [
       {
         "id": 510001,
@@ -250,7 +250,13 @@
       "/uploads/campaigns/1786066219524-render-quarto.jpg"
     ],
     "vipVideoUrls": [
-      "/uploads/campaigns/1786062598862-Quarto_Vip.mp4"
+      "/uploads/campaigns/1786062598862-Quarto_Vip.mp4",
+      "/uploads/campaigns/1786072668667-Quarto_Vip.mov"
+    ],
+    "helpTierOptions": [
+      "material",
+      "financial",
+      "vip"
     ]
   },
   {
