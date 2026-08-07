@@ -165,7 +165,7 @@ export default function ContributionWizardPage() {
   const utils = trpc.useUtils();
 
   // Carregar dados de doadores salvos
-  const { isLoaded, currentDonor, saveDonor, clearSavedDonors } = useDonorStorage();
+  const { isLoaded, currentDonor, saveDonor, rememberDonorProfile, clearSavedDonors } = useDonorStorage();
 
   const campaignQuery = trpc.campaigns.getById.useQuery(
     { id: campaignId },
@@ -288,8 +288,9 @@ export default function ContributionWizardPage() {
     const normalizedWhatsapp = state.donorWhatsapp.replace(/\D/g, "");
     const normalizedName = state.donorName.trim().toLowerCase();
     const normalizedEmail = state.donorEmail.trim().toLowerCase();
+    const normalizedEmailLookup = /^\S+@\S+\.\S+$/.test(normalizedEmail) ? normalizedEmail : "";
 
-    if (normalizedCpf.length < 8 && normalizedWhatsapp.length < 8 && normalizedName.length < 3 && !normalizedEmail) return;
+    if (normalizedCpf.length < 11 && normalizedWhatsapp.length < 8 && normalizedName.length < 3 && !normalizedEmailLookup) return;
 
     const lookupKey = `${normalizedCpf}|${normalizedWhatsapp}|${normalizedName}|${normalizedEmail}`;
     if (lookupKey === lastLookupKey) return;
@@ -300,10 +301,10 @@ export default function ContributionWizardPage() {
 
       try {
         profile = await utils.contributions.getDonorProfileLookup.fetch({
-          donorCpf: normalizedCpf.length >= 8 ? state.donorCpf : undefined,
+          donorCpf: normalizedCpf.length >= 11 ? state.donorCpf : undefined,
           donorWhatsapp: normalizedWhatsapp.length >= 8 ? state.donorWhatsapp : undefined,
           donorName: normalizedName.length >= 3 ? state.donorName : undefined,
-          donorEmail: normalizedEmail || undefined,
+          donorEmail: normalizedEmailLookup || undefined,
         });
       } catch {
         profile = null;
@@ -519,7 +520,7 @@ export default function ContributionWizardPage() {
       setStep("donor-info");
     } else if (step === "donor-info" && isValid.donorInfo && !donorInfoErrors.cpf) {
       if (isSingleRegistrationFlow && state.type === null) {
-        saveDonor({
+        rememberDonorProfile({
           donorName: state.donorName,
           donorCpf: state.donorCpf,
           donorWhatsapp: state.donorWhatsapp,
@@ -535,6 +536,14 @@ export default function ContributionWizardPage() {
         setStep("payment");
         return;
       }
+      rememberDonorProfile({
+        donorName: state.donorName,
+        donorCpf: state.donorCpf,
+        donorWhatsapp: state.donorWhatsapp,
+        donorEmail: state.donorEmail,
+        donorCity: state.donorCity,
+        donorChurch: state.donorChurch,
+      });
       setStep("details");
     } else if (step === "vip-showcase") {
       if (!vipMediaReviewed) {

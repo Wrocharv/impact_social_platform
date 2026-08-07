@@ -134,6 +134,50 @@ export function useDonorStorage() {
     return donor;
   }
 
+  function rememberDonorProfile(donorData: Omit<DonorData, "donorId" | "createdAt" | "donationsCount">) {
+    const normalizedCpf = normalizeCpf(donorData.donorCpf.trim());
+    const normalizedWhatsapp = normalizeWhatsapp(donorData.donorWhatsapp.trim());
+    const normalizedEmail = donorData.donorEmail.trim().toLowerCase();
+    const normalizedName = donorData.donorName.trim().toLowerCase();
+    const existing = donors.find((d) => normalizeCpf(d.donorCpf || "") === normalizedCpf)
+      || donors.find((d) => normalizeWhatsapp(d.donorWhatsapp) === normalizedWhatsapp)
+      || donors.find((d) => d.donorEmail.trim().toLowerCase() === normalizedEmail)
+      || donors.find((d) => d.donorName.trim().toLowerCase() === normalizedName);
+
+    const donor: DonorData = existing
+      ? {
+          ...existing,
+          donorName: donorData.donorName.trim() || existing.donorName,
+          donorCpf: normalizedCpf || existing.donorCpf,
+          donorEmail: donorData.donorEmail.trim() || existing.donorEmail,
+          donorCity: donorData.donorCity.trim() || existing.donorCity,
+          donorChurch: donorData.donorChurch.trim() || existing.donorChurch,
+        }
+      : {
+          ...donorData,
+          donorCpf: normalizedCpf || "",
+          donorWhatsapp: normalizedWhatsapp,
+          donorName: donorData.donorName.trim(),
+          donorEmail: donorData.donorEmail.trim(),
+          donorCity: donorData.donorCity.trim(),
+          donorChurch: donorData.donorChurch.trim(),
+          donorId: generateDonorId(),
+          createdAt: new Date().toISOString(),
+          donationsCount: 0,
+        };
+
+    const nextDonors = existing
+      ? donors.map((d) => (d.donorId === donor.donorId ? donor : d))
+      : [...donors, donor];
+
+    setDonors(nextDonors);
+    setCurrentDonor(donor);
+    localStorage.setItem(DONORS_STORAGE_KEY, JSON.stringify(nextDonors));
+    localStorage.setItem(CURRENT_DONOR_KEY, JSON.stringify(donor));
+
+    return donor;
+  }
+
   /**
    * Limpar doador atual (não remove do histórico)
    */
@@ -174,6 +218,7 @@ export function useDonorStorage() {
     donors,
     currentDonor,
     saveDonor,
+    rememberDonorProfile,
     clearCurrentDonor,
     clearSavedDonors,
       findDonorByCpf,
