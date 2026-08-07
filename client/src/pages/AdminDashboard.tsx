@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { AlertCircle, Building2, CheckCircle2, Edit2, ExternalLink, FileText, Handshake, Megaphone, PackagePlus, Plus, Trash2, XCircle } from "lucide-react";
+import { AlertCircle, Building2, CheckCircle2, Edit2, ExternalLink, FileText, Handshake, Megaphone, PackagePlus, Plus, Trash2, Users, XCircle } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { isAdminUser } from "@/_core/hooks/adminAccess";
 import CampaignAccountabilityDialog from "@/components/admin/CampaignAccountabilityDialog";
@@ -126,7 +126,7 @@ export default function AdminDashboard() {
   const utils = trpc.useUtils();
   const isAdmin = isAdminUser(user, ["gospeltv@gmail.com"]);
   const isLocalhost = window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1");
-  const [activeTab, setActiveTab] = useState<"campaigns" | "partners">(() =>
+  const [activeTab, setActiveTab] = useState<"campaigns" | "partners" | "community">(() =>
     new URLSearchParams(window.location.search).get("tab") === "partners" ? "partners" : "campaigns",
   );
   const [isCreateCampaignOpen, setIsCreateCampaignOpen] = useState(false);
@@ -167,6 +167,8 @@ export default function AdminDashboard() {
   const selectedValidationCampaignId = validationCampaignFilter === "all"
     ? undefined
     : Number.parseInt(validationCampaignFilter, 10);
+
+  const registeredDonorsQuery = trpc.contributions.getRegisteredDonors.useQuery(undefined, { enabled: isAdmin });
 
   const campaignsQuery = trpc.campaigns.getAll.useQuery(undefined, { enabled: isAdmin });
   const partnersQuery = trpc.partners.getAll.useQuery(undefined, { enabled: isAdmin });
@@ -1020,10 +1022,11 @@ export default function AdminDashboard() {
           <p className="mt-2 text-[#66736a]">Gerencie campanhas e os parceiros exibidos publicamente.</p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "campaigns" | "partners")} className="space-y-7">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "campaigns" | "partners" | "community")} className="space-y-7">
           <TabsList className="h-auto w-full justify-start gap-1 rounded-xl bg-[#eaf1e8] p-1 sm:w-auto">
             <TabsTrigger value="campaigns" className="min-h-11 gap-2 px-5"><Building2 className="h-4 w-4" /> Campanhas</TabsTrigger>
             <TabsTrigger value="partners" className="min-h-11 gap-2 px-5"><Handshake className="h-4 w-4" /> Parceiros</TabsTrigger>
+            <TabsTrigger value="community" className="min-h-11 gap-2 px-5"><Users className="h-4 w-4" /> Comunidade</TabsTrigger>
           </TabsList>
 
           <TabsContent value="campaigns" className="space-y-6">
@@ -1727,6 +1730,85 @@ export default function AdminDashboard() {
                 ))}
               </div>
             ) : <EmptyCard icon={Handshake} title="Nenhum parceiro cadastrado" description="Cadastre somente parceiros cuja exibição pública já tenha sido autorizada." action={<Button onClick={openNewPartner}>Cadastrar parceiro</Button>} />}
+          </TabsContent>
+
+          <TabsContent value="community" className="space-y-6">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div>
+                <h2 className="text-2xl font-bold text-[#243128]">Comunidade de doadores</h2>
+                <p className="mt-1 text-[#66736a]">Pessoas cadastradas via doação ou registro, disponíveis para contato sobre novas campanhas.</p>
+              </div>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  const donors = registeredDonorsQuery.data ?? [];
+                  if (!donors.length) { toast.error("Nenhum doador para exportar."); return; }
+                  const header = "Nome,CPF,WhatsApp,Email,Cidade,Igreja,Total doado (R$),Doações";
+                  const rows = donors.map((d) => [
+                    d.donorName ?? "",
+                    d.donorCpf ?? "",
+                    d.donorWhatsapp ?? "",
+                    d.donorEmail ?? "",
+                    d.donorCity ?? "",
+                    d.donorChurch ?? "",
+                    ((d.totalAmountCents ?? 0) / 100).toFixed(2).replace(".", ","),
+                    String(d.donationsCount ?? 0),
+                  ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+                  const csv = [header, ...rows].join("\n");
+                  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url; a.download = "comunidade-doadores.csv"; a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                <FileText className="h-4 w-4" /> Exportar CSV
+              </Button>
+            </div>
+            {registeredDonorsQuery.isLoading ? (
+              <p className="text-sm text-[#66736a]">Carregando comunidade...</p>
+            ) : registeredDonorsQuery.isError ? (
+              <Card className="border-red-200 bg-red-50 p-4 text-sm text-red-700">Não foi possível carregar os doadores.</Card>
+            ) : registeredDonorsQuery.data?.length ? (
+              <Card className="overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="bg-[#eef3ec] text-[#2d2d2d]">
+                      <tr>
+                        <th className="px-4 py-3 font-semibold">Nome</th>
+                        <th className="px-4 py-3 font-semibold">WhatsApp</th>
+                        <th className="px-4 py-3 font-semibold">Cidade</th>
+                        <th className="px-4 py-3 font-semibold">Igreja</th>
+                        <th className="px-4 py-3 font-semibold">Total</th>
+                        <th className="px-4 py-3 font-semibold">Doações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {registeredDonorsQuery.data.map((donor, idx) => (
+                        <tr key={idx} className="border-t border-[#e2e9df]">
+                          <td className="px-4 py-2 font-medium text-[#2d2d2d]">{donor.donorName || "—"}</td>
+                          <td className="px-4 py-2 text-[#4d5e4f]">{donor.donorWhatsapp || "—"}</td>
+                          <td className="px-4 py-2 text-[#4d5e4f]">{donor.donorCity || "—"}</td>
+                          <td className="px-4 py-2 text-[#4d5e4f]">{donor.donorChurch || "—"}</td>
+                          <td className="px-4 py-2 text-[#228B22] font-semibold">
+                            {((donor.totalAmountCents ?? 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                          </td>
+                          <td className="px-4 py-2 text-[#4d5e4f]">{donor.donationsCount ?? 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="px-4 py-3 text-xs text-[#66736a]">{registeredDonorsQuery.data.length} pessoa(s) cadastrada(s)</p>
+              </Card>
+            ) : (
+              <Card className="p-8 text-center">
+                <Users className="mx-auto h-10 w-10 text-[#b0bfb0]" />
+                <p className="mt-3 font-semibold text-[#2d2d2d]">Nenhum doador cadastrado ainda</p>
+                <p className="mt-1 text-sm text-[#66736a]">Quando alguém fizer uma doação ou se cadastrar, aparece aqui.</p>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
 
