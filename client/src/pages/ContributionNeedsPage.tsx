@@ -33,6 +33,8 @@ type SelectedNeed = {
   unitValueCents: number;
 };
 
+type BatchStep = "selection" | "settlement";
+
 const formatCurrency = (valueInCents: number) =>
   (valueInCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -79,6 +81,7 @@ export default function ContributionNeedsPage() {
   const [materialQuantities, setMaterialQuantities] = useState<Record<number, string>>({});
   const [selectedNeeds, setSelectedNeeds] = useState<Record<number, SelectedNeed>>({});
   const [isSubmittingBatch, setIsSubmittingBatch] = useState(false);
+  const [batchStep, setBatchStep] = useState<BatchStep>("selection");
   const [, setRefreshVersion] = useState(0);
   const createMaterial = trpc.contributions.createMaterialContribution.useMutation();
 
@@ -198,7 +201,27 @@ export default function ContributionNeedsPage() {
     });
 
     await campaignQuery.refetch();
+    setBatchStep("selection");
     setIsSubmittingBatch(false);
+  };
+
+  const handleProceedToSettlement = () => {
+    if (!selectedNeedEntries.length) {
+      toast.error("Selecione pelo menos um item para continuar.");
+      return;
+    }
+
+    setBatchStep("settlement");
+  };
+
+  const handlePayEquivalent = () => {
+    if (selectedTotalEstimatedCents <= 0) {
+      toast.error("Não foi possível calcular o valor equivalente dos itens selecionados.");
+      return;
+    }
+
+    const amountInReais = (selectedTotalEstimatedCents / 100).toFixed(2);
+    setLocation(`/contribute/wizard/${campaignId}?type=financial&amount=${amountInReais}`);
   };
 
   useEffect(() => {
@@ -447,7 +470,7 @@ export default function ContributionNeedsPage() {
           )}
         </Card>
 
-        {hasSingleRegistration && (
+        {hasSingleRegistration && batchStep === "selection" && (
           <Card className="mt-6 border-[#dbe7d8] bg-[#f9fcf8] p-5">
             <p className="text-sm font-semibold text-[#2d2d2d]">Itens selecionados para doar</p>
             {selectedNeedEntries.length > 0 ? (
@@ -466,9 +489,9 @@ export default function ContributionNeedsPage() {
                     type="button"
                     className="bg-[#228B22] text-white hover:bg-[#1b711b]"
                     disabled={isSubmittingBatch}
-                    onClick={handleSubmitSelectedNeeds}
+                    onClick={handleProceedToSettlement}
                   >
-                    {isSubmittingBatch ? "Enviando itens..." : "Confirmar itens e enviar para validação"}
+                    Continuar para finalização →
                   </Button>
                   <Button
                     type="button"
@@ -483,6 +506,54 @@ export default function ContributionNeedsPage() {
             ) : (
               <p className="mt-2 text-sm text-[#5b655c]">Adicione os itens da tabela e confirme tudo de uma vez.</p>
             )}
+          </Card>
+        )}
+
+        {hasSingleRegistration && batchStep === "settlement" && (
+          <Card className="mt-6 border-[#dbe7d8] bg-[#f9fcf8] p-5">
+            <p className="text-sm font-semibold text-[#2d2d2d]">Finalização da doação de materiais</p>
+            <p className="mt-2 text-sm text-[#5b655c]">Escolha como deseja concluir os itens selecionados.</p>
+
+            <div className="mt-3 space-y-2">
+              {selectedNeedEntries.map((item) => (
+                <div key={item.needId} className="flex items-center justify-between rounded-md border border-[#e2e9df] bg-white px-3 py-2 text-sm">
+                  <span className="font-medium text-[#2d2d2d]">{normalizeNeedLabel(item.needName)} x {item.quantityExact}</span>
+                  <span className="text-[#4d5e4f]">{formatCurrency(item.quantityExact * item.unitValueCents)}</span>
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-3 text-sm font-semibold text-[#1f3d2b]">Total estimado: {formatCurrency(selectedTotalEstimatedCents)}</p>
+
+            <div className="mt-4 grid gap-2 md:grid-cols-2">
+              <Button
+                type="button"
+                className="bg-green-700 text-white hover:bg-green-800"
+                disabled={isSubmittingBatch}
+                onClick={handleSubmitSelectedNeeds}
+              >
+                {isSubmittingBatch ? "Enviando para validação..." : "Entregar material (validação presencial)"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSubmittingBatch}
+                onClick={handlePayEquivalent}
+              >
+                Pagar valor equivalente em dinheiro
+              </Button>
+            </div>
+
+            <div className="mt-3">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={isSubmittingBatch}
+                onClick={() => setBatchStep("selection")}
+              >
+                ← Voltar para itens selecionados
+              </Button>
+            </div>
           </Card>
         )}
 
