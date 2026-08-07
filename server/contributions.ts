@@ -5,6 +5,7 @@ import { campaignNeeds, campaigns, contributions, users } from "../drizzle/schem
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import {
   createFallbackCashContribution,
+  listFallbackCashContributions,
   listFallbackPendingCashValidations,
   listFallbackRecentCashValidations,
   reviewFallbackCashContribution,
@@ -14,6 +15,7 @@ import {
   createFallbackMaterialContribution,
   getFallbackMaterialTrackedQuantityForNeed,
   hasFallbackMaterialDonationForNeed,
+  listFallbackMaterialContributions,
   listFallbackPendingMaterialValidations,
   listFallbackRecentMaterialValidations,
   reviewFallbackMaterialContribution,
@@ -264,9 +266,12 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
         campaignId: input.campaignId,
         campaignNeedId: input.campaignNeedId,
         donorName: input.donorName,
+        donorCpf,
         donorEmail,
         donorWhatsapp,
         donorCity: input.donorCity,
+        donorChurch: input.donorChurch,
+        allowPublicDisplay: Boolean(input.allowPublicDisplay),
         description,
         quantity: input.quantity,
         quantityExact: input.quantityExact,
@@ -586,10 +591,6 @@ export const contributionsRouter = router({
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) {
-        return null;
-      }
-
       const normalizedCpf = normalizeCpf(input.donorCpf) ?? "";
       const normalizedWhatsapp = input.donorWhatsapp?.replace(/\D/g, "") ?? "";
       const normalizedName = input.donorName?.trim().toLowerCase() ?? "";
@@ -597,6 +598,44 @@ export const contributionsRouter = router({
 
       if (!normalizedCpf && !normalizedWhatsapp && normalizedName.length < 2 && !normalizedEmail) {
         return null;
+      }
+
+      if (!db) {
+        const fallbackRows = [
+          ...listFallbackCashContributions(),
+          ...listFallbackMaterialContributions(),
+        ];
+
+        const byCpf = normalizedCpf
+          ? fallbackRows.find((row) => normalizeCpf(row.donorCpf) === normalizedCpf)
+          : undefined;
+        const byEmail = normalizedEmail
+          ? fallbackRows.find((row) => (row.donorEmail || "").trim().toLowerCase() === normalizedEmail)
+          : undefined;
+        const byWhatsapp = normalizedWhatsapp
+          ? fallbackRows.find((row) => (row.donorWhatsapp || "").replace(/\D/g, "") === normalizedWhatsapp)
+          : undefined;
+        const byName = !byCpf && !byWhatsapp && normalizedName
+          ? (
+            fallbackRows.find((row) => (row.donorName || "").trim().toLowerCase() === normalizedName)
+            || fallbackRows.find((row) => (row.donorName || "").trim().toLowerCase().includes(normalizedName))
+          )
+          : undefined;
+
+        const match = byCpf ?? byEmail ?? byWhatsapp ?? byName;
+        if (!match) {
+          return null;
+        }
+
+        return {
+          donorName: match.donorName,
+          donorCpf: match.donorCpf,
+          donorWhatsapp: match.donorWhatsapp,
+          donorEmail: match.donorEmail,
+          donorCity: match.donorCity,
+          donorChurch: match.donorChurch,
+          allowPublicDisplay: match.allowPublicDisplay ?? false,
+        };
       }
 
       let rows: Array<{
@@ -679,7 +718,89 @@ export const contributionsRouter = router({
   getRegisteredDonors: adminProcedure.query(async () => {
     const db = await getDb();
     if (!db) {
-      return [];
+      const rows = [
+        ...listFallbackCashContributions()
+          .filter((row) => row.status === "approved")
+          .map((row) => ({
+            donorName: row.donorName,
+            donorCpf: row.donorCpf,
+            donorWhatsapp: row.donorWhatsapp,
+            donorEmail: row.donorEmail,
+            donorCity: row.donorCity,
+            donorChurch: row.donorChurch,
+            allowPublicDisplay: row.allowPublicDisplay,
+            amount: row.amount,
+            createdAt: row.createdAt,
+          })),
+        ...listFallbackMaterialContributions()
+          .filter((row) => row.status === "approved")
+          .map((row) => ({
+            donorName: row.donorName,
+            donorCpf: row.donorCpf,
+            donorWhatsapp: row.donorWhatsapp,
+            donorEmail: row.donorEmail,
+            donorCity: row.donorCity,
+            donorChurch: row.donorChurch,
+            allowPublicDisplay: row.allowPublicDisplay,
+            amount: row.estimatedAmount,
+            createdAt: row.createdAt,
+          })),
+      ];
+
+      const aggregated = new Map<string, {
+        key: string;
+        donorCpf: string | null;
+        donorName: string;
+        donorWhatsapp: string;
+        donorEmail: string;
+        donorCity: string;
+        donorChurch: string;
+        donationsCount: number;
+        totalAmountCents: number;
+        lastDonationAt: Date;
+        allowPublicDisplay: boolean;
+      }>();
+
+      for (const row of rows) {
+        const key = donorLookupKey(row) ?? `row:${row.donorName || row.donorEmail || row.donorWhatsapp || row.createdAt.toISOString()}`;
+        const current = aggregated.get(key);
+        if (current) {
+          current.donationsCount += 1;
+          current.totalAmountCents += Math.max(0, row.amount ?? 0);
+          if (row.createdAt > current.lastDonationAt) {
+            current.lastDonationAt = row.createdAt;
+            current.donorName = row.donorName || current.donorName;
+            current.donorCpf = row.donorCpf || current.donorCpf;
+            current.donorWhatsapp = row.donorWhatsapp || current.donorWhatsapp;
+            current.donorEmail = row.donorEmail || current.donorEmail;
+            current.donorCity = row.donorCity || current.donorCity;
+            current.donorChurch = row.donorChurch || current.donorChurch;
+            current.allowPublicDisplay = Boolean(row.allowPublicDisplay ?? current.allowPublicDisplay);
+          }
+          continue;
+        }
+
+        aggregated.set(key, {
+          key,
+          donorCpf: row.donorCpf ?? null,
+          donorName: row.donorName || "Não informado",
+          donorWhatsapp: row.donorWhatsapp || "",
+          donorEmail: row.donorEmail || "",
+          donorCity: row.donorCity || "",
+          donorChurch: row.donorChurch || "",
+          donationsCount: 1,
+          totalAmountCents: Math.max(0, row.amount ?? 0),
+          lastDonationAt: row.createdAt,
+          allowPublicDisplay: Boolean(row.allowPublicDisplay),
+        });
+      }
+
+      return Array.from(aggregated.values())
+        .sort((a, b) => b.lastDonationAt.getTime() - a.lastDonationAt.getTime())
+        .map((donor) => ({
+          ...donor,
+          lastDonationAt: donor.lastDonationAt.toISOString(),
+        }));
     }
 
     let rows: Array<{
@@ -799,7 +920,7 @@ export const contributionsRouter = router({
   getPublicDonors: publicProcedure.query(async () => {
     const db = await getDb();
     if (!db) {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
+      return [];
     }
 
     return db

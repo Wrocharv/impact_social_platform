@@ -5,8 +5,12 @@ export type FallbackCashContribution = {
   id: number;
   campaignId: number;
   donorName: string | null;
+  donorCpf: string | null;
   donorWhatsapp: string | null;
+  donorEmail: string | null;
   donorCity: string | null;
+  donorChurch: string | null;
+  allowPublicDisplay: boolean | null;
   amount: number;
   status: "pending" | "approved" | "rejected";
   paymentMethod: "cash";
@@ -76,8 +80,12 @@ export function createFallbackCashContribution(input: {
   campaignId: number;
   amount: number;
   donorName?: string;
+  donorCpf?: string;
+  donorEmail?: string;
   donorWhatsapp?: string;
   donorCity?: string;
+  donorChurch?: string;
+  allowPublicDisplay?: boolean;
 }) {
   const rows = readRows();
   const nextId = rows.length > 0 ? Math.max(...rows.map((row) => row.id)) + 1 : 700001;
@@ -87,8 +95,12 @@ export function createFallbackCashContribution(input: {
     id: nextId,
     campaignId: input.campaignId,
     donorName: input.donorName?.trim() || null,
+    donorCpf: input.donorCpf?.trim().replace(/\D/g, "") || null,
     donorWhatsapp: input.donorWhatsapp?.trim() || null,
+    donorEmail: input.donorEmail?.trim().toLowerCase() || null,
     donorCity: input.donorCity?.trim() || null,
+    donorChurch: input.donorChurch?.trim() || null,
+    allowPublicDisplay: input.allowPublicDisplay ?? null,
     amount: Math.max(0, Math.round(input.amount)),
     status: "pending",
     paymentMethod: "cash",
@@ -118,8 +130,12 @@ export function listFallbackPendingCashValidations(campaignId?: number) {
       id: row.id,
       campaignId: row.campaignId,
       donorName: row.donorName,
+      donorCpf: row.donorCpf,
       donorWhatsapp: row.donorWhatsapp,
+      donorEmail: row.donorEmail,
       donorCity: row.donorCity,
+      donorChurch: row.donorChurch,
+      allowPublicDisplay: row.allowPublicDisplay,
       amount: row.amount,
       createdAt: row.createdAt,
       paymentStatusDetail: row.paymentStatusDetail,
@@ -142,6 +158,7 @@ export function listFallbackRecentCashValidations(input?: { campaignId?: number;
       id: row.id,
       campaignId: row.campaignId,
       donorName: row.donorName,
+      donorCpf: row.donorCpf,
       amount: row.amount,
       status: row.status,
       paymentStatusDetail: row.paymentStatusDetail,
@@ -150,7 +167,21 @@ export function listFallbackRecentCashValidations(input?: { campaignId?: number;
       validationNote: row.validationNote,
       validatorName: row.validatorName,
       validatorEmail: row.validatorEmail,
+      donorEmail: row.donorEmail,
+      donorWhatsapp: row.donorWhatsapp,
+      donorCity: row.donorCity,
+      donorChurch: row.donorChurch,
+      allowPublicDisplay: row.allowPublicDisplay,
     }));
+}
+
+export function listFallbackCashContributions(campaignId?: number) {
+  return readRows()
+    .filter((row) => {
+      if (campaignId && row.campaignId !== campaignId) return false;
+      return true;
+    })
+    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
 }
 
 export function listFallbackApprovedCashContributions(campaignId?: number) {

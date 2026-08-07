@@ -4,14 +4,18 @@ import type { TrpcContext } from "./_core/context";
 const {
   getDbMock,
   createFallbackCashContributionMock,
+  listFallbackCashContributionsMock,
   listFallbackPendingCashValidationsMock,
   listFallbackRecentCashValidationsMock,
+  listFallbackMaterialContributionsMock,
   reviewFallbackCashContributionMock,
 } = vi.hoisted(() => ({
   getDbMock: vi.fn(),
   createFallbackCashContributionMock: vi.fn(),
+  listFallbackCashContributionsMock: vi.fn(),
   listFallbackPendingCashValidationsMock: vi.fn(),
   listFallbackRecentCashValidationsMock: vi.fn(),
+  listFallbackMaterialContributionsMock: vi.fn(),
   reviewFallbackCashContributionMock: vi.fn(),
 }));
 
@@ -21,9 +25,14 @@ vi.mock("./db", () => ({
 
 vi.mock("./cashValidationFallback", () => ({
   createFallbackCashContribution: createFallbackCashContributionMock,
+  listFallbackCashContributions: listFallbackCashContributionsMock,
   listFallbackPendingCashValidations: listFallbackPendingCashValidationsMock,
   listFallbackRecentCashValidations: listFallbackRecentCashValidationsMock,
   reviewFallbackCashContribution: reviewFallbackCashContributionMock,
+}));
+
+vi.mock("./materialValidationFallback", () => ({
+  listFallbackMaterialContributions: listFallbackMaterialContributionsMock,
 }));
 
 import { appRouter } from "./routers";
@@ -63,6 +72,10 @@ function createAdminContext(): TrpcContext {
 describe("contributions fallback without database", () => {
   beforeEach(() => {
     getDbMock.mockReset();
+    listFallbackCashContributionsMock.mockReset();
+    listFallbackCashContributionsMock.mockReturnValue([]);
+    listFallbackMaterialContributionsMock.mockReset();
+    listFallbackMaterialContributionsMock.mockReturnValue([]);
   });
 
   it("retorna null para lookup de doador quando o banco não está disponível", async () => {
@@ -74,6 +87,43 @@ describe("contributions fallback without database", () => {
       donorName: "Wellington",
       donorEmail: "wellington@example.com",
     })).resolves.toBeNull();
+  });
+
+  it("encontra perfil salvo no fallback local sem banco", async () => {
+    getDbMock.mockResolvedValue(null);
+    listFallbackCashContributionsMock.mockReturnValue([{ 
+      id: 700010,
+      campaignId: 100001,
+      donorName: "Wellington Rocha",
+      donorCpf: "12345678901",
+      donorWhatsapp: "64999058919",
+      donorEmail: "wellington@example.com",
+      donorCity: "Rio Verde",
+      donorChurch: "Igreja Central",
+      allowPublicDisplay: true,
+      amount: 10_000,
+      status: "approved",
+      paymentMethod: "cash",
+      paymentStatusDetail: "cash_validated_in_person",
+      validatedBy: 1,
+      validatedAt: new Date("2026-08-07T12:00:00.000Z"),
+      validationNote: null,
+      validatorName: "Admin",
+      validatorEmail: "admin@example.com",
+      createdAt: new Date("2026-08-07T11:00:00.000Z"),
+      updatedAt: new Date("2026-08-07T12:00:00.000Z"),
+    }]);
+
+    const caller = appRouter.createCaller(createPublicContext());
+
+    await expect(caller.contributions.getDonorProfileLookup({ donorCpf: "123.456.789-01" })).resolves.toMatchObject({
+      donorName: "Wellington Rocha",
+      donorCpf: "12345678901",
+      donorWhatsapp: "64999058919",
+      donorCity: "Rio Verde",
+      donorChurch: "Igreja Central",
+      allowPublicDisplay: true,
+    });
   });
 
   it("aceita contribuição financeira local mesmo sem banco disponível", async () => {
@@ -90,6 +140,43 @@ describe("contributions fallback without database", () => {
       donorChurch: "Igreja",
       allowPublicDisplay: false,
     })).resolves.toMatchObject({ success: true });
+  });
+
+  it("lista aprovados do fallback local na comunidade quando não há banco", async () => {
+    getDbMock.mockResolvedValue(null);
+    listFallbackCashContributionsMock.mockReturnValue([{ 
+      id: 700020,
+      campaignId: 100001,
+      donorName: "Wellington Rocha",
+      donorCpf: "12345678901",
+      donorWhatsapp: "64999058919",
+      donorEmail: "wellington@example.com",
+      donorCity: "Rio Verde",
+      donorChurch: "Igreja Central",
+      allowPublicDisplay: true,
+      amount: 10_000,
+      status: "approved",
+      paymentMethod: "cash",
+      paymentStatusDetail: "cash_validated_in_person",
+      validatedBy: 1,
+      validatedAt: new Date("2026-08-07T12:00:00.000Z"),
+      validationNote: null,
+      validatorName: "Admin",
+      validatorEmail: "admin@example.com",
+      createdAt: new Date("2026-08-07T11:00:00.000Z"),
+      updatedAt: new Date("2026-08-07T12:00:00.000Z"),
+    }]);
+
+    const caller = appRouter.createCaller(createAdminContext());
+    const result = await caller.contributions.getRegisteredDonors();
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      donorName: "Wellington Rocha",
+      donorCpf: "12345678901",
+      totalAmountCents: 10_000,
+      donationsCount: 1,
+    });
   });
 });
 
@@ -207,8 +294,10 @@ describe("contributions.reviewCashContribution", () => {
   beforeEach(() => {
     getDbMock.mockReset();
     createFallbackCashContributionMock.mockReset();
+    listFallbackCashContributionsMock.mockReset();
     listFallbackPendingCashValidationsMock.mockReset();
     listFallbackRecentCashValidationsMock.mockReset();
+    listFallbackMaterialContributionsMock.mockReset();
     reviewFallbackCashContributionMock.mockReset();
   });
 

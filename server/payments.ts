@@ -279,6 +279,12 @@ export const paymentsRouter = router({
 
       const db = await getDb();
       const donorEmail = input.donorEmail?.trim() || `doador+${randomUUID().slice(0, 8)}@parceriadobem.com`;
+      const donorName = input.donorName?.trim() || "Doador";
+      const donorCpf = normalizeCpf(input.donorCpf);
+      const donorWhatsapp = input.donorWhatsapp?.trim() ?? "";
+      const donorCity = input.donorCity?.trim() ?? "";
+      const donorChurch = input.donorChurch?.trim() ?? "";
+      const allowPublicDisplay = input.allowPublicDisplay ?? false;
 
       if (!db) {
         if (isCashPayment) {
@@ -291,13 +297,16 @@ export const paymentsRouter = router({
 
           const origin = requestOrigin(ctx.req);
           const fallbackCampaignTitle = input.campaignTitle?.trim() || `Campanha ${input.campaignId}`;
-          const donorName = input.donorName?.trim() || "Doador";
           const fallbackContribution = createFallbackCashContribution({
             campaignId: input.campaignId,
             amount: input.amount,
             donorName,
+            donorCpf,
+            donorEmail,
             donorWhatsapp: input.donorWhatsapp,
             donorCity: input.donorCity,
+            donorChurch,
+            allowPublicDisplay,
           });
 
           return {
@@ -481,8 +490,12 @@ export const paymentsRouter = router({
             campaignId: input.campaignId,
             amount: input.amount,
             donorName,
+            donorCpf,
+            donorEmail,
             donorWhatsapp: input.donorWhatsapp,
             donorCity: input.donorCity,
+            donorChurch,
+            allowPublicDisplay,
           });
 
           return {
@@ -557,12 +570,6 @@ export const paymentsRouter = router({
       }
 
       const externalReference = `pdb-${input.campaignId}-${randomUUID()}`;
-      const donorName = input.donorName?.trim() ?? "";
-      const donorCpf = normalizeCpf(input.donorCpf);
-      const donorWhatsapp = input.donorWhatsapp?.trim() ?? "";
-      const donorCity = input.donorCity?.trim() ?? "";
-      const donorChurch = input.donorChurch?.trim() ?? "";
-      const allowPublicDisplay = input.allowPublicDisplay ?? false;
       let persistedContribution = false;
       let persistError: unknown;
 

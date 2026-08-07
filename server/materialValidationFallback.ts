@@ -6,9 +6,12 @@ export type FallbackMaterialContribution = {
   campaignId: number;
   campaignNeedId: number | null;
   donorName: string | null;
+  donorCpf: string | null;
   donorEmail: string | null;
   donorWhatsapp: string | null;
   donorCity: string | null;
+  donorChurch: string | null;
+  allowPublicDisplay: boolean | null;
   description: string;
   quantity: string | null;
   quantityExact: number | null;
@@ -123,9 +126,12 @@ export function createFallbackMaterialContribution(input: {
   campaignId: number;
   campaignNeedId?: number;
   donorName?: string;
+  donorCpf?: string;
   donorEmail?: string;
   donorWhatsapp?: string;
   donorCity?: string;
+  donorChurch?: string;
+  allowPublicDisplay?: boolean;
   description: string;
   quantity?: string;
   quantityExact?: number;
@@ -142,9 +148,12 @@ export function createFallbackMaterialContribution(input: {
     campaignId: input.campaignId,
     campaignNeedId: input.campaignNeedId ?? null,
     donorName: input.donorName?.trim() || null,
+    donorCpf: input.donorCpf?.trim().replace(/\D/g, "") || null,
     donorEmail: input.donorEmail?.trim().toLowerCase() || null,
     donorWhatsapp: normalizeWhatsapp(input.donorWhatsapp) || null,
     donorCity: input.donorCity?.trim() || null,
+    donorChurch: input.donorChurch?.trim() || null,
+    allowPublicDisplay: input.allowPublicDisplay ?? null,
     description: input.description.trim(),
     quantity: input.quantity?.trim() || null,
     quantityExact: Number.isInteger(input.quantityExact) ? input.quantityExact ?? null : null,
@@ -179,9 +188,12 @@ export function listFallbackPendingMaterialValidations(campaignId?: number) {
       campaignId: row.campaignId,
       campaignNeedId: row.campaignNeedId,
       donorName: row.donorName,
+      donorCpf: row.donorCpf,
       donorEmail: row.donorEmail,
       donorWhatsapp: row.donorWhatsapp,
       donorCity: row.donorCity,
+      donorChurch: row.donorChurch,
+      allowPublicDisplay: row.allowPublicDisplay,
       description: row.description,
       quantity: row.quantity,
       quantityExact: row.quantityExact,
@@ -208,6 +220,7 @@ export function listFallbackRecentMaterialValidations(input?: { campaignId?: num
       campaignId: row.campaignId,
       campaignNeedId: row.campaignNeedId,
       donorName: row.donorName,
+      donorCpf: row.donorCpf,
       donorEmail: row.donorEmail,
       description: row.description,
       quantity: row.quantity,
@@ -220,7 +233,20 @@ export function listFallbackRecentMaterialValidations(input?: { campaignId?: num
       validationNote: row.validationNote,
       validatorName: row.validatorName,
       validatorEmail: row.validatorEmail,
+      donorWhatsapp: row.donorWhatsapp,
+      donorCity: row.donorCity,
+      donorChurch: row.donorChurch,
+      allowPublicDisplay: row.allowPublicDisplay,
     }));
+}
+
+export function listFallbackMaterialContributions(campaignId?: number) {
+  return readRows()
+    .filter((row) => {
+      if (campaignId && row.campaignId !== campaignId) return false;
+      return true;
+    })
+    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
 }
 
 export function listFallbackTrackedMaterialContributions(campaignId?: number) {
