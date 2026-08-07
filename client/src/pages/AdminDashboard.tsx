@@ -308,7 +308,7 @@ export default function AdminDashboard() {
   const uploadCampaignVideo = trpc.campaigns.uploadVideo.useMutation({
     onError: (error) => toast.error(error.message || "Erro ao enviar vídeo da campanha"),
   });
-  const [uploadingPartnerField, setUploadingPartnerField] = useState<"logoUrl" | "storePhotoUrl" | "ownerPhotoUrl" | null>(null);
+  const [uploadingPartnerField, setUploadingPartnerField] = useState<"logoUrl" | "storePhotoUrl" | "ownerPhotoUrl" | "testimonialVideoUrl" | null>(null);
   const [uploadingCampaignImage, setUploadingCampaignImage] = useState<"create" | "edit" | null>(null);
   const [campaignMediaYouTubeUrl, setCampaignMediaYouTubeUrl] = useState("");
   const [siteMediaYouTubeUrl, setSiteMediaYouTubeUrl] = useState("");
@@ -806,6 +806,38 @@ export default function AdminDashboard() {
     }
   }
 
+  async function handlePartnerVideoUpload(file?: File) {
+    if (!file) return;
+
+    const mimeType = inferSupportedVideoMimeType(file);
+    if (!mimeType) {
+      toast.error("Selecione um vídeo válido (.mp4, .mov, .webm ou .ogg).");
+      return;
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("O vídeo deve ter no máximo 50MB.");
+      return;
+    }
+
+    setUploadingPartnerField("testimonialVideoUrl");
+    try {
+      const base64 = await fileToBase64(file);
+      const result = await uploadCampaignVideo.mutateAsync({
+        fileName: file.name,
+        mimeType,
+        size: file.size,
+        base64,
+      });
+      setPartnerForm((current) => ({ ...current, testimonialVideoUrl: result.url }));
+      toast.success("Vídeo do parceiro enviado com sucesso.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao enviar vídeo do parceiro.");
+    } finally {
+      setUploadingPartnerField(null);
+    }
+  }
+
   async function handleCampaignImageUpload(target: "create" | "edit", file?: File) {
     if (!file) return;
 
@@ -855,7 +887,8 @@ export default function AdminDashboard() {
       return result.url;
     }
 
-    if (file.type.startsWith("video/")) {
+    const mimeType = inferSupportedVideoMimeType(file);
+    if (mimeType) {
       if (file.size > 50 * 1024 * 1024) {
         throw new Error("O vídeo deve ter no máximo 50MB.");
       }
@@ -863,14 +896,14 @@ export default function AdminDashboard() {
       const base64 = await fileToBase64(file);
       const result = await uploadCampaignVideo.mutateAsync({
         fileName: file.name,
-        mimeType: file.type === "video/webm" || file.type === "video/ogg" || file.type === "video/quicktime" ? file.type : "video/mp4",
+        mimeType,
         size: file.size,
         base64,
       });
       return result.url;
     }
 
-    throw new Error("Selecione apenas arquivos de imagem ou vídeo válidos.");
+    throw new Error("Selecione apenas arquivos de imagem ou vídeos (.mp4, .mov, .webm, .ogg).");
   }
 
   async function handleCampaignContentMediaUpload(campaignId: number, kind: "gallery" | "videos", files?: FileList | null) {
@@ -904,8 +937,9 @@ export default function AdminDashboard() {
   async function handleSitePresentationVideoUpload(file?: File) {
     if (!file) return;
 
-    if (!file.type.startsWith("video/")) {
-      toast.error("Selecione um arquivo de vídeo válido.");
+    const mimeType = inferSupportedVideoMimeType(file);
+    if (!mimeType) {
+      toast.error("Selecione um vídeo válido (.mp4, .mov, .webm ou .ogg).");
       return;
     }
 
@@ -918,7 +952,7 @@ export default function AdminDashboard() {
       const base64 = await fileToBase64(file);
       const result = await uploadCampaignVideo.mutateAsync({
         fileName: file.name,
-        mimeType: file.type === "video/webm" || file.type === "video/ogg" || file.type === "video/quicktime" ? file.type : "video/mp4",
+        mimeType,
         size: file.size,
         base64,
       });
@@ -1931,7 +1965,14 @@ export default function AdminDashboard() {
               </Field>
               <Field label="Endereço"><Textarea value={partnerForm.address} onChange={(event) => setPartnerForm({ ...partnerForm, address: event.target.value })} rows={3} maxLength={1000} /></Field>
               <Field label="Contato"><Input value={partnerForm.contactInfo} onChange={(event) => setPartnerForm({ ...partnerForm, contactInfo: event.target.value })} maxLength={255} placeholder="Telefone, WhatsApp ou e-mail" /></Field>
-              <Field label="URL do vídeo de testemunho"><Input value={partnerForm.testimonialVideoUrl} onChange={(event) => setPartnerForm({ ...partnerForm, testimonialVideoUrl: event.target.value })} placeholder="https://..." /></Field>
+              <Field label="URL do vídeo de testemunho">
+                <Input value={partnerForm.testimonialVideoUrl} onChange={(event) => setPartnerForm({ ...partnerForm, testimonialVideoUrl: event.target.value })} placeholder="https://... ou /uploads/..." />
+                <div className="mt-2">
+                  <label className="text-xs font-medium text-[#334139]">Ou enviar arquivo de vídeo</label>
+                  <Input type="file" accept=".mp4,.mov,.webm,.ogg,video/mp4,video/webm,video/ogg,video/quicktime" onChange={(event) => void handlePartnerVideoUpload(event.target.files?.[0])} />
+                </div>
+                {uploadingPartnerField === "testimonialVideoUrl" && <p className="text-xs text-[#66736a]">Enviando vídeo do parceiro...</p>}
+              </Field>
               <Field label="Texto do testemunho"><Textarea value={partnerForm.testimonialText} onChange={(event) => setPartnerForm({ ...partnerForm, testimonialText: event.target.value })} rows={4} maxLength={2000} placeholder="Depoimento convidando mais pessoas para a parceria" /></Field>
               <Field label="Site"><Input value={partnerForm.website} onChange={(event) => setPartnerForm({ ...partnerForm, website: event.target.value })} placeholder="https://..." /></Field>
               <p className="rounded-lg bg-[#f1f6ef] p-3 text-sm text-[#55645a]">Ao salvar, o parceiro poderá aparecer imediatamente na homepage. Cadastre somente dados cuja publicação tenha sido autorizada.</p>
@@ -2538,6 +2579,25 @@ function parseCurrencyToCents(value: string): number | null {
   if (!Number.isFinite(parsed) || parsed < 0) return null;
 
   return Math.round(parsed * 100);
+}
+
+const SUPPORTED_VIDEO_MIME_TYPES = ["video/mp4", "video/webm", "video/ogg", "video/quicktime"] as const;
+type SupportedVideoMimeType = (typeof SUPPORTED_VIDEO_MIME_TYPES)[number];
+
+function inferSupportedVideoMimeType(file: File): SupportedVideoMimeType | null {
+  const fileType = (file.type ?? "").toLowerCase();
+  if (SUPPORTED_VIDEO_MIME_TYPES.includes(fileType as SupportedVideoMimeType)) {
+    return fileType as SupportedVideoMimeType;
+  }
+
+  // Alguns navegadores retornam MIME vazio ou não padronizado para MOV/MP4.
+  const normalizedName = file.name.trim().toLowerCase();
+  if (normalizedName.endsWith(".mov") || fileType === "video/mov") return "video/quicktime";
+  if (normalizedName.endsWith(".webm")) return "video/webm";
+  if (normalizedName.endsWith(".ogv") || normalizedName.endsWith(".ogg")) return "video/ogg";
+  if (normalizedName.endsWith(".mp4") || normalizedName.endsWith(".m4v") || fileType === "video/x-m4v") return "video/mp4";
+
+  return null;
 }
 
 function fileToBase64(file: File): Promise<string> {

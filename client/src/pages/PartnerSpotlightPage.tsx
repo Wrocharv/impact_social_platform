@@ -62,7 +62,7 @@ function toEmbedVideoUrl(url?: string | null) {
 function toPartnerVideoSource(url?: string | null): PartnerVideoSource | null {
   if (!url) return null;
 
-  const trimmedUrl = url.trim();
+  const trimmedUrl = normalizeLegacyPartnerVideoPath(url.trim());
   if (!trimmedUrl) return null;
 
   if (/\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(trimmedUrl)) {
@@ -134,14 +134,26 @@ function getCustomPartnerVideo(name?: string | null) {
     .trim();
 
   if (normalizedName === "a predimais" || normalizedName.includes("predimais")) {
-    return null;
+    return "/Parceiros/Saulinho.mp4";
   }
 
   if (normalizedName.includes("multipla escolha")) {
-    return null;
+    return "/Parceiros/Multipla_Escolha.mov";
   }
 
   return null;
+}
+
+function normalizeLegacyPartnerVideoPath(url: string) {
+  if (url.includes("/Parceiros/WhatsApp Video 2026-07-28 at 15.37.04.mp4")) {
+    return url.replace("/Parceiros/WhatsApp Video 2026-07-28 at 15.37.04.mp4", "/Parceiros/Saulinho.mp4");
+  }
+
+  if (url.includes("/Parceiros/Video_Multipla_Escolha.MOV")) {
+    return url.replace("/Parceiros/Video_Multipla_Escolha.MOV", "/Parceiros/Multipla_Escolha.mov");
+  }
+
+  return url;
 }
 
 function getFallbackPartnerWebsite(name?: string | null) {
@@ -193,7 +205,9 @@ export default function PartnerSpotlightPage() {
     contactInfo: partner.contactInfo,
   });
   const customVideoUrl = getCustomPartnerVideo(partner.name);
-  const videoSource = toPartnerVideoSource(customVideoUrl || partner.testimonialVideoUrl);
+  const configuredVideoSource = toPartnerVideoSource(partner.testimonialVideoUrl);
+  const fallbackVideoSource = toPartnerVideoSource(customVideoUrl);
+  const videoSource = configuredVideoSource ?? fallbackVideoSource;
   const customBannerUrl = getCustomPartnerBanner(partner.name);
   const customLogoUrl = getCustomPartnerLogo(partner.name);
   const showFullWidthBanner = Boolean(customBannerUrl);
@@ -344,7 +358,11 @@ export default function PartnerSpotlightPage() {
                     preload="auto"
                     muted={false}
                   >
-                    <source src={videoSource.src} type="video/mp4" />
+                    {videoSource.mimeType ? (
+                      <source src={encodeURI(videoSource.src)} type={videoSource.mimeType} />
+                    ) : (
+                      <source src={encodeURI(videoSource.src)} />
+                    )}
                     Seu navegador não suporta reprodução de vídeo.
                   </video>
                 )}
