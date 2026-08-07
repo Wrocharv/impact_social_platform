@@ -206,6 +206,7 @@ export default function ContributionWizardPage() {
   });
   const [lastLookupKey, setLastLookupKey] = useState("");
   const [financialAmountInput, setFinancialAmountInput] = useState("");
+  const [hasAppliedInitialStep, setHasAppliedInitialStep] = useState(false);
   const [vipMediaReviewed, setVipMediaReviewed] = useState(false);
   const [vipVideoIndex, setVipVideoIndex] = useState(0);
   const [vipVideoFailed, setVipVideoFailed] = useState(false);
@@ -247,6 +248,7 @@ export default function ContributionWizardPage() {
   }, [isLoaded, currentDonor]);
 
   useEffect(() => {
+    if (hasAppliedInitialStep) return;
     if (!initialType && !initialNeedId) return;
 
     const parsedQuantity = initialQuantity ? Number.parseInt(initialQuantity, 10) : undefined;
@@ -286,7 +288,10 @@ export default function ContributionWizardPage() {
         setStep("donor-info");
       }
     }
+
+    setHasAppliedInitialStep(true);
   }, [
+    hasAppliedInitialStep,
     initialType,
     initialNeedId,
     initialQuantity,
