@@ -10,6 +10,7 @@ import { useDonorStorage } from "@/hooks/useDonorStorage";
 import { ChevronLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useRoute } from "wouter";
+import { toast } from "sonner";
 
 type NeedItem = {
   id: number;
@@ -23,6 +24,13 @@ type NeedItem = {
   offeredValueCents?: number | null;
   remainingValueCents?: number | null;
   fulfilled?: number | null;
+};
+
+type SelectedNeed = {
+  needId: number;
+  needName: string;
+  quantityExact: number;
+  unitValueCents: number;
 };
 
 const formatCurrency = (valueInCents: number) =>
@@ -69,7 +77,10 @@ export default function ContributionNeedsPage() {
   const [, setLocation] = useLocation();
   const { isLoaded, currentDonor } = useDonorStorage();
   const [materialQuantities, setMaterialQuantities] = useState<Record<number, string>>({});
+  const [selectedNeeds, setSelectedNeeds] = useState<Record<number, SelectedNeed>>({});
+  const [isSubmittingBatch, setIsSubmittingBatch] = useState(false);
   const [, setRefreshVersion] = useState(0);
+  const createMaterial = trpc.contributions.createMaterialContribution.useMutation();
 
   const campaignQuery = trpc.campaigns.getById.useQuery(
     { id: campaignId },
@@ -91,6 +102,104 @@ export default function ContributionNeedsPage() {
   const totalPages = Math.max(1, Math.ceil(needs.length / NEEDS_PER_PAGE));
   const pageStart = (currentPage - 1) * NEEDS_PER_PAGE;
   const pagedNeeds = needs.slice(pageStart, pageStart + NEEDS_PER_PAGE);
+  const selectedNeedEntries = Object.values(selectedNeeds);
+  const selectedTotalEstimatedCents = selectedNeedEntries.reduce(
+    (sum, item) => sum + item.quantityExact * item.unitValueCents,
+    0,
+  );
+
+  const handleAddSelectedNeed = (need: NeedItem, quantityExact: number) => {
+    const unitValueCents = need.unitValueCents ?? 0;
+    setSelectedNeeds((prev) => ({
+      ...prev,
+      [need.id]: {
+        needId: need.id,
+        needName: need.name,
+        quantityExact,
+        unitValueCents,
+      },
+    }));
+  };
+
+  const handleRemoveSelectedNeed = (needId: number) => {
+    setSelectedNeeds((prev) => {
+      const next = { ...prev };
+      delete next[needId];
+      return next;
+    });
+  };
+
+  const handleSubmitSelectedNeeds = async () => {
+    if (!hasSingleRegistration || !currentDonor) {
+      setLocation(`/contribute/wizard/${campaignId}?entry=needs`);
+      return;
+    }
+
+    const items = Object.values(selectedNeeds);
+    if (!items.length) {
+      toast.error("Selecione pelo menos um item para confirmar.");
+      return;
+    }
+
+    setIsSubmittingBatch(true);
+    const failedIds = new Set<number>();
+    let successCount = 0;
+
+    for (const item of items) {
+      try {
+        await createMaterial.mutateAsync({
+          campaignId,
+          campaignNeedId: item.needId,
+          description: `DOACAO DETALHADA | ${normalizeNeedLabel(item.needName)}`,
+          donorName: currentDonor.donorName,
+          donorCpf: currentDonor.donorCpf,
+          donorWhatsapp: currentDonor.donorWhatsapp,
+          donorEmail: currentDonor.donorEmail,
+          donorCity: currentDonor.donorCity,
+          donorChurch: currentDonor.donorChurch,
+          quantity: String(item.quantityExact),
+          quantityExact: item.quantityExact,
+          deliveryMethod: "pickup",
+          materialDeliveryFrequency: "unique",
+          allowPublicDisplay: false,
+        });
+        successCount += 1;
+      } catch {
+        failedIds.add(item.needId);
+      }
+    }
+
+    if (successCount > 0) {
+      toast.success(`${successCount} item(ns) de material enviado(s) para triagem.`);
+    }
+
+    if (failedIds.size > 0) {
+      toast.error(`${failedIds.size} item(ns) falharam. Revise e tente novamente.`);
+    }
+
+    setSelectedNeeds((prev) => {
+      const next = { ...prev };
+      for (const item of items) {
+        if (!failedIds.has(item.needId)) {
+          delete next[item.needId];
+        }
+      }
+      return next;
+    });
+
+    setMaterialQuantities((prev) => {
+      const next = { ...prev };
+      for (const item of items) {
+        if (!failedIds.has(item.needId)) {
+          delete next[item.needId];
+        }
+      }
+      return next;
+    });
+
+    await campaignQuery.refetch();
+    setIsSubmittingBatch(false);
+  };
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -250,16 +359,30 @@ export default function ContributionNeedsPage() {
                             <Button
                               type="button"
                               className="h-9 bg-[#1f3d2b] px-3 text-xs font-semibold text-white hover:bg-[#163021]"
-                              disabled={!hasValidQuantity || exceedsRemaining || isMetaAtingida}
+                              disabled={!hasValidQuantity || exceedsRemaining || isMetaAtingida || isSubmittingBatch}
                               onClick={() => {
                                 if (!hasValidQuantity || exceedsRemaining || isMetaAtingida) return;
-                                setLocation(`/contribute/wizard/${campaignId}?type=material&needId=${need.id}&quantity=${materialQuantityExact}&go=settlement`);
+                                handleAddSelectedNeed(need, materialQuantityExact);
                               }}
                             >
-                              Confirmar
+                              {selectedNeeds[need.id] ? "Atualizar" : "Adicionar"}
                             </Button>
+                            {selectedNeeds[need.id] && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="h-9 px-3 text-xs"
+                                disabled={isSubmittingBatch}
+                                onClick={() => handleRemoveSelectedNeed(need.id)}
+                              >
+                                Remover
+                              </Button>
+                            )}
                           </div>
                           <p className="text-xs text-[#5b655c]">Valor: {formatCurrency(donatedValueCents)}</p>
+                          {selectedNeeds[need.id] && (
+                            <p className="text-xs font-semibold text-[#1f3d2b]">Selecionado: {selectedNeeds[need.id].quantityExact}</p>
+                          )}
                           {exceedsRemaining && (
                             <p className="text-xs font-semibold text-red-600">Quantidade acima do saldo disponível.</p>
                           )}
@@ -323,6 +446,45 @@ export default function ContributionNeedsPage() {
             </div>
           )}
         </Card>
+
+        {hasSingleRegistration && (
+          <Card className="mt-6 border-[#dbe7d8] bg-[#f9fcf8] p-5">
+            <p className="text-sm font-semibold text-[#2d2d2d]">Itens selecionados para doar</p>
+            {selectedNeedEntries.length > 0 ? (
+              <>
+                <div className="mt-3 space-y-2">
+                  {selectedNeedEntries.map((item) => (
+                    <div key={item.needId} className="flex items-center justify-between rounded-md border border-[#e2e9df] bg-white px-3 py-2 text-sm">
+                      <span className="font-medium text-[#2d2d2d]">{normalizeNeedLabel(item.needName)} x {item.quantityExact}</span>
+                      <span className="text-[#4d5e4f]">{formatCurrency(item.quantityExact * item.unitValueCents)}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-sm font-semibold text-[#1f3d2b]">Total estimado: {formatCurrency(selectedTotalEstimatedCents)}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    className="bg-[#228B22] text-white hover:bg-[#1b711b]"
+                    disabled={isSubmittingBatch}
+                    onClick={handleSubmitSelectedNeeds}
+                  >
+                    {isSubmittingBatch ? "Enviando itens..." : "Confirmar itens e enviar para validação"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isSubmittingBatch}
+                    onClick={() => setSelectedNeeds({})}
+                  >
+                    Limpar seleção
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-[#5b655c]">Adicione os itens da tabela e confirme tudo de uma vez.</p>
+            )}
+          </Card>
+        )}
 
         <Card className="mt-6 border-[#dbe7d8] bg-white p-5">
           <p className="text-sm font-semibold text-[#2d2d2d]">Quer ajudar de outra forma?</p>

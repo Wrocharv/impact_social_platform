@@ -170,6 +170,16 @@ async function assertActiveCampaign(campaignId: number) {
     .limit(1);
 
   if (!campaign) {
+    if (campaignId >= 100000) {
+      const fallbackCampaign = whatsappService
+        .getFallbackCampaigns()
+        .find((item) => item.id === campaignId && item.status === "active");
+
+      if (fallbackCampaign) {
+        return null;
+      }
+    }
+
     throw new TRPCError({ code: "NOT_FOUND", message: "Campanha ativa não encontrada" });
   }
 
@@ -935,14 +945,15 @@ export const contributionsRouter = router({
   getPendingMaterialValidations: adminProcedure
     .input(z.object({ campaignId: z.number().int().positive().optional() }).optional())
     .query(async ({ input }) => {
+      const fallbackPending = listFallbackPendingMaterialValidations(input?.campaignId);
       const db = await getDb();
       if (!db) {
-        return listFallbackPendingMaterialValidations(input?.campaignId);
+        return fallbackPending;
       }
 
       const conditions = [
         eq(contributions.type, "material"),
-        eq(contributions.status, "pending"),
+        or(eq(contributions.status, "pending"), isNull(contributions.status)),
         or(
           inArray(contributions.paymentStatusDetail, MATERIAL_PENDING_DETAILS),
           isNull(contributions.paymentStatusDetail),
@@ -954,7 +965,7 @@ export const contributionsRouter = router({
       }
 
       try {
-        return await db
+        const rows = await db
           .select({
             id: contributions.id,
             campaignId: contributions.campaignId,
@@ -972,6 +983,20 @@ export const contributionsRouter = router({
           .from(contributions)
           .where(and(...conditions))
           .orderBy(desc(contributions.createdAt));
+
+        if (!fallbackPending.length) {
+          return rows;
+        }
+
+        const existingIds = new Set(rows.map((row) => row.id));
+        const merged = [...rows];
+        for (const fallbackRow of fallbackPending) {
+          if (!existingIds.has(fallbackRow.id)) {
+            merged.push(fallbackRow);
+          }
+        }
+
+        return merged;
       } catch (error) {
         if (!isMissingColumnError(error)) {
           throw error;
@@ -979,7 +1004,7 @@ export const contributionsRouter = router({
 
         const legacyConditions = [
           eq(contributions.type, "material"),
-          eq(contributions.status, "pending"),
+          or(eq(contributions.status, "pending"), isNull(contributions.status)),
         ];
 
         if (input?.campaignId) {
@@ -995,7 +1020,20 @@ export const contributionsRouter = router({
           .where(and(...legacyConditions))
           .orderBy(desc(contributions.createdAt));
 
-        return legacyRows.map((row) => ({
+        const mappedLegacyRows: Array<{
+          id: number;
+          campaignId: number;
+          campaignNeedId: number | null;
+          donorName: string;
+          donorWhatsapp: string;
+          donorCity: string;
+          description: string;
+          quantity: string;
+          quantityExact: number | null;
+          estimatedAmount: number | null;
+          createdAt: Date;
+          paymentStatusDetail: string | null;
+        }> = legacyRows.map((row) => ({
           ...row,
           campaignNeedId: null,
           donorName: "",
@@ -1008,6 +1046,33 @@ export const contributionsRouter = router({
           createdAt: new Date(),
           paymentStatusDetail: "awaiting_triage",
         }));
+
+        if (!fallbackPending.length) {
+          return mappedLegacyRows;
+        }
+
+        const existingIds = new Set(mappedLegacyRows.map((row) => row.id));
+        const merged = [...mappedLegacyRows];
+        for (const fallbackRow of fallbackPending) {
+          if (!existingIds.has(fallbackRow.id)) {
+            merged.push({
+              id: fallbackRow.id,
+              campaignId: fallbackRow.campaignId,
+              campaignNeedId: fallbackRow.campaignNeedId ?? null,
+              donorName: fallbackRow.donorName ?? "",
+              donorWhatsapp: fallbackRow.donorWhatsapp ?? "",
+              donorCity: fallbackRow.donorCity ?? "",
+              description: fallbackRow.description ?? "",
+              quantity: fallbackRow.quantity ?? "",
+              quantityExact: fallbackRow.quantityExact ?? null,
+              estimatedAmount: fallbackRow.estimatedAmount ?? null,
+              createdAt: fallbackRow.createdAt,
+              paymentStatusDetail: fallbackRow.paymentStatusDetail ?? null,
+            });
+          }
+        }
+
+        return merged;
       }
     }),
 
@@ -1278,7 +1343,24 @@ export const contributionsRouter = router({
       }
 
       if (!contribution) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Contribuição não encontrada." });
+        const fallbackReview = reviewFallbackCashContribution({
+          contributionId: input.contributionId,
+          decision: input.decision,
+          validatedBy: ctx.user.id ?? 0,
+          validatorName: ctx.user.name,
+          validatorEmail: ctx.user.email,
+          validationNote: input.validationNote,
+        });
+
+        if (!fallbackReview.ok) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Contribuição não encontrada." });
+        }
+
+        return {
+          success: true as const,
+          status: fallbackReview.status,
+          contributionId: fallbackReview.contributionId,
+        };
       }
 
       const isCashValidationPending =
@@ -1440,7 +1522,24 @@ export const contributionsRouter = router({
       }
 
       if (!contribution) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Contribuição não encontrada." });
+        const fallbackReview = reviewFallbackMaterialContribution({
+          contributionId: input.contributionId,
+          decision: input.decision,
+          validatedBy: ctx.user.id ?? 0,
+          validatorName: ctx.user.name,
+          validatorEmail: ctx.user.email,
+          validationNote: input.validationNote,
+        });
+
+        if (!fallbackReview.ok) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Contribuição não encontrada." });
+        }
+
+        return {
+          success: true as const,
+          status: fallbackReview.status,
+          contributionId: fallbackReview.contributionId,
+        };
       }
 
       const isMaterialValidationPending =
