@@ -242,17 +242,17 @@ export default function ContributionWizardPage() {
     paymentMethod: null,
   });
 
-  // Autopreencer dados salvos — só preenche campos ainda vazios para não sobrescrever o que o usuário digitou
+  // Autopreencer dados salvos — preenche na chegada; a limpeza por CPF diferente é tratada no onChange
   useEffect(() => {
     if (isLoaded && currentDonor) {
       setState((prev) => ({
         ...prev,
-        donorName: prev.donorName || currentDonor.donorName,
-        donorCpf: prev.donorCpf || formatCpf(currentDonor.donorCpf),
-        donorWhatsapp: prev.donorWhatsapp || currentDonor.donorWhatsapp,
-        donorEmail: prev.donorEmail || currentDonor.donorEmail,
-        donorCity: prev.donorCity || currentDonor.donorCity,
-        donorChurch: prev.donorChurch || currentDonor.donorChurch,
+        donorName: currentDonor.donorName || prev.donorName,
+        donorCpf: currentDonor.donorCpf ? formatCpf(currentDonor.donorCpf) : prev.donorCpf,
+        donorWhatsapp: currentDonor.donorWhatsapp || prev.donorWhatsapp,
+        donorEmail: currentDonor.donorEmail || prev.donorEmail,
+        donorCity: currentDonor.donorCity || prev.donorCity,
+        donorChurch: currentDonor.donorChurch || prev.donorChurch,
       }));
     }
   }, [isLoaded, currentDonor]);
