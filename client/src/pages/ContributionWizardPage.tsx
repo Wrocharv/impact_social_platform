@@ -163,6 +163,8 @@ interface WizardState {
   donorEmail: string;
   donorCity: string;
   donorChurch: string;
+  donorBirthDate: string;
+  donorGender: "" | "male" | "female" | "other" | "prefer_not_to_say";
   allowPublicDisplay: boolean | null;
   // Financeiro
   amount?: number;
@@ -228,6 +230,8 @@ export default function ContributionWizardPage() {
     donorEmail: "",
     donorCity: "",
     donorChurch: "",
+    donorBirthDate: "",
+    donorGender: "" as "" | "male" | "female" | "other" | "prefer_not_to_say",
     allowPublicDisplay: false,
     recurrence: "unique",
     startDate: new Date().toISOString().split("T")[0],
@@ -253,6 +257,8 @@ export default function ContributionWizardPage() {
         donorEmail: currentDonor.donorEmail || prev.donorEmail,
         donorCity: currentDonor.donorCity || prev.donorCity,
         donorChurch: currentDonor.donorChurch || prev.donorChurch,
+        donorBirthDate: currentDonor.donorBirthDate || prev.donorBirthDate,
+        donorGender: currentDonor.donorGender || prev.donorGender,
       }));
     }
   }, [isLoaded, currentDonor]);
@@ -560,6 +566,8 @@ export default function ContributionWizardPage() {
           donorEmail: state.donorEmail,
           donorCity: state.donorCity,
           donorChurch: state.donorChurch,
+          donorBirthDate: state.donorBirthDate,
+          donorGender: state.donorGender,
         });
         toast.success("Cadastro único concluído. Agora escolha como ajudar na lista.");
         setLocation(`/contribute/items/${campaignId}`);
@@ -576,6 +584,8 @@ export default function ContributionWizardPage() {
         donorEmail: state.donorEmail,
         donorCity: state.donorCity,
         donorChurch: state.donorChurch,
+        donorBirthDate: state.donorBirthDate,
+        donorGender: state.donorGender,
       });
       setStep("details");
     } else if (step === "vip-showcase") {
@@ -615,6 +625,8 @@ export default function ContributionWizardPage() {
         donorEmail: state.donorEmail,
         donorCity: state.donorCity,
         donorChurch: state.donorChurch,
+        donorBirthDate: state.donorBirthDate,
+        donorGender: state.donorGender,
       });
 
       if (state.type === "material") {
@@ -1010,6 +1022,35 @@ export default function ContributionWizardPage() {
                           onChange={(e) => setState({ ...state, donorChurch: e.target.value })}
                           disabled={loading}
                         />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Data de nascimento (opcional)</label>
+                        <Input
+                          type="date"
+                          value={state.donorBirthDate}
+                          onChange={(e) => setState({ ...state, donorBirthDate: e.target.value })}
+                          disabled={loading}
+                          max={new Date().toISOString().split("T")[0]}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Sexo (opcional)</label>
+                        <Select
+                          value={state.donorGender || ""}
+                          onValueChange={(v) => setState({ ...state, donorGender: v as "" | "male" | "female" | "other" | "prefer_not_to_say" })}
+                          disabled={loading}
+                        >
+                          <SelectTrigger className="bg-white"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                          <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                            <SelectItem value="male">Masculino</SelectItem>
+                            <SelectItem value="female">Feminino</SelectItem>
+                            <SelectItem value="other">Outro</SelectItem>
+                            <SelectItem value="prefer_not_to_say">Prefiro não informar</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
 

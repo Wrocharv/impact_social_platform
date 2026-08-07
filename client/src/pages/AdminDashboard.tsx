@@ -169,6 +169,23 @@ export default function AdminDashboard() {
     : Number.parseInt(validationCampaignFilter, 10);
 
   const registeredDonorsQuery = trpc.contributions.getRegisteredDonors.useQuery(undefined, { enabled: isAdmin });
+  const [communityGenderFilter, setCommunityGenderFilter] = useState("");
+  const [communityCityFilter, setCommunityCityFilter] = useState("");
+  const [communityAgeMin, setCommunityAgeMin] = useState("");
+  const [communityAgeMax, setCommunityAgeMax] = useState("");
+
+  const filteredCommunityDonors = (registeredDonorsQuery.data ?? []).filter((d) => {
+    if (communityGenderFilter && (d as { donorGender?: string }).donorGender !== communityGenderFilter) return false;
+    if (communityCityFilter && !(d.donorCity ?? "").toLowerCase().includes(communityCityFilter.toLowerCase())) return false;
+    if (communityAgeMin || communityAgeMax) {
+      const birth = (d as { donorBirthDate?: string }).donorBirthDate;
+      if (!birth) return false;
+      const age = Math.floor((Date.now() - new Date(birth).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+      if (communityAgeMin && age < Number(communityAgeMin)) return false;
+      if (communityAgeMax && age > Number(communityAgeMax)) return false;
+    }
+    return true;
+  });
 
   const campaignsQuery = trpc.campaigns.getAll.useQuery(undefined, { enabled: isAdmin });
   const partnersQuery = trpc.partners.getAll.useQuery(undefined, { enabled: isAdmin });
@@ -1742,9 +1759,9 @@ export default function AdminDashboard() {
                 variant="outline"
                 className="gap-2"
                 onClick={() => {
-                  const donors = registeredDonorsQuery.data ?? [];
+                  const donors = filteredCommunityDonors;
                   if (!donors.length) { toast.error("Nenhum doador para exportar."); return; }
-                  const header = "Nome,CPF,WhatsApp,Email,Cidade,Igreja,Total doado (R$),Doações";
+                  const header = "Nome,CPF,WhatsApp,Email,Cidade,Igreja,Sexo,Nascimento,Total doado (R$),Doações";
                   const rows = donors.map((d) => [
                     d.donorName ?? "",
                     d.donorCpf ?? "",
@@ -1752,6 +1769,8 @@ export default function AdminDashboard() {
                     d.donorEmail ?? "",
                     d.donorCity ?? "",
                     d.donorChurch ?? "",
+                    (d as { donorGender?: string }).donorGender ?? "",
+                    (d as { donorBirthDate?: string }).donorBirthDate ?? "",
                     ((d.totalAmountCents ?? 0) / 100).toFixed(2).replace(".", ","),
                     String(d.donationsCount ?? 0),
                   ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
@@ -1770,7 +1789,38 @@ export default function AdminDashboard() {
               <p className="text-sm text-[#66736a]">Carregando comunidade...</p>
             ) : registeredDonorsQuery.isError ? (
               <Card className="border-red-200 bg-red-50 p-4 text-sm text-red-700">Não foi possível carregar os doadores.</Card>
-            ) : registeredDonorsQuery.data?.length ? (
+            ) : (registeredDonorsQuery.data?.length ?? 0) > 0 ? (<>
+              <Card className="border-[#dbe7d8] bg-[#f9fcf8] p-4">
+                <p className="text-sm font-semibold text-[#2d2d2d] mb-3">Filtros</p>
+                <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
+                  <div>
+                    <label className="block text-xs font-medium text-[#66736a] mb-1">Sexo</label>
+                    <Select value={communityGenderFilter} onValueChange={setCommunityGenderFilter}>
+                      <SelectTrigger className="h-9 bg-white text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
+                      <SelectContent className="bg-white">
+                        <SelectItem value="">Todos</SelectItem>
+                        <SelectItem value="male">Masculino</SelectItem>
+                        <SelectItem value="female">Feminino</SelectItem>
+                        <SelectItem value="other">Outro</SelectItem>
+                        <SelectItem value="prefer_not_to_say">Prefere não informar</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#66736a] mb-1">Cidade</label>
+                    <Input className="h-9 text-sm" placeholder="Filtrar por cidade" value={communityCityFilter} onChange={(e) => setCommunityCityFilter(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#66736a] mb-1">Idade mínima</label>
+                    <Input className="h-9 text-sm" type="number" placeholder="Ex: 18" value={communityAgeMin} onChange={(e) => setCommunityAgeMin(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#66736a] mb-1">Idade máxima</label>
+                    <Input className="h-9 text-sm" type="number" placeholder="Ex: 60" value={communityAgeMax} onChange={(e) => setCommunityAgeMax(e.target.value)} />
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-[#66736a]">{filteredCommunityDonors.length} de {registeredDonorsQuery.data?.length ?? 0} pessoa(s)</p>
+              </Card>
               <Card className="overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-left text-sm">
@@ -1779,30 +1829,34 @@ export default function AdminDashboard() {
                         <th className="px-4 py-3 font-semibold">Nome</th>
                         <th className="px-4 py-3 font-semibold">WhatsApp</th>
                         <th className="px-4 py-3 font-semibold">Cidade</th>
-                        <th className="px-4 py-3 font-semibold">Igreja</th>
+                        <th className="px-4 py-3 font-semibold">Sexo</th>
+                        <th className="px-4 py-3 font-semibold">Idade</th>
                         <th className="px-4 py-3 font-semibold">Total</th>
                         <th className="px-4 py-3 font-semibold">Doações</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {registeredDonorsQuery.data.map((donor, idx) => (
-                        <tr key={idx} className="border-t border-[#e2e9df]">
-                          <td className="px-4 py-2 font-medium text-[#2d2d2d]">{donor.donorName || "—"}</td>
-                          <td className="px-4 py-2 text-[#4d5e4f]">{donor.donorWhatsapp || "—"}</td>
-                          <td className="px-4 py-2 text-[#4d5e4f]">{donor.donorCity || "—"}</td>
-                          <td className="px-4 py-2 text-[#4d5e4f]">{donor.donorChurch || "—"}</td>
-                          <td className="px-4 py-2 text-[#228B22] font-semibold">
-                            {((donor.totalAmountCents ?? 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                          </td>
-                          <td className="px-4 py-2 text-[#4d5e4f]">{donor.donationsCount ?? 0}</td>
-                        </tr>
-                      ))}
+                      {filteredCommunityDonors.map((donor, idx) => {
+                        const birth = (donor as { donorBirthDate?: string }).donorBirthDate;
+                        const age = birth ? Math.floor((Date.now() - new Date(birth).getTime()) / (1000 * 60 * 60 * 24 * 365.25)) : null;
+                        const genderLabel: Record<string, string> = { male: "Masculino", female: "Feminino", other: "Outro", prefer_not_to_say: "—" };
+                        return (
+                          <tr key={idx} className="border-t border-[#e2e9df]">
+                            <td className="px-4 py-2 font-medium text-[#2d2d2d]">{donor.donorName || "—"}</td>
+                            <td className="px-4 py-2 text-[#4d5e4f]">{donor.donorWhatsapp || "—"}</td>
+                            <td className="px-4 py-2 text-[#4d5e4f]">{donor.donorCity || "—"}</td>
+                            <td className="px-4 py-2 text-[#4d5e4f]">{genderLabel[(donor as { donorGender?: string }).donorGender ?? ""] ?? "—"}</td>
+                            <td className="px-4 py-2 text-[#4d5e4f]">{age !== null ? `${age} anos` : "—"}</td>
+                            <td className="px-4 py-2 text-[#228B22] font-semibold">{((donor.totalAmountCents ?? 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
+                            <td className="px-4 py-2 text-[#4d5e4f]">{donor.donationsCount ?? 0}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
-                <p className="px-4 py-3 text-xs text-[#66736a]">{registeredDonorsQuery.data.length} pessoa(s) cadastrada(s)</p>
               </Card>
-            ) : (
+            </>) : (
               <Card className="p-8 text-center">
                 <Users className="mx-auto h-10 w-10 text-[#b0bfb0]" />
                 <p className="mt-3 font-semibold text-[#2d2d2d]">Nenhum doador cadastrado ainda</p>

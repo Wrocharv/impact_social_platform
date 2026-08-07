@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 
 export interface DonorData {
-  donorId: string; // ID único para sorteios
+  donorId: string;
   donorName: string;
   donorCpf: string;
   donorWhatsapp: string;
   donorEmail: string;
   donorCity: string;
   donorChurch: string;
+  donorBirthDate: string; // YYYY-MM-DD
+  donorGender: "male" | "female" | "other" | "prefer_not_to_say" | "";
   createdAt: string;
-  donationsCount: number; // Quantas vezes doou
+  donationsCount: number;
 }
 
 const DONORS_STORAGE_KEY = "impact_donors";
@@ -52,6 +54,8 @@ export function useDonorStorage() {
           ...donor,
           donorCpf: normalizeCpf(donor.donorCpf || ""),
           donorWhatsapp: normalizeWhatsapp(donor.donorWhatsapp || ""),
+          donorBirthDate: donor.donorBirthDate || "",
+          donorGender: donor.donorGender || "",
         }));
         setDonors(parsedDonors);
       }
@@ -61,6 +65,8 @@ export function useDonorStorage() {
           ...parsedCurrent,
           donorCpf: normalizeCpf(parsedCurrent.donorCpf || ""),
           donorWhatsapp: normalizeWhatsapp(parsedCurrent.donorWhatsapp || ""),
+          donorBirthDate: parsedCurrent.donorBirthDate || "",
+          donorGender: parsedCurrent.donorGender || "",
         });
       }
     } catch (error) {
@@ -112,6 +118,8 @@ export function useDonorStorage() {
         donorEmail: donorData.donorEmail.trim() || existing.donorEmail,
         donorCity: donorData.donorCity.trim() || existing.donorCity,
         donorChurch: donorData.donorChurch.trim() || existing.donorChurch,
+        donorBirthDate: donorData.donorBirthDate || existing.donorBirthDate || "",
+        donorGender: donorData.donorGender || existing.donorGender || "",
         donationsCount: existing.donationsCount + 1,
       };
 
@@ -127,6 +135,8 @@ export function useDonorStorage() {
         donorEmail: donorData.donorEmail.trim(),
         donorCity: donorData.donorCity.trim(),
         donorChurch: donorData.donorChurch.trim(),
+        donorBirthDate: donorData.donorBirthDate || "",
+        donorGender: donorData.donorGender || "",
         donorId: generateDonorId(),
         createdAt: new Date().toISOString(),
         donationsCount: 1,
@@ -161,6 +171,8 @@ export function useDonorStorage() {
           donorEmail: donorData.donorEmail.trim() || existing.donorEmail,
           donorCity: donorData.donorCity.trim() || existing.donorCity,
           donorChurch: donorData.donorChurch.trim() || existing.donorChurch,
+          donorBirthDate: donorData.donorBirthDate || existing.donorBirthDate || "",
+          donorGender: donorData.donorGender || existing.donorGender || "",
         }
       : {
           ...donorData,
@@ -170,6 +182,8 @@ export function useDonorStorage() {
           donorEmail: donorData.donorEmail.trim(),
           donorCity: donorData.donorCity.trim(),
           donorChurch: donorData.donorChurch.trim(),
+          donorBirthDate: donorData.donorBirthDate || "",
+          donorGender: donorData.donorGender || "",
           donorId: generateDonorId(),
           createdAt: new Date().toISOString(),
           donationsCount: 0,

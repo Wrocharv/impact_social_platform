@@ -124,6 +124,8 @@ const donorInfoSchema = z.object({
     (value) => (typeof value === "string" ? value.trim() : ""),
     z.string().max(255).optional().default(""),
   ),
+  donorBirthDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  donorGender: z.enum(["male", "female", "other", "prefer_not_to_say"]).optional(),
   allowPublicDisplay: z.preprocess(
     (value) => (value === undefined ? false : value),
     z.boolean().optional().default(false),
@@ -391,6 +393,10 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
       donorWhatsapp,
       donorCity: input.donorCity,
       donorChurch: input.donorChurch,
+      donorBirthDate: (input as { donorBirthDate?: string }).donorBirthDate
+        ? new Date((input as { donorBirthDate?: string }).donorBirthDate!)
+        : undefined,
+      donorGender: (input as { donorGender?: string }).donorGender as "male" | "female" | "other" | "prefer_not_to_say" | undefined,
       allowPublicDisplay: Boolean(input.allowPublicDisplay),
       deliveryMethod: type === "material" ? input.deliveryMethod : undefined,
       campaignNeedId: type === "material" ? input.campaignNeedId : undefined,

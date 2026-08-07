@@ -1,4 +1,4 @@
-import { boolean, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, date, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -67,6 +67,8 @@ export const contributions = mysqlTable("contributions", {
   donorWhatsapp: varchar("donorWhatsapp", { length: 20 }),
   donorCity: varchar("donorCity", { length: 255 }),
   donorChurch: varchar("donorChurch", { length: 255 }),
+  donorBirthDate: date("donorBirthDate"),
+  donorGender: mysqlEnum("donorGender", ["male", "female", "other", "prefer_not_to_say"]),
   allowPublicDisplay: boolean("allowPublicDisplay").notNull().default(false), // Permite divulgar nome do doador
   deliveryMethod: varchar("deliveryMethod", { length: 50 }), // Para material: pickup, deliver, mail, other
   numberOfInstallments: int("numberOfInstallments"), // Para financeiro/material em parcelas

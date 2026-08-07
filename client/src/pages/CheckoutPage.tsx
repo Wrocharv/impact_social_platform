@@ -141,6 +141,8 @@ export default function CheckoutPage() {
       donorEmail: donorEmail.trim(),
       donorCity: donorCity.trim(),
       donorChurch: donorChurch.trim(),
+      donorBirthDate: "",
+      donorGender: "",
     });
 
     createPaymentPreference.mutate(
