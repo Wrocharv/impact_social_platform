@@ -812,10 +812,18 @@ export const contributionsRouter = router({
       const conditions = [
         eq(contributions.type, "financial"),
         eq(contributions.status, "pending"),
-        eq(contributions.paymentMethod, "cash"),
         or(
-          inArray(contributions.paymentStatusDetail, CASH_PENDING_DETAILS),
-          isNull(contributions.paymentStatusDetail),
+          and(
+            eq(contributions.paymentMethod, "cash"),
+            or(
+              inArray(contributions.paymentStatusDetail, CASH_PENDING_DETAILS),
+              isNull(contributions.paymentStatusDetail),
+            ),
+          ),
+          and(
+            isNull(contributions.paymentMethod),
+            inArray(contributions.paymentStatusDetail, CASH_PENDING_DETAILS),
+          ),
         ),
       ];
 

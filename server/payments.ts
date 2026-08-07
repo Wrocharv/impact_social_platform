@@ -213,6 +213,8 @@ async function tryInsertCashLegacy(
   },
 ) {
   const attempts = [
+    sql`insert into contributions (campaignId, type, amount, donorName, donorEmail, status, externalReference, paymentMethod, paymentStatusDetail) values (${input.campaignId}, ${"financial"}, ${input.amount}, ${input.donorName}, ${input.donorEmail}, ${"pending"}, ${input.externalReference}, ${"cash"}, ${"awaiting_cash_confirmation"})`,
+    sql`insert into contributions (campaignId, type, amount, donorName, donorEmail, status, externalReference, paymentStatusDetail) values (${input.campaignId}, ${"financial"}, ${input.amount}, ${input.donorName}, ${input.donorEmail}, ${"pending"}, ${input.externalReference}, ${"awaiting_cash_confirmation"})`,
     sql`insert into contributions (campaignId, type, amount, donorName, donorEmail, status, externalReference, paymentMethod) values (${input.campaignId}, ${"financial"}, ${input.amount}, ${input.donorName}, ${input.donorEmail}, ${"pending"}, ${input.externalReference}, ${"cash"})`,
     sql`insert into contributions (campaignId, type, amount, donorName, donorEmail, status, externalReference) values (${input.campaignId}, ${"financial"}, ${input.amount}, ${input.donorName}, ${input.donorEmail}, ${"pending"}, ${input.externalReference})`,
     sql`insert into contributions (campaignId, type, amount, donorName, donorEmail, status) values (${input.campaignId}, ${"financial"}, ${input.amount}, ${input.donorName}, ${input.donorEmail}, ${"pending"})`,
