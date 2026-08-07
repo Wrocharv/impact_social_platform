@@ -22,7 +22,7 @@ vi.mock("./whatsapp.service", () => ({
 }));
 
 import { appRouter } from "./routers";
-import { deriveCampaignMetrics } from "./campaigns";
+import { deriveCampaignMetrics, normalizeHelpTierOptions, resolveVipContributionConfig, sanitizeLegendarioPublicCampaign } from "./campaigns";
 
 function createPublicContext(): TrpcContext {
   return {
@@ -109,6 +109,113 @@ function createListPublishedDb() {
     }),
   };
 }
+
+describe("normalizeHelpTierOptions", () => {
+  it("retorna todas as opções por padrão quando a campanha não define nada", () => {
+    expect(normalizeHelpTierOptions(undefined)).toEqual(["material", "financial", "vip"]);
+  });
+
+  it("remove duplicatas e ignora opções inválidas", () => {
+    expect(normalizeHelpTierOptions(["vip", "financial", "financial", "material", "unknown"] as any)).toEqual(["material", "financial", "vip"]);
+  });
+});
+
+describe("sanitizeLegendarioPublicCampaign", () => {
+  it("preserva os itens cadastrados no admin para a campanha Legendário", () => {
+    const result = sanitizeLegendarioPublicCampaign({
+      id: 100002,
+      title: "LEGENDARIO SOLIDARIO",
+      needs: [{ id: 7, name: "Cadeira", targetQuantityExact: 5 }],
+    } as any, {
+      needs: [{ id: 99, name: "Cimento", targetQuantityExact: 10 }],
+    } as any);
+
+    expect(result.needs).toEqual([{ id: 7, name: "Cadeira", targetQuantityExact: 5 }]);
+  });
+});
+
+describe("resolveVipContributionConfig", () => {
+  it("usa o valor e o texto configurados quando a campanha define um VIP", () => {
+    const result = resolveVipContributionConfig({
+      vipApartmentAmountCents: 15_000_00,
+      vipContributionTitle: "Inscrição completa",
+      vipContributionSubtitle: "Acesso ao pacote completo da campanha",
+      vipContributionDescription: "Escolha este fluxo para apoiar a iniciativa de forma integral.",
+    } as any);
+
+    expect(result).toMatchObject({
+      amountCents: 15_000_00,
+      title: "Inscrição completa",
+      subtitle: "Acesso ao pacote completo da campanha",
+      description: "Escolha este fluxo para apoiar a iniciativa de forma integral.",
+      enabled: true,
+    });
+  });
+
+  it("desabilita o VIP quando o valor não é positivo", () => {
+    const result = resolveVipContributionConfig({ vipApartmentAmountCents: 0 } as any);
+
+    expect(result.enabled).toBe(false);
+    expect(result.amountCents).toBe(0);
+  });
+});
+
+describe("campaigns.getById", () => {
+  it("preserva a visibilidade do VIP quando a campanha define helpTierOptions", async () => {
+    const dbRows = [{
+      id: 55,
+      title: "Campanha VIP desligado",
+      description: "Descrição da campanha",
+      longDescription: "Descrição longa da campanha",
+      goal: 20_000,
+      vipApartmentAmountCents: 7_500_00,
+      raised: 0,
+      status: "active",
+      imageUrl: null,
+      createdBy: 1,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+      startDate: null,
+      endDate: null,
+    }];
+
+    const createQueryChain = (rows: Array<Record<string, unknown>>) => {
+      const chain: Record<string, unknown> = {
+        from: () => chain,
+        where: () => chain,
+        orderBy: () => chain,
+        limit: vi.fn().mockResolvedValue(rows),
+      };
+      (chain as { then?: (resolve: (value: unknown) => unknown) => unknown }).then = (resolve) => resolve(rows);
+      return chain as {
+        from: () => unknown;
+        where: () => unknown;
+        orderBy: () => unknown;
+        limit: ReturnType<typeof vi.fn>;
+        then: (resolve: (value: unknown) => unknown) => unknown;
+      };
+    };
+
+    getDbMock.mockResolvedValue({
+      select: vi.fn((projection: Record<string, unknown>) => {
+        if (projection && "helpTierOptions" in projection) {
+          return createQueryChain([{ ...dbRows[0], helpTierOptions: ["material", "financial"] }]);
+        }
+
+        if (projection && "campaignId" in projection && "amount" in projection) {
+          return createQueryChain([]);
+        }
+
+        return createQueryChain(dbRows as Array<Record<string, unknown>>);
+      }),
+    });
+
+    const caller = appRouter.createCaller(createPublicContext());
+    const result = await caller.campaigns.getById({ id: 55 });
+
+    expect(result?.helpTierOptions).toEqual(["material", "financial"]);
+  });
+});
 
 describe("deriveCampaignMetrics", () => {
   it("soma apenas valores não negativos e limita o progresso a 100%", () => {
@@ -238,6 +345,39 @@ describe("campaigns.listPublished", () => {
 
     expect(detail).not.toBeNull();
     expect(detail?.needs).toEqual([]);
+  });
+
+  it("usa o conteúdo canônico do recanto quando a campanha é acessada via localhost", async () => {
+    getDbMock.mockResolvedValue(null);
+    whatsappServiceMock.getFallbackCampaigns.mockReturnValue([{
+      id: 100001,
+      title: "Construção Hotel Recanto de Paz",
+      description: "Campanha criada para testar o estado vazio do recanto.",
+      longDescription: "Campanha criada para testar o estado vazio do recanto.",
+      category: "outro",
+      goal: 150_000_000,
+      raised: 0,
+      status: "active" as const,
+      imageUrl: "/obra-paredes.jpg",
+      createdBy: 1,
+      createdAt: new Date("2026-07-28T00:00:00.000Z"),
+      updatedAt: new Date("2026-07-28T00:00:00.000Z"),
+    }]);
+
+    const publicContext = createPublicContext();
+    publicContext.req.headers = { host: "localhost:3004" };
+    const caller = appRouter.createCaller(publicContext);
+    const detail = await caller.campaigns.getById({ id: 100001 });
+
+    expect(detail).not.toBeNull();
+    expect(detail?.longDescription).toContain("A campanha apresenta uma obra real");
+    expect(detail?.updates).toHaveLength(3);
+    expect(detail?.galleryImages).toEqual(expect.arrayContaining([
+      "/obra-paredes.jpg",
+      "/obra-lavanderia.jpg",
+      "/obra-drone.png",
+      "/render-hotel.jpg",
+    ]));
   });
 });
 

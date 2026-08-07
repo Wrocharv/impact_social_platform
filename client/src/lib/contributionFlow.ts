@@ -7,11 +7,18 @@ export function shouldShowMaterialContributionOption(input: {
   campaignNeeds: Array<{ id: number; name: string }>;
   currentType?: string | null;
   initialType?: string | null;
+  isLocalHost?: boolean;
 }) {
   const isLegendario = isLegendarioCampaign(input.campaignTitle);
+  const isRecantoCampaign = /recanto de paz/i.test(input.campaignTitle ?? "");
   const hasExplicitNeeds = (input.campaignNeeds ?? []).length > 0;
+  const isLocalHost = input.isLocalHost ?? (typeof window !== "undefined" && /localhost|127\.0\.0\.1/i.test(window.location.hostname));
 
   if (isLegendario) {
+    return true;
+  }
+
+  if (isRecantoCampaign && isLocalHost) {
     return true;
   }
 

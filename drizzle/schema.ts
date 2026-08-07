@@ -36,6 +36,7 @@ export const campaigns = mysqlTable("campaigns", {
   category: mysqlEnum("category", ["moradia", "educacao", "saude", "alimentacao", "infraestrutura", "outro"]).default("outro"),
   goal: int("goal").notNull(), // Meta em centavos (ex: 100000 = R$ 1000)
   vipApartmentAmountCents: int("vipApartmentAmountCents").default(12_000_000).notNull(), // Valor sugerido para doador VIP (apartamento completo)
+  helpTierOptions: varchar("helpTierOptions", { length: 64 }).default("material,financial,vip").notNull(),
   raised: int("raised").default(0).notNull(),
   status: mysqlEnum("status", ["active", "completed", "paused", "archived"]).default("active").notNull(),
   imageUrl: varchar("imageUrl", { length: 512 }),

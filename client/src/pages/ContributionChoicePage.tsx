@@ -1,13 +1,15 @@
 import PublicHeader from "@/components/PublicHeader";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isLegendarioCampaign } from "@/lib/campaignVisibility";
 import { trpc } from "@/lib/trpc";
-import { ChevronLeft, Crown, Heart, Handshake, Trophy } from "lucide-react";
+import { ChevronLeft, Crown, Heart, Handshake } from "lucide-react";
 import { Link, useRoute } from "wouter";
 
-const HOTEL_CAMPAIGN_ID = 100001;
-const HOTEL_LEGACY_CAMPAIGN_ID = 1;
 const SPECIAL_APARTMENT_DONATION_CENTS = 120_000_00;
+
+type HelpTierOption = "material" | "financial" | "vip";
+const DEFAULT_HELP_TIER_OPTIONS: HelpTierOption[] = ["material", "financial", "vip"];
 
 const formatCurrency = (valueInCents: number) =>
   (valueInCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -62,17 +64,17 @@ export default function ContributionChoicePage() {
   }
 
   const campaign = campaignQuery.data;
-  const campaignTitle = typeof campaign.title === "string" ? campaign.title.toLowerCase() : "";
-  const campaignDataId = typeof campaign.id === "number" ? campaign.id : campaignId;
-  const isHotelCampaign =
-    campaignId === HOTEL_CAMPAIGN_ID ||
-    campaignDataId === HOTEL_CAMPAIGN_ID ||
-    campaignTitle.includes("hotel recanto de paz") ||
-    (campaignId === HOTEL_LEGACY_CAMPAIGN_ID && campaignTitle.includes("hotel recanto de paz"));
+  const normalizedHelpTierOptions = Array.isArray((campaign as { helpTierOptions?: unknown }).helpTierOptions)
+    ? ((campaign as { helpTierOptions?: HelpTierOption[] }).helpTierOptions ?? DEFAULT_HELP_TIER_OPTIONS)
+    : DEFAULT_HELP_TIER_OPTIONS;
+  const visibleHelpTierOptions = normalizedHelpTierOptions.filter((option) => DEFAULT_HELP_TIER_OPTIONS.includes(option));
   const vipApartmentAmountCents = ("vipApartmentAmountCents" in campaign && typeof campaign.vipApartmentAmountCents === "number")
     ? campaign.vipApartmentAmountCents
     : SPECIAL_APARTMENT_DONATION_CENTS;
-  const hasVipOffer = vipApartmentAmountCents > 0;
+  const legendarioCampaign = isLegendarioCampaign(campaign);
+  const hasVipOffer = !legendarioCampaign && visibleHelpTierOptions.includes("vip") && vipApartmentAmountCents > 0;
+  const visibleCardCount = [visibleHelpTierOptions.includes("material"), visibleHelpTierOptions.includes("financial"), hasVipOffer].filter(Boolean).length;
+  const gridClassName = visibleCardCount === 1 ? "md:grid-cols-1" : visibleCardCount === 2 ? "md:grid-cols-2" : "md:grid-cols-3";
 
   return (
     <div className="min-h-screen bg-[#f8faf7]">
@@ -88,48 +90,39 @@ export default function ContributionChoicePage() {
           <p className="mx-auto mt-3 max-w-3xl text-[#656565]">Cada formato agora está em uma página separada para não misturar os fluxos.</p>
         </div>
 
-        <div className={`mt-6 grid gap-4 ${isHotelCampaign && hasVipOffer ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
-          <Card className="flex h-full flex-col border-2 border-[#aeb4be] bg-gradient-to-b from-[#f4f4f5] via-[#d9dde3] to-[#bcc4cf] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-            {isHotelCampaign ? (
-              <p className="flex items-center justify-center gap-2 text-base leading-none font-black uppercase tracking-[0.1em] text-[#69707c] md:text-lg">
-                <Trophy className="h-4 w-4" aria-hidden="true" /> PRATA
-              </p>
-            ) : null}
-            <h2 className={`${isHotelCampaign ? "-mt-[1.03125rem]" : ""} text-center text-[1.6rem] font-black uppercase tracking-[0.03em] text-[#3f4754] md:text-[1.7rem]`}>Material</h2>
-            <p className="mt-2 text-center text-base font-extrabold text-[#505a68]">Doação detalhada ou avulsa</p>
-            <p className="mt-2 flex min-h-[56px] items-center justify-center rounded-md bg-black/70 px-3 py-1.5 text-center text-sm font-semibold text-white shadow-[0_2px_6px_rgba(0,0,0,0.22)]">Lista de itens da campanha com quantidade e confirmação.</p>
-            <Link
-              href={`/contribute/items/${campaignId}`}
-              className="mt-auto inline-flex min-h-11 w-full items-center justify-center rounded-md bg-[#6a7484] px-4 text-sm font-extrabold uppercase tracking-[0.04em] text-white transition hover:bg-[#545d6b]"
-            >
-              <Handshake className="mr-2 h-4 w-4" aria-hidden="true" /> Ir para materiais
-            </Link>
-          </Card>
+        <div className={`mt-6 grid gap-4 ${gridClassName}`}>
+          {visibleHelpTierOptions.includes("material") ? (
+            <Card className="flex h-full flex-col border-2 border-[#aeb4be] bg-gradient-to-b from-[#f4f4f5] via-[#d9dde3] to-[#bcc4cf] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+              <h2 className="text-center text-[1.6rem] font-black uppercase tracking-[0.03em] text-[#3f4754] md:text-[1.7rem]">Material</h2>
+              <p className="mt-2 text-center text-base font-extrabold text-[#505a68]">Doação detalhada ou avulsa</p>
+              <p className="mt-2 flex min-h-[56px] items-center justify-center rounded-md bg-black/70 px-3 py-1.5 text-center text-sm font-semibold text-white shadow-[0_2px_6px_rgba(0,0,0,0.22)]">Lista de itens da campanha com quantidade e confirmação.</p>
+              <Link
+                href={`/contribute/items/${campaignId}`}
+                className="mt-auto inline-flex min-h-11 w-full items-center justify-center rounded-md bg-[#6a7484] px-4 text-sm font-extrabold uppercase tracking-[0.04em] text-white transition hover:bg-[#545d6b]"
+              >
+                <Handshake className="mr-2 h-4 w-4" aria-hidden="true" /> Ir para materiais
+              </Link>
+            </Card>
+          ) : null}
 
-          <Card className="flex h-full flex-col border-2 border-[#95502a] bg-gradient-to-b from-[#f3c9ae] via-[#cc8358] to-[#9e5834] p-5 shadow-[inset_0_1px_0_rgba(255,230,210,0.55)]">
-            {isHotelCampaign ? (
-              <p className="flex items-center justify-center gap-2 text-base leading-none font-black uppercase tracking-[0.1em] text-[#6a2f15] md:text-lg">
-                <Heart className="h-4 w-4" aria-hidden="true" /> BRONZE
-              </p>
-            ) : null}
-            <h2 className={`${isHotelCampaign ? "-mt-[1.03125rem]" : ""} text-center text-[1.6rem] font-black uppercase tracking-[0.03em] text-[#5d240d] md:text-[1.7rem]`}>Dinheiro</h2>
-            <p className="mt-2 text-center text-base font-extrabold text-[#662d12]">Doação financeira</p>
-            <p className="mt-2 flex min-h-[56px] items-center justify-center rounded-md bg-black/70 px-3 py-1.5 text-center text-sm font-semibold text-white shadow-[0_2px_6px_rgba(0,0,0,0.22)]">Doação única ou parcelada, com confirmação no wizard financeiro.</p>
-            <Link
-              href={`/contribute/wizard/${campaignId}?type=financial`}
-              className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#7f3f1a] px-4 text-sm font-extrabold uppercase tracking-[0.04em] text-white transition hover:bg-[#643114]"
-            >
-              <Heart className="h-4 w-4" aria-hidden="true" />
-              <span className="text-center">Ir para doação em dinheiro</span>
-            </Link>
-          </Card>
+          {visibleHelpTierOptions.includes("financial") ? (
+            <Card className="flex h-full flex-col border-2 border-[#95502a] bg-gradient-to-b from-[#f3c9ae] via-[#cc8358] to-[#9e5834] p-5 shadow-[inset_0_1px_0_rgba(255,230,210,0.55)]">
+              <h2 className="text-center text-[1.6rem] font-black uppercase tracking-[0.03em] text-[#5d240d] md:text-[1.7rem]">Dinheiro</h2>
+              <p className="mt-2 text-center text-base font-extrabold text-[#662d12]">Doação financeira</p>
+              <p className="mt-2 flex min-h-[56px] items-center justify-center rounded-md bg-black/70 px-3 py-1.5 text-center text-sm font-semibold text-white shadow-[0_2px_6px_rgba(0,0,0,0.22)]">Doação única ou parcelada, com confirmação no wizard financeiro.</p>
+              <Link
+                href={`/contribute/wizard/${campaignId}?type=financial`}
+                className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#7f3f1a] px-4 text-sm font-extrabold uppercase tracking-[0.04em] text-white transition hover:bg-[#643114]"
+              >
+                <Heart className="h-4 w-4" aria-hidden="true" />
+                <span className="text-center">Ir para doação em dinheiro</span>
+              </Link>
+            </Card>
+          ) : null}
 
-          {isHotelCampaign && hasVipOffer ? (
+          {hasVipOffer ? (
             <Card className="flex h-full flex-col border-2 border-[#c5961a] bg-gradient-to-b from-[#fff3bf] via-[#f0ce68] to-[#d9a729] p-5 shadow-[inset_0_1px_0_rgba(255,248,203,0.8)]">
-              <p className="flex items-center justify-center gap-2 text-base leading-none font-black uppercase tracking-[0.1em] text-[#7a5100] md:text-lg">
-                <Crown className="h-4 w-4" aria-hidden="true" /> OURO
-              </p>
-              <h2 className="-mt-[1.03125rem] text-center text-[1.6rem] font-black uppercase tracking-[0.03em] text-[#6a4600] md:text-[1.7rem]">VIP</h2>
+              <h2 className="text-center text-[1.6rem] font-black uppercase tracking-[0.03em] text-[#6a4600] md:text-[1.7rem]">VIP</h2>
               <p className="mt-2 text-center text-base font-extrabold text-[#7a5202]">Apartamento completo</p>
               <p className="mt-2 flex min-h-[56px] items-center justify-center rounded-md bg-black/70 px-3 py-1.5 text-center text-sm font-semibold text-white shadow-[0_2px_6px_rgba(0,0,0,0.22)]">Valor sugerido: {formatCurrency(vipApartmentAmountCents)}.</p>
               <Link

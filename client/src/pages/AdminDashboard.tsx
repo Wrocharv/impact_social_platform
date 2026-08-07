@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { AlertCircle, Building2, CheckCircle2, Edit2, ExternalLink, FileText, Handshake, Megaphone, PackagePlus, Plus, Trash2, XCircle } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -10,11 +10,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { mergeNeedsForManagement, readLocalNeedsForCampaign, removeLocalNeed, saveLocalNeed, updateLocalNeed } from "@/lib/localNeeds";
+import { clearLocalNeedsForCampaign, mergeNeedsForManagement, readLocalNeedsForCampaign, removeLocalNeed, saveLocalNeed, updateLocalNeed } from "@/lib/localNeeds";
+import { resolveCampaignImageUrl } from "@/lib/campaignMedia";
+import { getCampaignContent, saveCampaignContent } from "@/lib/campaignContent";
+import { getSiteContent, saveSiteContent } from "@/lib/siteContent";
+import { resolveMediaUrl } from "@/lib/mediaInput";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -54,6 +59,8 @@ const createEmptyNeedDraft = (): NewNeedDraft => ({
 });
 
 type CampaignModelType = "custom" | "construction_hotel";
+type HelpTierOption = "material" | "financial" | "vip";
+const DEFAULT_HELP_TIER_OPTIONS: HelpTierOption[] = ["material", "financial", "vip"];
 
 const CONSTRUCTION_HOTEL_NEEDS_TEMPLATE: NewNeedDraft[] = [
   {
@@ -88,6 +95,7 @@ const EMPTY_CAMPAIGN_EDIT_FORM = {
   longDescription: "",
   goal: "",
   vipApartmentAmount: "",
+  helpTierOptions: DEFAULT_HELP_TIER_OPTIONS,
   vipImageUrls: "",
   vipVideoUrls: "",
   initialRaised: "",
@@ -140,6 +148,7 @@ export default function AdminDashboard() {
     longDescription: "",
     goal: "",
     vipApartmentAmount: "",
+    helpTierOptions: DEFAULT_HELP_TIER_OPTIONS,
     initialRaised: "",
     imageUrl: "",
   });
@@ -152,6 +161,8 @@ export default function AdminDashboard() {
   const [cashValidationNotes, setCashValidationNotes] = useState<Record<number, string>>({});
   const [materialValidationNotes, setMaterialValidationNotes] = useState<Record<number, string>>({});
   const [validationCampaignFilter, setValidationCampaignFilter] = useState<string>("all");
+  const [siteContentForm, setSiteContentForm] = useState(getSiteContent());
+  const [campaignContentForm, setCampaignContentForm] = useState<{ [campaignId: number]: ReturnType<typeof getCampaignContent> }>({});
 
   const selectedValidationCampaignId = validationCampaignFilter === "all"
     ? undefined
@@ -294,8 +305,17 @@ export default function AdminDashboard() {
   const uploadCampaignImage = trpc.campaigns.uploadImage.useMutation({
     onError: (error) => toast.error(error.message || "Erro ao enviar imagem da campanha"),
   });
+  const uploadCampaignVideo = trpc.campaigns.uploadVideo.useMutation({
+    onError: (error) => toast.error(error.message || "Erro ao enviar vídeo da campanha"),
+  });
   const [uploadingPartnerField, setUploadingPartnerField] = useState<"logoUrl" | "storePhotoUrl" | "ownerPhotoUrl" | null>(null);
   const [uploadingCampaignImage, setUploadingCampaignImage] = useState<"create" | "edit" | null>(null);
+  const [campaignMediaYouTubeUrl, setCampaignMediaYouTubeUrl] = useState("");
+  const [siteMediaYouTubeUrl, setSiteMediaYouTubeUrl] = useState("");
+  const [partnerMediaYouTubeUrl, setPartnerMediaYouTubeUrl] = useState("");
+  const [campaignContentMediaYouTubeUrls, setCampaignContentMediaYouTubeUrls] = useState<Record<number, { gallery: string; videos: string }>>({});
+  const [campaignUpdateMediaYouTubeUrls, setCampaignUpdateMediaYouTubeUrls] = useState({ image: "", video: "" });
+  const [vipMediaYouTubeUrls, setVipMediaYouTubeUrls] = useState({ image: "", video: "" });
 
   if (!user) return <DashboardLayout><div /></DashboardLayout>;
 
@@ -355,6 +375,13 @@ export default function AdminDashboard() {
   }
 
   function openEditCampaign(campaign: NonNullable<typeof campaignsQuery.data>[number]) {
+    const vipImages = "vipMediaImages" in campaign && Array.isArray(campaign.vipMediaImages)
+      ? campaign.vipMediaImages
+      : [];
+    const vipVideos = "vipMediaVideos" in campaign && Array.isArray(campaign.vipMediaVideos)
+      ? campaign.vipMediaVideos
+      : [];
+
     setEditingCampaignId(campaign.id);
     setCampaignEditForm({
       title: campaign.title,
@@ -362,8 +389,11 @@ export default function AdminDashboard() {
       longDescription: campaign.longDescription ?? "",
       goal: String(campaign.goal / 100).replace(".", ","),
       vipApartmentAmount: String((("vipApartmentAmountCents" in campaign ? campaign.vipApartmentAmountCents : undefined) ?? 0) / 100).replace(".", ","),
-      vipImageUrls: "",
-      vipVideoUrls: "",
+      helpTierOptions: Array.isArray((campaign as { helpTierOptions?: unknown }).helpTierOptions)
+        ? ((campaign as { helpTierOptions?: HelpTierOption[] }).helpTierOptions ?? DEFAULT_HELP_TIER_OPTIONS)
+        : DEFAULT_HELP_TIER_OPTIONS,
+      vipImageUrls: vipImages.join("\n"),
+      vipVideoUrls: vipVideos.join("\n"),
       initialRaised: String((("initialRaised" in campaign ? campaign.initialRaised : undefined) ?? campaign.raised) / 100).replace(".", ","),
       imageUrl: campaign.imageUrl ?? "",
       status: campaign.status,
@@ -408,6 +438,7 @@ export default function AdminDashboard() {
       longDescription: "",
       goal: "",
       vipApartmentAmount: "",
+      helpTierOptions: DEFAULT_HELP_TIER_OPTIONS,
       initialRaised: "",
       imageUrl: "",
     });
@@ -457,6 +488,8 @@ export default function AdminDashboard() {
       return;
     }
 
+    const resolvedImageUrl = resolveCampaignImageUrl(campaignForm.imageUrl, campaignForm.imageUrl);
+
     try {
       const parsedNeeds = campaignNeedsDrafts.map((need, index) => {
         const targetQuantityExact = Number.parseInt(need.targetQuantityExact, 10);
@@ -491,8 +524,9 @@ export default function AdminDashboard() {
         longDescription: campaignForm.longDescription,
         goal: goalInCents,
         vipApartmentAmountCents,
+        helpTierOptions: campaignForm.helpTierOptions.length > 0 ? campaignForm.helpTierOptions : DEFAULT_HELP_TIER_OPTIONS,
         initialRaised: initialRaisedInCents,
-        imageUrl: campaignForm.imageUrl || undefined,
+        imageUrl: resolvedImageUrl,
         needs: parsedNeeds,
       });
     } catch (error) {
@@ -526,8 +560,21 @@ export default function AdminDashboard() {
       return;
     }
 
-    const vipImageUrls = parseMediaUrlsInput(campaignEditForm.vipImageUrls);
-    const vipVideoUrls = parseMediaUrlsInput(campaignEditForm.vipVideoUrls);
+    const vipImagesParsed = parseVipMediaUrlsInput(campaignEditForm.vipImageUrls);
+    if (vipImagesParsed.invalid.length > 0) {
+      toast.error(`URL inválida em Imagens VIP: ${vipImagesParsed.invalid[0]}`);
+      return;
+    }
+
+    const vipVideosParsed = parseVipMediaUrlsInput(campaignEditForm.vipVideoUrls);
+    if (vipVideosParsed.invalid.length > 0) {
+      toast.error(`URL inválida em Vídeos VIP: ${vipVideosParsed.invalid[0]}`);
+      return;
+    }
+
+    const vipImageUrls = vipImagesParsed.values;
+    const vipVideoUrls = vipVideosParsed.values;
+    const resolvedImageUrl = resolveCampaignImageUrl(campaignEditForm.imageUrl, campaignEditForm.imageUrl);
 
     updateCampaign.mutate({
       id: editingCampaignId,
@@ -536,10 +583,11 @@ export default function AdminDashboard() {
       longDescription: campaignEditForm.longDescription,
       goal: goalInCents,
       vipApartmentAmountCents,
-      vipImageUrls: vipImageUrls.length > 0 ? vipImageUrls : undefined,
-      vipVideoUrls: vipVideoUrls.length > 0 ? vipVideoUrls : undefined,
+      helpTierOptions: campaignEditForm.helpTierOptions.length > 0 ? campaignEditForm.helpTierOptions : DEFAULT_HELP_TIER_OPTIONS,
+      vipImageUrls,
+      vipVideoUrls,
       initialRaised: initialRaisedInCents,
-      imageUrl: campaignEditForm.imageUrl || null,
+      imageUrl: resolvedImageUrl || null,
       status: campaignEditForm.status,
     });
   }
@@ -578,22 +626,6 @@ export default function AdminDashboard() {
       return;
     }
 
-    if (isLocalhost) {
-      saveLocalNeed({
-        campaignId: selectedCampaign.id,
-        type: campaignNeedForm.type,
-        name: campaignNeedForm.name.trim(),
-        description: campaignNeedForm.description.trim() || undefined,
-        quantity: campaignNeedForm.quantity.trim(),
-        targetQuantityExact,
-        unitValueCents,
-        priority: campaignNeedForm.priority,
-      });
-      toast.success("Necessidade cadastrada no modo local.");
-      closeCampaignNeedDialog();
-      return;
-    }
-
     try {
       await createCampaignNeed.mutateAsync({
         campaignId: selectedCampaign.id,
@@ -606,7 +638,8 @@ export default function AdminDashboard() {
         priority: campaignNeedForm.priority,
       });
 
-      toast.success("Necessidade cadastrada com sucesso!");
+      clearLocalNeedsForCampaign(selectedCampaign.id);
+      toast.success(isLocalhost ? "Necessidade sincronizada no modo local." : "Necessidade cadastrada com sucesso!");
       closeCampaignNeedDialog();
       await invalidateCampaignData();
     } catch (error) {
@@ -640,22 +673,6 @@ export default function AdminDashboard() {
     type: "material" | "labor" | "equipment" | "other";
     priority: "high" | "medium" | "low";
   }) {
-    if (isLocalhost) {
-      saveLocalNeed({
-        campaignId,
-        type: payload.type,
-        name: payload.name,
-        description: payload.description?.trim() || undefined,
-        quantity: payload.quantity,
-        targetQuantityExact: payload.targetQuantityExact,
-        unitValueCents: payload.unitValueCents,
-        priority: payload.priority,
-      });
-      toast.success("Item criado localmente.");
-      await invalidateCampaignData();
-      return;
-    }
-
     await createCampaignNeed.mutateAsync({
       campaignId,
       type: payload.type,
@@ -666,19 +683,26 @@ export default function AdminDashboard() {
       unitValueCents: payload.unitValueCents,
       priority: payload.priority,
     });
+
+    clearLocalNeedsForCampaign(campaignId);
+
+    if (isLocalhost) {
+      toast.success("Item sincronizado no modo local.");
+      await invalidateCampaignData();
+    }
   }
 
   async function handleDeleteNeed(needId: number, campaignId: number) {
     if (isLocalhost) {
-      const removed = removeLocalNeed(campaignId, needId);
-      if (removed) {
-        toast.success("Item removido localmente.");
-        await invalidateCampaignData();
-        return;
-      }
+      await deleteNeed.mutateAsync({ needId, campaignId });
+      removeLocalNeed(campaignId, needId);
+      clearLocalNeedsForCampaign(campaignId);
+      toast.success("Item removido no modo local.");
+      await invalidateCampaignData();
+      return;
     }
 
-    deleteNeed.mutate({ needId, campaignId });
+    await deleteNeed.mutateAsync({ needId, campaignId });
   }
 
   async function handleUpdateNeed(needId: number, campaignId: number, updates: {
@@ -690,39 +714,6 @@ export default function AdminDashboard() {
     type: "material" | "labor" | "equipment" | "other";
     priority: "high" | "medium" | "low";
   }) {
-    const localMatch = readLocalNeedsForCampaign(campaignId).find((item) => item.id === needId);
-
-    if (isLocalhost) {
-      const updated = updateLocalNeed({
-        id: needId,
-        campaignId,
-        type: updates.type,
-        name: updates.name,
-        description: updates.description?.trim() || undefined,
-        quantity: updates.quantity,
-        targetQuantityExact: updates.targetQuantityExact,
-        unitValueCents: updates.unitValueCents,
-        priority: updates.priority,
-      });
-      if (updated || !localMatch) {
-        if (!localMatch) {
-          saveLocalNeed({
-            campaignId,
-            type: updates.type,
-            name: updates.name,
-            description: updates.description?.trim() || undefined,
-            quantity: updates.quantity,
-            targetQuantityExact: updates.targetQuantityExact,
-            unitValueCents: updates.unitValueCents,
-            priority: updates.priority,
-          });
-        }
-        toast.success("Item atualizado localmente.");
-        await invalidateCampaignData();
-        return;
-      }
-    }
-
     await updateNeed.mutateAsync({
       needId,
       campaignId,
@@ -734,6 +725,36 @@ export default function AdminDashboard() {
       type: updates.type,
       priority: updates.priority,
     });
+
+    if (isLocalhost) {
+      updateLocalNeed({
+        id: needId,
+        campaignId,
+        type: updates.type,
+        name: updates.name,
+        description: updates.description?.trim() || undefined,
+        quantity: updates.quantity,
+        targetQuantityExact: updates.targetQuantityExact,
+        unitValueCents: updates.unitValueCents,
+        priority: updates.priority,
+      });
+      clearLocalNeedsForCampaign(campaignId);
+      toast.success("Item atualizado no modo local.");
+      await invalidateCampaignData();
+    }
+  }
+
+  function handleSaveSiteContent(event: React.FormEvent) {
+    event.preventDefault();
+    saveSiteContent(siteContentForm);
+    toast.success("Ajustes do painel foram aplicados no site público.");
+  }
+
+  function handleSaveCampaignContent(event: React.FormEvent, campaignId: number) {
+    event.preventDefault();
+    const current = campaignContentForm[campaignId] ?? getCampaignContent(campaignId);
+    saveCampaignContent(campaignId, current);
+    toast.success("Ajustes do painel foram aplicados na campanha pública.");
   }
 
   function handleSavePartner(event: React.FormEvent) {
@@ -814,11 +835,142 @@ export default function AdminDashboard() {
         setCampaignEditForm((current) => ({ ...current, imageUrl: result.url }));
       }
 
-      toast.success("Imagem pronta. Salve a campanha para aplicar.");
+      toast.success("Imagem enviada. Você pode salvar ou colar uma URL/YouTube se preferir.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao enviar imagem. Tente uma imagem menor.");
     } finally {
       setUploadingCampaignImage(null);
+    }
+  }
+
+  async function uploadCampaignMediaFile(file: File) {
+    if (file.type.startsWith("image/")) {
+      const base64 = await fileToBase64(file);
+      const result = await uploadCampaignImage.mutateAsync({
+        fileName: file.name,
+        mimeType: (file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/webp") ? file.type : "image/png",
+        size: file.size,
+        base64,
+      });
+      return result.url;
+    }
+
+    if (file.type.startsWith("video/")) {
+      if (file.size > 50 * 1024 * 1024) {
+        throw new Error("O vídeo deve ter no máximo 50MB.");
+      }
+
+      const base64 = await fileToBase64(file);
+      const result = await uploadCampaignVideo.mutateAsync({
+        fileName: file.name,
+        mimeType: file.type === "video/webm" || file.type === "video/ogg" || file.type === "video/quicktime" ? file.type : "video/mp4",
+        size: file.size,
+        base64,
+      });
+      return result.url;
+    }
+
+    throw new Error("Selecione apenas arquivos de imagem ou vídeo válidos.");
+  }
+
+  async function handleCampaignContentMediaUpload(campaignId: number, kind: "gallery" | "videos", files?: FileList | null) {
+    if (!files?.length) return;
+
+    try {
+      const entries: string[] = [];
+      for (const file of Array.from(files)) {
+        entries.push(await uploadCampaignMediaFile(file));
+      }
+
+      setCampaignContentForm((current) => {
+        const base = current[campaignId] ?? getCampaignContent(campaignId);
+        return {
+          ...current,
+          [campaignId]: {
+            ...base,
+            ...(kind === "gallery"
+              ? { galleryImageUrls: appendMediaValues(base.galleryImageUrls, entries) }
+              : { videoUrls: appendMediaValues(base.videoUrls, entries) }),
+          },
+        };
+      });
+
+      toast.success(kind === "gallery" ? "Arquivos da galeria adicionados." : "Vídeos adicionados à campanha.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível adicionar a mídia.");
+    }
+  }
+
+  async function handleSitePresentationVideoUpload(file?: File) {
+    if (!file) return;
+
+    if (!file.type.startsWith("video/")) {
+      toast.error("Selecione um arquivo de vídeo válido.");
+      return;
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("O vídeo deve ter no máximo 50MB.");
+      return;
+    }
+
+    try {
+      const base64 = await fileToBase64(file);
+      const result = await uploadCampaignVideo.mutateAsync({
+        fileName: file.name,
+        mimeType: file.type === "video/webm" || file.type === "video/ogg" || file.type === "video/quicktime" ? file.type : "video/mp4",
+        size: file.size,
+        base64,
+      });
+
+      setSiteContentForm((current) => {
+        const next = { ...current, presentationVideoUrl: result.url };
+        saveSiteContent(next);
+        return next;
+      });
+      toast.success("Vídeo de apresentação enviado e salvo com sucesso.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível enviar o vídeo.");
+    }
+  }
+
+  async function handleCampaignUpdateMediaUpload(kind: "image" | "video", files?: FileList | null) {
+    if (!files?.length) return;
+
+    try {
+      const entries: string[] = [];
+      for (const file of Array.from(files)) {
+        entries.push(await uploadCampaignMediaFile(file));
+      }
+
+      setCampaignUpdateForm((current) => ({
+        ...current,
+        [kind === "image" ? "imageUrls" : "videoUrls"]: appendMediaValues(parseMediaUrlsInput(current[kind === "image" ? "imageUrls" : "videoUrls"]), entries).join("\n"),
+      }));
+
+      toast.success(kind === "image" ? "Imagens adicionadas à atualização." : "Vídeos adicionados à atualização.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível adicionar a mídia.");
+    }
+  }
+
+  async function handleVipMediaUpload(kind: "image" | "video", files?: FileList | null) {
+    if (!files?.length) return;
+
+    try {
+      const entries: string[] = [];
+      for (const file of Array.from(files)) {
+        entries.push(await uploadCampaignMediaFile(file));
+      }
+
+      setCampaignEditForm((current) => ({
+        ...current,
+        [kind === "image" ? "vipImageUrls" : "vipVideoUrls"]: appendMediaValues(parseMediaUrlsInput(current[kind === "image" ? "vipImageUrls" : "vipVideoUrls"]), entries).join("\n"),
+      }));
+
+      toast.success(kind === "image" ? "Imagens VIP adicionadas." : "Vídeos VIP adicionados.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível adicionar a mídia.");
     }
   }
 
@@ -880,10 +1032,49 @@ export default function AdminDashboard() {
                       <Field label="Arrecadação inicial (R$)"><Input inputMode="decimal" value={campaignForm.initialRaised} onChange={(event) => setCampaignForm({ ...campaignForm, initialRaised: event.target.value })} placeholder="Ex.: 12.350,90" /></Field>
                     </div>
                     <Field label="Valor VIP apartamento (R$) (opcional)"><Input inputMode="decimal" value={campaignForm.vipApartmentAmount} onChange={(event) => setCampaignForm({ ...campaignForm, vipApartmentAmount: event.target.value })} placeholder="Ex.: 120.000,00" /></Field>
+                    <Field label="Opções de ajuda públicas">
+                      <div className="grid gap-3 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3 sm:grid-cols-3">
+                        {(["material", "financial", "vip"] as HelpTierOption[]).map((option) => {
+                          const label = option === "material" ? "Materiais" : option === "financial" ? "Dinheiro" : "VIP";
+                          const checked = campaignForm.helpTierOptions.includes(option);
+                          return (
+                            <label key={option} className="flex items-center gap-2 rounded-md border border-[#dce5d8] bg-white px-3 py-2 text-sm font-medium text-[#334139]">
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(value) => {
+                                  const next = value ? [...campaignForm.helpTierOptions, option] : campaignForm.helpTierOptions.filter((item) => item !== option);
+                                  setCampaignForm({ ...campaignForm, helpTierOptions: next });
+                                }}
+                              />
+                              {label}
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <p className="mt-1 text-xs text-[#66736a]">Marque quais páginas de ajuda devem aparecer para a campanha no público.</p>
+                    </Field>
                     <Field label="Imagem da campanha">
-                      <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleCampaignImageUpload("create", event.target.files?.[0])} />
+                      <Input
+                        value={campaignForm.imageUrl}
+                        onChange={(event) => setCampaignForm({ ...campaignForm, imageUrl: event.target.value })}
+                        placeholder="URL da imagem (opcional)"
+                      />
+                      <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
+                        <div className="mt-2 space-y-2">
+                          <div>
+                            <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
+                            <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleCampaignImageUpload("create", event.target.files?.[0])} />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
+                            <Input value={campaignMediaYouTubeUrl} onChange={(event) => { setCampaignMediaYouTubeUrl(event.target.value); if (event.target.value.trim()) { setCampaignForm((current) => ({ ...current, imageUrl: event.target.value.trim() })); } }} placeholder="https://www.youtube.com/watch?v=..." />
+                          </div>
+                        </div>
+                      </div>
                       {uploadingCampaignImage === "create" && <p className="text-xs text-[#66736a]">Enviando imagem...</p>}
                       {campaignForm.imageUrl && <p className="text-xs text-[#228B22] break-all">Imagem pronta: {campaignForm.imageUrl.startsWith("data:") ? "arquivo carregado" : campaignForm.imageUrl}</p>}
+                      <p className="mt-1 text-xs text-[#66736a]">Use URL direta, arquivo local do seu computador ou YouTube. Para vídeo, também vale o mesmo fluxo.</p>
                     </Field>
 
                     <div className="rounded-lg border border-[#dce5d8] p-4">
@@ -1039,6 +1230,36 @@ export default function AdminDashboard() {
             </Card>
 
             <Card className="p-5 md:p-6">
+              <div className="mb-4 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4">
+                <h3 className="text-lg font-bold text-[#243128]">Conteúdo manual do site</h3>
+                <p className="mt-1 text-sm text-[#66736a]">Edite título, subtítulo, imagem principal e vídeo de apresentação sem depender da IA.</p>
+                <p className="mt-2 text-xs font-semibold text-[#70571a]">Se quiser trocar o vídeo de teste, é este campo de vídeo de apresentação da home. Não é o vídeo VIP da campanha.</p>
+                <form onSubmit={handleSaveSiteContent} className="mt-4 space-y-4">
+                  <Field label="Título principal"><Input value={siteContentForm.heroTitle} onChange={(event) => setSiteContentForm({ ...siteContentForm, heroTitle: event.target.value })} /></Field>
+                  <Field label="Subtítulo principal"><Textarea value={siteContentForm.heroSubtitle} onChange={(event) => setSiteContentForm({ ...siteContentForm, heroSubtitle: event.target.value })} rows={3} /></Field>
+                  <Field label="Imagem da home (URL direta ou caminho local)"><Input value={siteContentForm.heroImageUrl} onChange={(event) => setSiteContentForm({ ...siteContentForm, heroImageUrl: event.target.value })} placeholder="https://... ou /caminho/arquivo.jpg" /></Field>
+                  <Field label="Título da seção de vídeo"><Input value={siteContentForm.presentationTitle} onChange={(event) => setSiteContentForm({ ...siteContentForm, presentationTitle: event.target.value })} /></Field>
+                  <Field label="Descrição da seção de vídeo"><Textarea value={siteContentForm.presentationDescription} onChange={(event) => setSiteContentForm({ ...siteContentForm, presentationDescription: event.target.value })} rows={3} /></Field>
+                  <Field label="Vídeo de apresentação da home (trocar o vídeo de teste)">
+                    <Input
+                      value={siteContentForm.presentationVideoUrl}
+                      onChange={(event) => setSiteContentForm({ ...siteContentForm, presentationVideoUrl: event.target.value })}
+                      placeholder="https://www.youtube.com/watch?v=... ou /video.mp4"
+                    />
+                    <div className="mt-2 rounded-lg border border-[#dce5d8] bg-white p-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Ou enviar arquivo do computador</p>
+                      <Input
+                        className="mt-2"
+                        type="file"
+                        accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                        onChange={(event) => void handleSitePresentationVideoUpload(event.target.files?.[0])}
+                      />
+                    </div>
+                  </Field>
+                  <div className="flex justify-end"><Button type="submit">Salvar conteúdo</Button></div>
+                </form>
+              </div>
+
               <div className="mb-4 flex flex-col gap-3 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-[#243128]">Filtro de validação</h3>
@@ -1344,6 +1565,88 @@ export default function AdminDashboard() {
                       <Button asChild variant="ghost" size="sm" className="gap-2"><Link href={`/campaign/${campaign.id}`}><ExternalLink className="h-4 w-4" /> Ver no site</Link></Button>
                     </div>
                   </div>
+                  <form onSubmit={(event) => handleSaveCampaignContent(event, campaign.id)} className="mt-6 space-y-4 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-sm font-bold text-[#243128]">Conteúdo manual da campanha</h4>
+                        <p className="text-xs text-[#66736a]">Edite título, subtítulo, hero e galeria sem depender de código.</p>
+                        <p className="mt-1 text-xs font-semibold text-[#70571a]">Para salvar vídeo/foto VIP da campanha, use o botão "Editar" acima e clique em "Salvar alterações" no modal.</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" size="sm" variant="default" className="bg-[#228B22] hover:bg-[#1a6b1a]" onClick={() => openEditCampaign(campaign)}>Abrir editor da campanha</Button>
+                        <Button type="submit" size="sm" variant="outline">Descartar conteúdo manual</Button>
+                      </div>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field label="Título exibido na página">
+                        <Input value={(campaignContentForm[campaign.id]?.title ?? getCampaignContent(campaign.id).title) || campaign.title} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), title: event.target.value } }))} />
+                      </Field>
+                      <Field label="Subtítulo exibido no topo">
+                        <Input value={(campaignContentForm[campaign.id]?.subtitle ?? getCampaignContent(campaign.id).subtitle) || ""} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), subtitle: event.target.value } }))} />
+                      </Field>
+                    </div>
+                    <Field label="Descrição curta"><Textarea rows={3} value={(campaignContentForm[campaign.id]?.description ?? getCampaignContent(campaign.id).description) || ""} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), description: event.target.value } }))} /></Field>
+                    <Field label="Descrição longa"><Textarea rows={5} value={(campaignContentForm[campaign.id]?.longDescription ?? getCampaignContent(campaign.id).longDescription) || ""} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), longDescription: event.target.value } }))} /></Field>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field label="Imagem principal (URL, arquivo local ou YouTube)">
+                        <Input value={(campaignContentForm[campaign.id]?.heroImageUrl ?? getCampaignContent(campaign.id).heroImageUrl) || ""} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), heroImageUrl: event.target.value } }))} placeholder="https://... ou /arquivo.jpg" />
+                        <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
+                          <div className="mt-2 space-y-2">
+                            <div>
+                              <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
+                              <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; void handleCampaignImageUpload("edit", file); }} />
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
+                              <div className="flex gap-2">
+                                <Input value={campaignContentMediaYouTubeUrls[campaign.id]?.gallery ?? ""} onChange={(event) => setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), gallery: event.target.value } }))} placeholder="https://www.youtube.com/watch?v=..." />
+                                <Button type="button" size="sm" variant="outline" onClick={() => { const value = (campaignContentMediaYouTubeUrls[campaign.id]?.gallery ?? "").trim(); if (!value) return; setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), heroImageUrl: value } })); setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), gallery: "" } })); toast.success("YouTube adicionado ao hero da campanha."); }}>Adicionar</Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </Field>
+                      <Field label="Galeria (uma URL por linha)">
+                        <Textarea rows={4} value={(campaignContentForm[campaign.id]?.galleryImageUrls ?? getCampaignContent(campaign.id).galleryImageUrls).join("\n")} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), galleryImageUrls: event.target.value.split(/\n|,/).map((item) => item.trim()).filter(Boolean) } }))} placeholder="https://.../foto1.jpg" />
+                        <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
+                          <div className="mt-2 space-y-2">
+                            <div>
+                              <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
+                              <Input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => void handleCampaignContentMediaUpload(campaign.id, "gallery", event.target.files)} />
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
+                              <div className="flex gap-2">
+                                <Input value={campaignContentMediaYouTubeUrls[campaign.id]?.gallery ?? ""} onChange={(event) => setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), gallery: event.target.value } }))} placeholder="https://www.youtube.com/watch?v=..." />
+                                <Button type="button" size="sm" variant="outline" onClick={() => { const value = (campaignContentMediaYouTubeUrls[campaign.id]?.gallery ?? "").trim(); if (!value) return; setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), galleryImageUrls: appendMediaValues((current[campaign.id] ?? getCampaignContent(campaign.id)).galleryImageUrls, [value]) } })); setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), gallery: "" } })); toast.success("YouTube adicionado à galeria."); }}>Adicionar</Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </Field>
+                    </div>
+                    <Field label="Vídeos (uma URL por linha ou YouTube)">
+                      <Textarea rows={4} value={(campaignContentForm[campaign.id]?.videoUrls ?? getCampaignContent(campaign.id).videoUrls).join("\n")} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), videoUrls: event.target.value.split(/\n|,/).map((item) => item.trim()).filter(Boolean) } }))} placeholder="https://www.youtube.com/watch?v=..." />
+                      <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
+                        <div className="mt-2 space-y-2">
+                          <div>
+                            <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
+                            <Input type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" multiple onChange={(event) => void handleCampaignContentMediaUpload(campaign.id, "videos", event.target.files)} />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
+                            <div className="flex gap-2">
+                              <Input value={campaignContentMediaYouTubeUrls[campaign.id]?.videos ?? ""} onChange={(event) => setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), videos: event.target.value } }))} placeholder="https://www.youtube.com/watch?v=..." />
+                              <Button type="button" size="sm" variant="outline" onClick={() => { const value = (campaignContentMediaYouTubeUrls[campaign.id]?.videos ?? "").trim(); if (!value) return; setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), videoUrls: appendMediaValues((current[campaign.id] ?? getCampaignContent(campaign.id)).videoUrls, [value]) } })); setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), videos: "" } })); toast.success("YouTube adicionado aos vídeos da campanha."); }}>Adicionar</Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Field>
+                  </form>
                 </Card>
               )) : <EmptyCard icon={Building2} title="Nenhuma campanha cadastrada" description="Crie a primeira campanha para iniciar a operação." action={<Button onClick={() => setIsCreateCampaignOpen(true)}>Criar campanha</Button>} />}
             </div>
@@ -1405,9 +1708,30 @@ export default function AdminDashboard() {
                 <Field label="Arrecadação inicial (R$)"><Input inputMode="decimal" value={campaignEditForm.initialRaised} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, initialRaised: event.target.value })} placeholder="Ex.: 12.350,90" /></Field>
               </div>
               <Field label="Valor VIP apartamento (R$) (opcional)"><Input inputMode="decimal" value={campaignEditForm.vipApartmentAmount} onChange={(event) => setCampaignEditForm({ ...campaignEditForm, vipApartmentAmount: event.target.value })} placeholder="Ex.: 120.000,00" /></Field>
+              <Field label="Opções de ajuda públicas">
+                <div className="grid gap-3 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3 sm:grid-cols-3">
+                  {(["material", "financial", "vip"] as HelpTierOption[]).map((option) => {
+                    const label = option === "material" ? "Materiais" : option === "financial" ? "Dinheiro" : "VIP";
+                    const checked = campaignEditForm.helpTierOptions.includes(option);
+                    return (
+                      <label key={option} className="flex items-center gap-2 rounded-md border border-[#dce5d8] bg-white px-3 py-2 text-sm font-medium text-[#334139]">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(value) => {
+                            const next = value ? [...campaignEditForm.helpTierOptions, option] : campaignEditForm.helpTierOptions.filter((item) => item !== option);
+                            setCampaignEditForm({ ...campaignEditForm, helpTierOptions: next });
+                          }}
+                        />
+                        {label}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="mt-1 text-xs text-[#66736a]">Marque quais páginas de ajuda devem aparecer para a campanha no público.</p>
+              </Field>
               <div className="rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4">
                 <p className="text-sm font-bold text-[#243128]">Configuração da página VIP</p>
-                <p className="mt-1 text-xs text-[#66736a]">Essas mídias aparecem na página VIP antes do pagamento. Use uma URL por linha (https://...) ou caminho local iniciando com /.</p>
+                <p className="mt-1 text-xs text-[#66736a]">Essas mídias aparecem na página VIP antes do pagamento. Use URL, arquivo local ou YouTube.</p>
                 <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   <Field label="Fotos VIP (URLs)">
                     <Textarea
@@ -1416,6 +1740,22 @@ export default function AdminDashboard() {
                       rows={5}
                       placeholder="https://site.com/foto-1.jpg"
                     />
+                    <div className="mt-2 rounded-lg border border-[#dce5d8] bg-white p-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
+                      <div className="mt-2 space-y-2">
+                        <div>
+                          <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
+                          <Input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => void handleVipMediaUpload("image", event.target.files)} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
+                          <div className="flex gap-2">
+                            <Input value={vipMediaYouTubeUrls.image} onChange={(event) => setVipMediaYouTubeUrls((current) => ({ ...current, image: event.target.value }))} placeholder="https://www.youtube.com/watch?v=..." />
+                            <Button type="button" size="sm" variant="outline" onClick={() => { const value = vipMediaYouTubeUrls.image.trim(); if (!value) return; setCampaignEditForm((current) => ({ ...current, vipImageUrls: appendMediaValues(current.vipImageUrls, [value]).join("\n") })); setVipMediaYouTubeUrls((current) => ({ ...current, image: "" })); toast.success("YouTube adicionado às fotos VIP."); }}>Adicionar</Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </Field>
                   <Field label="Vídeos VIP (URLs)">
                     <Textarea
@@ -1424,6 +1764,22 @@ export default function AdminDashboard() {
                       rows={5}
                       placeholder="https://site.com/video-1.mp4"
                     />
+                    <div className="mt-2 rounded-lg border border-[#dce5d8] bg-white p-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
+                      <div className="mt-2 space-y-2">
+                        <div>
+                          <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
+                          <Input type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" multiple onChange={(event) => void handleVipMediaUpload("video", event.target.files)} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
+                          <div className="flex gap-2">
+                            <Input value={vipMediaYouTubeUrls.video} onChange={(event) => setVipMediaYouTubeUrls((current) => ({ ...current, video: event.target.value }))} placeholder="https://www.youtube.com/watch?v=..." />
+                            <Button type="button" size="sm" variant="outline" onClick={() => { const value = vipMediaYouTubeUrls.video.trim(); if (!value) return; setCampaignEditForm((current) => ({ ...current, vipVideoUrls: appendMediaValues(current.vipVideoUrls, [value]).join("\n") })); setVipMediaYouTubeUrls((current) => ({ ...current, video: "" })); toast.success("YouTube adicionado aos vídeos VIP."); }}>Adicionar</Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </Field>
                 </div>
               </div>
@@ -1431,12 +1787,33 @@ export default function AdminDashboard() {
                 <Field label="Status *"><Select value={campaignEditForm.status} onValueChange={(status: typeof campaignEditForm.status) => setCampaignEditForm({ ...campaignEditForm, status })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Ativa</SelectItem><SelectItem value="paused">Pausada</SelectItem><SelectItem value="completed">Concluída</SelectItem><SelectItem value="archived">Arquivada</SelectItem></SelectContent></Select></Field>
               </div>
               <Field label="Imagem da campanha">
-                <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleCampaignImageUpload("edit", event.target.files?.[0])} />
+                <Input
+                  value={campaignEditForm.imageUrl}
+                  onChange={(event) => setCampaignEditForm({ ...campaignEditForm, imageUrl: event.target.value })}
+                  placeholder="URL da imagem (opcional)"
+                />
+                <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
+                  <div className="mt-2 space-y-2">
+                    <div>
+                      <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
+                      <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleCampaignImageUpload("edit", event.target.files?.[0])} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
+                      <Input value={campaignMediaYouTubeUrl} onChange={(event) => { setCampaignMediaYouTubeUrl(event.target.value); if (event.target.value.trim()) { setCampaignEditForm((current) => ({ ...current, imageUrl: event.target.value.trim() })); } }} placeholder="https://www.youtube.com/watch?v=..." />
+                    </div>
+                  </div>
+                </div>
                 {uploadingCampaignImage === "edit" && <p className="text-xs text-[#66736a]">Enviando imagem...</p>}
                 {campaignEditForm.imageUrl && <p className="text-xs text-[#228B22] break-all">Imagem atual: {campaignEditForm.imageUrl.startsWith("data:") ? "arquivo carregado" : campaignEditForm.imageUrl}</p>}
+                <p className="mt-1 text-xs text-[#66736a]">Use URL direta, arquivo local do seu computador ou YouTube. Para vídeo, também vale o mesmo fluxo.</p>
               </Field>
               <p className="rounded-lg bg-[#fff8e6] p-3 text-sm text-[#70571a]">Campanhas pausadas ou arquivadas deixam de aparecer nas áreas públicas. Campanhas concluídas continuam disponíveis para prestação de contas.</p>
-              <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={closeEditCampaignDialog}>Cancelar</Button><Button type="submit" disabled={updateCampaign.isPending}>{updateCampaign.isPending ? "Salvando..." : "Salvar alterações"}</Button></div>
+              <div className="sticky bottom-0 z-10 -mx-6 mt-4 flex justify-end gap-3 border-t border-[#e1e6df] bg-white px-6 py-3">
+                <Button type="button" variant="outline" onClick={closeEditCampaignDialog}>Cancelar</Button>
+                <Button type="submit" disabled={updateCampaign.isPending}>{updateCampaign.isPending ? "Salvando..." : "Salvar alterações"}</Button>
+              </div>
             </form>
           </DialogContent>
         </Dialog>
@@ -1451,8 +1828,44 @@ export default function AdminDashboard() {
               <Field label="Descrição *"><Textarea value={campaignUpdateForm.description} onChange={(event) => setCampaignUpdateForm({ ...campaignUpdateForm, description: event.target.value })} required minLength={20} rows={5} /></Field>
               <Field label="Fase *"><Select value={campaignUpdateForm.phase} onValueChange={(phase: typeof campaignUpdateForm.phase) => setCampaignUpdateForm({ ...campaignUpdateForm, phase })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="before">Antes</SelectItem><SelectItem value="during">Durante</SelectItem><SelectItem value="after">Depois</SelectItem></SelectContent></Select></Field>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="URLs de imagens"><Textarea value={campaignUpdateForm.imageUrls} onChange={(event) => setCampaignUpdateForm({ ...campaignUpdateForm, imageUrls: event.target.value })} rows={4} placeholder="Uma URL HTTPS por linha" /></Field>
-                <Field label="URLs de vídeos"><Textarea value={campaignUpdateForm.videoUrls} onChange={(event) => setCampaignUpdateForm({ ...campaignUpdateForm, videoUrls: event.target.value })} rows={4} placeholder="Uma URL HTTPS por linha" /></Field>
+                <Field label="URLs de imagens">
+                  <Textarea value={campaignUpdateForm.imageUrls} onChange={(event) => setCampaignUpdateForm({ ...campaignUpdateForm, imageUrls: event.target.value })} rows={4} placeholder="Uma URL HTTPS por linha" />
+                  <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
+                    <div className="mt-2 space-y-2">
+                      <div>
+                        <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
+                        <Input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => void handleCampaignUpdateMediaUpload("image", event.target.files)} />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
+                        <div className="flex gap-2">
+                          <Input value={campaignUpdateMediaYouTubeUrls.image} onChange={(event) => setCampaignUpdateMediaYouTubeUrls((current) => ({ ...current, image: event.target.value }))} placeholder="https://www.youtube.com/watch?v=..." />
+                          <Button type="button" size="sm" variant="outline" onClick={() => { const value = campaignUpdateMediaYouTubeUrls.image.trim(); if (!value) return; setCampaignUpdateForm((current) => ({ ...current, imageUrls: appendMediaValues(current.imageUrls, [value]).join("\n") })); setCampaignUpdateMediaYouTubeUrls((current) => ({ ...current, image: "" })); toast.success("YouTube adicionado às imagens da atualização."); }}>Adicionar</Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Field>
+                <Field label="URLs de vídeos">
+                  <Textarea value={campaignUpdateForm.videoUrls} onChange={(event) => setCampaignUpdateForm({ ...campaignUpdateForm, videoUrls: event.target.value })} rows={4} placeholder="Uma URL HTTPS por linha" />
+                  <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
+                    <div className="mt-2 space-y-2">
+                      <div>
+                        <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
+                        <Input type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" multiple onChange={(event) => void handleCampaignUpdateMediaUpload("video", event.target.files)} />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
+                        <div className="flex gap-2">
+                          <Input value={campaignUpdateMediaYouTubeUrls.video} onChange={(event) => setCampaignUpdateMediaYouTubeUrls((current) => ({ ...current, video: event.target.value }))} placeholder="https://www.youtube.com/watch?v=..." />
+                          <Button type="button" size="sm" variant="outline" onClick={() => { const value = campaignUpdateMediaYouTubeUrls.video.trim(); if (!value) return; setCampaignUpdateForm((current) => ({ ...current, videoUrls: appendMediaValues(current.videoUrls, [value]).join("\n") })); setCampaignUpdateMediaYouTubeUrls((current) => ({ ...current, video: "" })); toast.success("YouTube adicionado aos vídeos da atualização."); }}>Adicionar</Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Field>
               </div>
               <p className="rounded-lg bg-[#f1f6ef] p-3 text-sm text-[#55645a]">As mídias serão exibidas publicamente. Use somente arquivos autorizados e URLs HTTPS acessíveis.</p>
               <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={closeCampaignUpdateDialog}>Cancelar</Button><Button type="submit" disabled={publishCampaignUpdate.isPending}>{publishCampaignUpdate.isPending ? "Publicando..." : "Publicar atualização"}</Button></div>
@@ -1490,7 +1903,19 @@ export default function AdminDashboard() {
               <Field label="Nome do responsável"><Input value={partnerForm.ownerName} onChange={(event) => setPartnerForm({ ...partnerForm, ownerName: event.target.value })} maxLength={255} /></Field>
               <Field label="Descrição"><Textarea value={partnerForm.description} onChange={(event) => setPartnerForm({ ...partnerForm, description: event.target.value })} rows={4} maxLength={1500} /></Field>
               <Field label="Logomarca (arquivo)">
-                <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handlePartnerImageUpload("logoUrl", event.target.files?.[0])} />
+                <div className="rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
+                  <div className="mt-2 space-y-2">
+                    <div>
+                      <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
+                      <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handlePartnerImageUpload("logoUrl", event.target.files?.[0])} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
+                      <Input value={partnerMediaYouTubeUrl} onChange={(event) => { setPartnerMediaYouTubeUrl(event.target.value); if (event.target.value.trim()) { setPartnerForm((current) => ({ ...current, logoUrl: event.target.value.trim() })); } }} placeholder="https://www.youtube.com/watch?v=..." />
+                    </div>
+                  </div>
+                </div>
                 {uploadingPartnerField === "logoUrl" && <p className="text-xs text-[#66736a]">Enviando logomarca...</p>}
                 {partnerForm.logoUrl && <p className="text-xs text-[#228B22] break-all">Arquivo enviado: {partnerForm.logoUrl}</p>}
               </Field>
@@ -1583,7 +2008,7 @@ function ManageNeedsDialog({ campaign, open, onOpenChange, onCreate, onDelete, o
     type: "material" | "labor" | "equipment" | "other";
     priority: "high" | "medium" | "low";
   }) => Promise<void>;
-  onDelete: (needId: number, campaignId: number) => void;
+  onDelete: (needId: number, campaignId: number) => Promise<void>;
   onUpdate: (needId: number, campaignId: number, updates: {
     name: string;
     description?: string;
@@ -1594,6 +2019,7 @@ function ManageNeedsDialog({ campaign, open, onOpenChange, onCreate, onDelete, o
     priority: "high" | "medium" | "low";
   }) => Promise<void>;
 }) {
+  const isLocalhost = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"));
   const [editingNeedId, setEditingNeedId] = useState<number | null>(null);
   const [isCreatingNeed, setIsCreatingNeed] = useState(false);
   const [newNeedDraft, setNewNeedDraft] = useState({
@@ -1606,6 +2032,7 @@ function ManageNeedsDialog({ campaign, open, onOpenChange, onCreate, onDelete, o
     description: "",
   });
   const [creatingNeed, setCreatingNeed] = useState(false);
+  const [syncingLegacyLocalNeeds, setSyncingLegacyLocalNeeds] = useState(false);
   const [editDrafts, setEditDrafts] = useState<Record<number, {
     name: string;
     quantity: string;
@@ -1622,21 +2049,15 @@ function ManageNeedsDialog({ campaign, open, onOpenChange, onCreate, onDelete, o
     { enabled: open && Boolean(campaign) },
   );
 
-  if (!open || !campaign) return null;
-
   const localNeedsForCampaign = campaign ? readLocalNeedsForCampaign(campaign.id) : [];
   const needsForDisplay = mergeNeedsForManagement(
-    (needsQuery.data ?? []) as Array<{
-      id: number;
-      campaignId: number;
-      type: "material" | "labor" | "equipment" | "other";
-      name: string;
-      description: string | null;
-      quantity: string;
-      targetQuantityExact: number | null;
-      unitValueCents: number | null;
-      priority: "high" | "medium" | "low";
-    }>,
+    (needsQuery.data ?? []).map((need) => ({
+      ...need,
+      description: need.description ?? undefined,
+      quantity: need.quantity ?? "",
+      targetQuantityExact: need.targetQuantityExact ?? 0,
+      unitValueCents: need.unitValueCents ?? 0,
+    })),
     localNeedsForCampaign as Array<{
       id: number;
       campaignId: number;
@@ -1651,7 +2072,96 @@ function ManageNeedsDialog({ campaign, open, onOpenChange, onCreate, onDelete, o
     campaign?.id,
   );
 
-  function startEditing(need: NonNullable<NonNullable<typeof needsQuery.data>>[number]) {
+  useEffect(() => {
+    if (!open || !campaign || !isLocalhost || syncingLegacyLocalNeeds || !localNeedsForCampaign.length || needsQuery.status !== "success") {
+      return;
+    }
+
+    const normalizeName = (value: string) =>
+      value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase()
+        .trim();
+
+    const serverNeeds = (needsQuery.data ?? []).map((need) => ({
+      ...need,
+      description: need.description ?? undefined,
+      quantity: need.quantity ?? "",
+      targetQuantityExact: need.targetQuantityExact ?? 0,
+      unitValueCents: need.unitValueCents ?? 0,
+    }));
+
+    const localNames = new Set(localNeedsForCampaign.map((need) => normalizeName(need.name)));
+    const listsAlreadyMatch = serverNeeds.length === localNeedsForCampaign.length && serverNeeds.every((need) => {
+      const matchingLocal = localNeedsForCampaign.find((localNeed) => normalizeName(localNeed.name) === normalizeName(need.name));
+      return Boolean(
+        matchingLocal
+        && matchingLocal.quantity === need.quantity
+        && (matchingLocal.targetQuantityExact ?? 0) === (need.targetQuantityExact ?? 0)
+        && (matchingLocal.unitValueCents ?? 0) === (need.unitValueCents ?? 0),
+      );
+    });
+
+    if (listsAlreadyMatch) {
+      clearLocalNeedsForCampaign(campaign.id);
+      return;
+    }
+
+    setSyncingLegacyLocalNeeds(true);
+
+    void (async () => {
+      try {
+        for (const serverNeed of serverNeeds) {
+          if (!localNames.has(normalizeName(serverNeed.name))) {
+            await onDelete(serverNeed.id, campaign.id);
+          }
+        }
+
+        for (const localNeed of localNeedsForCampaign) {
+          const matchingServer = serverNeeds.find((serverNeed) => normalizeName(serverNeed.name) === normalizeName(localNeed.name));
+          const payload = {
+            name: localNeed.name,
+            description: localNeed.description?.trim() || undefined,
+            quantity: localNeed.quantity,
+            targetQuantityExact: localNeed.targetQuantityExact ?? 0,
+            unitValueCents: localNeed.unitValueCents ?? 0,
+            type: localNeed.type,
+            priority: localNeed.priority,
+          };
+
+          if (matchingServer) {
+            await onUpdate(matchingServer.id, campaign.id, payload);
+          } else {
+            await onCreate(campaign.id, payload);
+          }
+        }
+
+        clearLocalNeedsForCampaign(campaign.id);
+        await needsQuery.refetch();
+        toast.success("Itens locais migrados para a campanha pública.");
+      } catch (error) {
+        console.error(error);
+        toast.error("Não foi possível sincronizar os itens locais desta campanha.");
+      } finally {
+        setSyncingLegacyLocalNeeds(false);
+      }
+    })();
+  }, [campaign, isLocalhost, localNeedsForCampaign, needsQuery, onCreate, onDelete, onUpdate, open, syncingLegacyLocalNeeds]);
+
+  if (!open || !campaign) return null;
+
+  function startEditing(need: {
+    id: number;
+    campaignId: number;
+    type: "material" | "labor" | "equipment" | "other";
+    name: string;
+    description?: string | null;
+    quantity: string;
+    targetQuantityExact?: number | null;
+    unitValueCents?: number | null;
+    priority: "high" | "medium" | "low";
+  }) {
     setEditingNeedId(need.id);
     setEditDrafts((current) => ({
       ...current,
@@ -1667,7 +2177,17 @@ function ManageNeedsDialog({ campaign, open, onOpenChange, onCreate, onDelete, o
     }));
   }
 
-  async function saveEditing(need: NonNullable<NonNullable<typeof needsQuery.data>>[number]) {
+  async function saveEditing(need: {
+    id: number;
+    campaignId: number;
+    type: "material" | "labor" | "equipment" | "other";
+    name: string;
+    description?: string | null;
+    quantity: string;
+    targetQuantityExact?: number | null;
+    unitValueCents?: number | null;
+    priority: "high" | "medium" | "low";
+  }) {
     const draft = editDrafts[need.id];
     if (!draft) return;
 
@@ -1954,6 +2474,52 @@ function Metric({ label, value, accent = false }: { label: string; value: string
 function formatCurrency(value: number) { return (value / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 function StatusBadge({ status }: { status: string }) { const labels: Record<string, string> = { active: "Ativa", completed: "Concluída", paused: "Pausada", archived: "Arquivada" }; return <Badge variant="secondary">{labels[status] ?? status}</Badge>; }
 function parseMediaUrlsInput(value: string) { return value.split(/[\n,]/).map((url) => url.trim()).filter(Boolean); }
+
+function normalizeVipMediaUrlInput(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("/") || trimmed.startsWith("data:")) {
+    return trimmed;
+  }
+  if (trimmed.startsWith("www.") || trimmed.startsWith("youtube.com/") || trimmed.startsWith("youtu.be/")) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
+}
+
+function isAllowedVipMediaUrl(value: string) {
+  if (value.startsWith("/") || value.startsWith("data:")) return true;
+
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function parseVipMediaUrlsInput(value: string) {
+  const entries = value.split(/[\n,]/)
+    .map((url) => normalizeVipMediaUrlInput(url))
+    .filter(Boolean);
+
+  const invalid = entries.filter((entry) => !isAllowedVipMediaUrl(entry));
+  const valid = entries.filter((entry) => isAllowedVipMediaUrl(entry));
+
+  return {
+    values: Array.from(new Set(valid)),
+    invalid,
+  };
+}
+
+function appendMediaValues(currentValues: string[] | string, nextValues: string[]) {
+  const normalizedCurrent = typeof currentValues === "string"
+    ? currentValues.split(/\n|,/).map((value) => value.trim()).filter(Boolean)
+    : currentValues.map((value) => value.trim()).filter(Boolean);
+
+  const next = Array.from(new Set([...normalizedCurrent, ...nextValues.map((value) => value.trim()).filter(Boolean)]));
+  return next;
+}
 
 function parseCurrencyToCents(value: string): number | null {
   const normalized = value.trim();

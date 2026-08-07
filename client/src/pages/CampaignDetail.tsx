@@ -5,6 +5,7 @@ import SocialShare from "@/components/SocialShare";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getCampaignContent } from "@/lib/campaignContent";
 import { trpc } from "@/lib/trpc";
 import { AlertCircle, CalendarDays, ChevronLeft, Download, Heart, MessageCircle, ShieldCheck, Users } from "lucide-react";
 import { Link, useRoute } from "wouter";
@@ -20,6 +21,46 @@ const formatDate = (value: Date | string | null) => {
 type CampaignVideoSource =
   | { kind: "embed"; src: string; title: string }
   | { kind: "file"; src: string; mimeType: string; title: string };
+
+type CampaignDetailView = {
+  id: number;
+  title: string;
+  description: string;
+  longDescription: string;
+  status: "active" | "completed" | "paused" | "archived";
+  createdAt: Date | string;
+  goal: number;
+  raised: number;
+  remaining: number;
+  contributorsCount: number;
+  imageUrl: string;
+  galleryImages: string[];
+  updates: Array<{
+    id: number;
+    title: string;
+    description: string;
+    phase: "before" | "during" | "after";
+    createdAt: Date | string;
+    images: string[];
+    videos?: string[];
+  }>;
+  needs: Array<{
+    id: number;
+    name: string;
+    quantity: string;
+    description?: string | null;
+    priority: "high" | "medium" | "low";
+    fulfilled?: number | null;
+  }>;
+  documents: Array<{
+    id: number;
+    title: string;
+    amount?: number | null;
+    uploadedAt: Date | string;
+    documentUrl: string;
+    fileName?: string | null;
+  }>;
+};
 
 function toCampaignVideoSource(rawValue: string, fallbackTitle: string): CampaignVideoSource | null {
   const value = rawValue.trim();
@@ -116,7 +157,7 @@ export default function CampaignDetail() {
     return <CampaignState title="Não foi possível carregar a campanha" description="Tente novamente em alguns instantes." />;
   }
 
-  const campaign = campaignQuery.data;
+  const campaign = campaignQuery.data as CampaignDetailView | null;
   if (!campaign) {
     return <CampaignState title="Campanha não encontrada" description="Ela pode não estar publicada ou ter sido arquivada." />;
   }
@@ -130,9 +171,14 @@ export default function CampaignDetail() {
     "/render-quarto.jpg",
   ];
 
-  const displayTitle = campaign.title;
-  const displayHeroImage = isRecantoCampaign ? "/obra-paredes.jpg" : campaign.imageUrl;
-  const displayGalleryImages = isRecantoCampaign ? canonicalRecantoGalleryImages : campaign.galleryImages;
+  const manualCampaignContent = getCampaignContent(campaign.id);
+  const displayTitle = manualCampaignContent.title || campaign.title;
+  const displaySubtitle = manualCampaignContent.subtitle || campaign.description;
+  const displayDescription = manualCampaignContent.description || campaign.longDescription || "A obra já começou e a equipe está organizando as etapas iniciais para transformar a ideia em realidade. Acompanhe a evolução, as necessidades e as contribuições que já estão ajudando o projeto a avançar.";
+  const displayLongDescription = manualCampaignContent.longDescription || campaign.longDescription || displayDescription;
+  const displayHeroImage = manualCampaignContent.heroImageUrl || (isRecantoCampaign ? "/obra-paredes.jpg" : campaign.imageUrl);
+  const galleryImages = manualCampaignContent.galleryImageUrls.length > 0 ? manualCampaignContent.galleryImageUrls : (isRecantoCampaign ? canonicalRecantoGalleryImages : campaign.galleryImages);
+  const displayGalleryImages = galleryImages;
   const hasHeroImage = Boolean(displayHeroImage);
 
   return (
@@ -167,6 +213,7 @@ export default function CampaignDetail() {
               {campaign.status === "completed" ? "Campanha concluída" : "Campanha ativa"}
             </span>
             <h1 className="text-4xl font-bold uppercase leading-tight md:text-5xl tracking-[0.06em]">{displayTitle}</h1>
+            {displaySubtitle ? <p className="mx-auto mt-3 max-w-3xl text-base text-white/90 md:text-lg">{displaySubtitle}</p> : null}
             <div className="mt-4 flex flex-wrap justify-center gap-4 text-xs md:text-sm text-white/85">
               <span className="flex items-center gap-2"><Users className="h-3 w-3 md:h-4 md:w-4" /> {campaign.contributorsCount} contribuidores</span>
               <span className="flex items-center gap-2"><CalendarDays className="h-3 w-3 md:h-4 md:w-4" /> {formatDate(campaign.createdAt)}</span>
@@ -219,9 +266,9 @@ export default function CampaignDetail() {
           <div>
             <Card className="mb-8 p-7 md:p-9">
               <p className="mb-2 text-sm font-semibold uppercase tracking-[0.16em] text-[#228B22]">Sobre o projeto</p>
-              <h2 className="mb-5 text-3xl font-bold text-[#2d2d2d]">{campaign.description}</h2>
+              <h2 className="mb-5 text-3xl font-bold text-[#2d2d2d]">{displayDescription}</h2>
               <p className="whitespace-pre-line leading-relaxed text-[#656565]">
-                {campaign.longDescription || "A obra já começou e a equipe está organizando as etapas iniciais para transformar a ideia em realidade. Acompanhe a evolução, as necessidades e as contribuições que já estão ajudando o projeto a avançar."}
+                {displayLongDescription}
               </p>
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
                 <div className="rounded-2xl border border-[#dfe8de] bg-[#f7fbf6] p-5">
@@ -267,7 +314,7 @@ export default function CampaignDetail() {
                     </div>
                     {displayGalleryImages.length > 1 ? (
                       <div className="grid gap-4 sm:grid-cols-2">
-                        {displayGalleryImages.slice(1).map((image) => (
+                        {displayGalleryImages.slice(1).map((image: string) => (
                           <img key={image} src={image} alt={`Foto da obra ${displayTitle}`} className="h-64 w-full rounded-xl object-cover" />
                         ))}
                       </div>
@@ -291,7 +338,7 @@ export default function CampaignDetail() {
                     <p className="mt-2 leading-relaxed text-[#656565]">{update.description}</p>
                     {update.images.length > 0 && (
                       <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                        {update.images.map((image) => (
+                        {update.images.map((image: string) => (
                           <img key={image} src={image} alt={`Atualização: ${update.title}`} className="h-48 w-full rounded-lg object-cover" />
                         ))}
                       </div>
@@ -315,7 +362,7 @@ export default function CampaignDetail() {
                                   allowFullScreen
                                 />
                               ) : (
-                                <video className="h-full w-full bg-black" controls preload="metadata" playsInline>
+                                <video className="h-full w-full bg-black" controls preload="auto" playsInline muted={false}>
                                   <source src={source.src} type={source.mimeType} />
                                 </video>
                               )}
@@ -358,7 +405,21 @@ export default function CampaignDetail() {
                                     allowFullScreen
                                   />
                                 ) : (
-                                  <video className="h-full w-full bg-black" controls preload="metadata" playsInline>
+                                  <video
+                                    className="h-full w-full bg-black"
+                                    controls
+                                    preload="metadata"
+                                    playsInline
+                                    muted={false}
+                                    onLoadedMetadata={(event) => {
+                                      event.currentTarget.muted = false;
+                                      event.currentTarget.volume = 1;
+                                    }}
+                                    onPlay={(event) => {
+                                      event.currentTarget.muted = false;
+                                      event.currentTarget.volume = 1;
+                                    }}
+                                  >
                                     <source src={source.src} type={source.mimeType} />
                                   </video>
                                 )}

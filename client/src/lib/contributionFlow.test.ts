@@ -24,6 +24,18 @@ describe("contribution flow helpers", () => {
     expect(result).toBe(false);
   });
 
+  it("shows the material option for the Recanto campaign even without explicit needs", () => {
+    const result = shouldShowMaterialContributionOption({
+      campaignTitle: "Construção Hotel Recanto de Paz",
+      campaignNeeds: [],
+      currentType: null,
+      initialType: null,
+      isLocalHost: true,
+    });
+
+    expect(result).toBe(true);
+  });
+
   it("uses the mountain-kit copy for the Legendário campaign", () => {
     const copy = getMaterialContributionCopy("Legendario Solidario");
 

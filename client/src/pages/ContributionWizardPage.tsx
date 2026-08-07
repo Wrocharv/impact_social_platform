@@ -65,6 +65,14 @@ const toEmbedVideoUrl = (rawUrl: string) => {
   }
 };
 
+const getVideoMimeType = (rawUrl: string | null) => {
+  const normalized = (rawUrl ?? "").toLowerCase();
+  if (normalized.endsWith(".webm")) return "video/webm";
+  if (normalized.endsWith(".ogg") || normalized.endsWith(".ogv")) return "video/ogg";
+  if (normalized.endsWith(".mov") || normalized.endsWith(".qt")) return "video/quicktime";
+  return "video/mp4";
+};
+
 const PREFERRED_KEYWORDS = ["TIJOLO", "CIMENTO", "AREIA", "JANELA"];
 
 const normalizeNeedLabel = (name: string) =>
@@ -100,8 +108,8 @@ const sortNeeds = (needs: NeedItem[]) =>
 const HOTEL_CAMPAIGN_ID = 100001;
 const HOTEL_LEGACY_CAMPAIGN_ID = 1;
 const DEFAULT_VIP_APARTMENT_AMOUNT_CENTS = 120_000_00;
-const DEFAULT_VIP_MEDIA_VIDEO_URL = "/89343f15-ccb1-4937-b353-a3cbb5f23bd6.mp4";
-const DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL = "/Parceiros/WhatsApp Video 2026-07-28 at 15.37.04.mp4";
+const DEFAULT_VIP_MEDIA_VIDEO_URL = "/vip-demo.mp4";
+const DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL = "/vip-demo.mp4";
 const DEFAULT_VIP_MEDIA_IMAGES = ["/render-quarto.jpg", "/render-hotel.jpg", "/obra-lavanderia.jpg"];
 
 interface WizardState {
@@ -431,13 +439,10 @@ export default function ContributionWizardPage() {
         ? campaignGalleryImages
         : DEFAULT_VIP_MEDIA_IMAGES
   ).slice(0, 6);
-  const vipVideoCandidates = Array.from(new Set([
-    ...configuredVipVideos,
-    ...campaignVideoUrls,
-    DEFAULT_VIP_MEDIA_VIDEO_URL,
-    DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL,
-  ].filter((url) => typeof url === "string" && url.trim().length > 0)));
-  const vipVideoUrl = vipVideoCandidates[vipVideoIndex] ?? null;
+  const configuredVideoCandidates = [...configuredVipVideos, ...campaignVideoUrls].filter((url) => typeof url === "string" && url.trim().length > 0);
+  const vipVideoCandidates = [...configuredVideoCandidates, DEFAULT_VIP_MEDIA_VIDEO_URL, DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL]
+    .filter((url) => typeof url === "string" && url.trim().length > 0);
+  const vipVideoUrl = vipVideoCandidates[0] ?? null;
   const vipVideoEmbedUrl = vipVideoUrl ? toEmbedVideoUrl(vipVideoUrl) : null;
   const vipHasMedia = vipGalleryImages.length > 0 || Boolean(vipVideoUrl);
 
@@ -991,15 +996,16 @@ export default function ContributionWizardPage() {
                               key={vipVideoUrl}
                               className="aspect-video w-full"
                               controls
-                              preload="metadata"
+                              preload="auto"
                               playsInline
-                                  poster={vipGalleryImages[0]}
+                              muted={false}
+                              poster={vipGalleryImages[0]}
                               onError={() => {
-                                    setVipVideoFailed(true);
-                                setVipVideoIndex((current) => (current + 1 < vipVideoCandidates.length ? current + 1 : current));
+                                setVipVideoFailed(true);
+                                setVipVideoIndex(0);
                               }}
                             >
-                              <source src={encodeURI(vipVideoUrl)} />
+                              <source src={vipVideoUrl} type={getVideoMimeType(vipVideoUrl)} />
                             </video>
                           )}
                         </div>
@@ -1094,31 +1100,40 @@ export default function ContributionWizardPage() {
 
                           {vipVideoUrl && (
                             <div className="mt-3 overflow-hidden rounded-lg border border-[#e3c98a] bg-black">
-                              {vipVideoEmbedUrl ? (
-                                <div className="aspect-video w-full">
-                                  <iframe
-                                    src={vipVideoEmbedUrl}
-                                    title={`Video de apresentacao do apartamento VIP da campanha ${campaign?.title ?? ""}`}
-                                    className="h-full w-full"
-                                    loading="lazy"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowFullScreen
-                                  />
-                                </div>
-                              ) : (
+                              <div className="aspect-video w-full">
                                 <video
                                   key={vipVideoUrl}
-                                  className="aspect-video w-full"
+                                  className="h-full w-full"
                                   controls
                                   preload="metadata"
                                   playsInline
+                                  poster={vipGalleryImages[0]}
+                                  autoPlay={false}
+                                  onLoadedMetadata={(event) => {
+                                    event.currentTarget.muted = false;
+                                    event.currentTarget.volume = 1;
+                                  }}
+                                  onPlay={(event) => {
+                                    event.currentTarget.muted = false;
+                                    event.currentTarget.volume = 1;
+                                  }}
                                   onError={() => {
-                                    setVipVideoIndex((current) => (current + 1 < vipVideoCandidates.length ? current + 1 : current));
+                                    setVipVideoIndex(0);
                                   }}
                                 >
-                                  <source src={encodeURI(vipVideoUrl)} />
+                                  <source src={vipVideoUrl ?? undefined} type={getVideoMimeType(vipVideoUrl)} />
                                 </video>
-                              )}
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  <a
+                                    href={vipVideoUrl ?? "#"}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex min-h-10 items-center justify-center rounded-md bg-[#8a6708] px-3 text-xs font-extrabold uppercase tracking-[0.04em] text-white transition hover:bg-[#6d5006]"
+                                  >
+                                    Abrir vídeo em nova aba
+                                  </a>
+                                </div>
+                              </div>
                             </div>
                           )}
 

@@ -134,11 +134,11 @@ function getCustomPartnerVideo(name?: string | null) {
     .trim();
 
   if (normalizedName === "a predimais" || normalizedName.includes("predimais")) {
-    return "/Parceiros/WhatsApp Video 2026-07-28 at 15.37.04.mp4";
+    return "/partner-demo.mp4";
   }
 
   if (normalizedName.includes("multipla escolha")) {
-    return "/Parceiros/Video_Multipla_Escolha.MOV";
+    return "/partner-demo.mp4";
   }
 
   return null;
@@ -339,11 +339,12 @@ export default function PartnerSpotlightPage() {
                 ) : (
                   <video
                     className="h-full w-full"
-                    src={encodeURI(videoSource.src)}
                     controls
                     playsInline
-                    preload="metadata"
+                    preload="auto"
+                    muted={false}
                   >
+                    <source src={videoSource.src} type="video/mp4" />
                     Seu navegador não suporta reprodução de vídeo.
                   </video>
                 )}

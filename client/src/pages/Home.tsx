@@ -4,10 +4,11 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { Building2, ExternalLink, Handshake, Heart, ShieldCheck, Zap } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
+import { getSiteContent } from "@/lib/siteContent";
 
-const DEFAULT_HOME_PRESENTATION_VIDEO_URL = "/89343f15-ccb1-4937-b353-a3cbb5f23bd6.mp4";
+const DEFAULT_HOME_PRESENTATION_VIDEO_URL = "/partner-demo.mp4";
 
 const formatCurrency = (value: number) =>
   (value / 100).toLocaleString("pt-BR", {
@@ -136,10 +137,32 @@ export default function Home() {
   const completedQuery = trpc.campaigns.listPublished.useQuery(completedInput);
   const statsQuery = trpc.campaigns.getPublicStats.useQuery();
   const partnersQuery = trpc.partners.listPublished.useQuery();
-  const presentationVideoSource = useMemo(() => {
-    const configured = (import.meta.env.VITE_HOME_PRESENTATION_VIDEO_URL || DEFAULT_HOME_PRESENTATION_VIDEO_URL).trim();
-    return toPresentationVideoSource(configured);
+  const [siteContent, setSiteContent] = useState(() => getSiteContent());
+
+  useEffect(() => {
+    const refreshSiteContent = () => setSiteContent(getSiteContent());
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "parceria-do-bem:site-content") {
+        refreshSiteContent();
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", refreshSiteContent);
+    document.addEventListener("visibilitychange", refreshSiteContent);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", refreshSiteContent);
+      document.removeEventListener("visibilitychange", refreshSiteContent);
+    };
   }, []);
+
+  const presentationVideoSource = useMemo(() => {
+    const configured = (siteContent.presentationVideoUrl || import.meta.env.VITE_HOME_PRESENTATION_VIDEO_URL || DEFAULT_HOME_PRESENTATION_VIDEO_URL).trim();
+    return toPresentationVideoSource(configured);
+  }, [siteContent.presentationVideoUrl]);
   const campaigns = (campaignsQuery.data ?? []) as PublishedCampaign[];
   const completedCampaigns = (completedQuery.data ?? []) as PublishedCampaign[];
   const visiblePartners = getPredimaisShowcasePartners();
@@ -151,7 +174,7 @@ export default function Home() {
       <section
         className="relative overflow-hidden flex h-[430px] items-center justify-center text-white md:h-[470px]"
         style={{
-          backgroundImage: "linear-gradient(135deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.32)), url('https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?auto=format&fit=crop&w=1600&q=80')",
+          backgroundImage: `linear-gradient(135deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.32)), url('${siteContent.heroImageUrl}')`,
           backgroundSize: "cover",
           backgroundPosition: "top center",
           backgroundRepeat: "no-repeat",
@@ -164,10 +187,10 @@ export default function Home() {
               Solidariedade com transparência
             </p>
             <h1 className="mb-6 text-3xl font-bold uppercase leading-[1.05] sm:text-4xl md:text-6xl tracking-[0.06em]">
-              Juntos Transformamos Vidas
+              {siteContent.heroTitle}
             </h1>
             <p className="mx-auto mb-9 max-w-2xl text-lg leading-relaxed text-white/90 md:text-xl">
-              Cada contribuição se transforma em cuidado, dignidade e esperança para quem mais precisa.
+              {siteContent.heroSubtitle}
             </p>
             <div className="flex flex-col justify-center gap-3 sm:flex-row">
               <Link
@@ -209,10 +232,10 @@ export default function Home() {
           <div className="mx-auto max-w-4xl text-center">
             <p className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-[#228B22]">Apresentação</p>
             <h2 id="video-apresentacao-title" className="text-3xl font-bold text-[#243128] md:text-4xl">
-              Veja o propósito e o objetivo deste projeto
+              {siteContent.presentationTitle}
             </h2>
             <p className="mt-3 text-[#56645c] md:text-lg">
-              Conheça algumas de nossas ações e seja um doador, seja um parceiro do bem.
+              {siteContent.presentationDescription}
             </p>
           </div>
 
@@ -221,7 +244,21 @@ export default function Home() {
               <div className="w-full">
                 {presentationVideoSource.kind === "file" ? (
                   <div className="aspect-video w-full">
-                    <video className="h-full w-full bg-black" controls preload="metadata" playsInline>
+                    <video
+                      className="h-full w-full bg-black"
+                      controls
+                      preload="metadata"
+                      playsInline
+                      muted={false}
+                      onLoadedMetadata={(event) => {
+                        event.currentTarget.muted = false;
+                        event.currentTarget.volume = 1;
+                      }}
+                      onPlay={(event) => {
+                        event.currentTarget.muted = false;
+                        event.currentTarget.volume = 1;
+                      }}
+                    >
                       <source src={presentationVideoSource.src} type={presentationVideoSource.mimeType} />
                       Seu navegador não suporta reprodução de vídeo.
                     </video>

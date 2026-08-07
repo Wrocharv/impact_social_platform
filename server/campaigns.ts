@@ -1,4 +1,6 @@
 import { TRPCError } from "@trpc/server";
+import { mkdirSync, writeFileSync } from "fs";
+import path from "path";
 import { z } from "zod";
 import { and, desc, eq, inArray, like, or } from "drizzle-orm";
 import {
@@ -18,6 +20,55 @@ import { whatsappService } from "./whatsapp.service";
 const DEFAULT_VIP_APARTMENT_AMOUNT_CENTS = 120_000_00;
 const LEGENDARIO_PUBLIC_ID = 100002;
 const LEGENDARIO_PUBLIC_TITLE = "LEGENDARIO SOLIDARIO";
+
+type HelpTierOption = "material" | "financial" | "vip";
+const HELP_TIER_OPTIONS: HelpTierOption[] = ["material", "financial", "vip"];
+
+export function resolveVipContributionConfig(campaign: { vipApartmentAmountCents?: number | null; vipContributionTitle?: string | null; vipContributionSubtitle?: string | null; vipContributionDescription?: string | null }) {
+  const amountCents = Math.max(0, Number(campaign?.vipApartmentAmountCents ?? 0));
+  const title = typeof campaign?.vipContributionTitle === "string" && campaign.vipContributionTitle.trim().length > 0
+    ? campaign.vipContributionTitle.trim()
+    : "Inscrição completa";
+  const subtitle = typeof campaign?.vipContributionSubtitle === "string" && campaign.vipContributionSubtitle.trim().length > 0
+    ? campaign.vipContributionSubtitle.trim()
+    : "Contribuição especial com acesso ao fluxo completo de pagamento";
+  const description = typeof campaign?.vipContributionDescription === "string" && campaign.vipContributionDescription.trim().length > 0
+    ? campaign.vipContributionDescription.trim()
+    : "Escolha este fluxo para apoiar a campanha com uma contribuição especial e os métodos de pagamento disponíveis.";
+
+  return {
+    enabled: amountCents > 0,
+    amountCents,
+    title,
+    subtitle,
+    description,
+  };
+}
+
+export function normalizeHelpTierOptions(value: unknown): HelpTierOption[] {
+  if (Array.isArray(value)) {
+    const selected = value
+      .map((item) => typeof item === "string" ? item.trim().toLowerCase() : "")
+      .filter((item): item is HelpTierOption => HELP_TIER_OPTIONS.includes(item as HelpTierOption));
+
+    return HELP_TIER_OPTIONS.filter((option) => selected.includes(option));
+  }
+
+  if (typeof value === "string") {
+    const selected = value
+      .split(",")
+      .map((item) => item.trim().toLowerCase())
+      .filter((item): item is HelpTierOption => HELP_TIER_OPTIONS.includes(item as HelpTierOption));
+
+    return HELP_TIER_OPTIONS.filter((option) => selected.includes(option));
+  }
+
+  return [...HELP_TIER_OPTIONS];
+}
+
+function serializeHelpTierOptions(value: unknown): string {
+  return normalizeHelpTierOptions(value).join(",");
+}
 
 const DEMO_CAMPAIGN = {
   id: 100001,
@@ -168,8 +219,8 @@ function withFallbackRecantoContentIfEmpty<T extends {
   return {
     ...campaign,
     imageUrl: DEMO_CAMPAIGN.imageUrl,
-    longDescription: campaign.longDescription || DEMO_CAMPAIGN.longDescription,
-    category: campaign.category || DEMO_CAMPAIGN.category,
+    longDescription: DEMO_CAMPAIGN.longDescription,
+    category: DEMO_CAMPAIGN.category,
     updates: canonicalUpdates,
     needs: hasNeeds ? campaign.needs : [],
     galleryImages: [...DEMO_CAMPAIGN.galleryImages],
@@ -220,6 +271,8 @@ function mapFallbackCampaignToPublicShape(campaign: ReturnType<typeof whatsappSe
   const initialRaised = Math.max(0, Number(campaign.raised ?? 0));
   const raised = initialRaised;
   const progress = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
+  const vipMediaImages = Array.isArray(campaign.vipImageUrls) ? campaign.vipImageUrls.filter(Boolean) : [];
+  const vipMediaVideos = Array.isArray(campaign.vipVideoUrls) ? campaign.vipVideoUrls.filter(Boolean) : [];
 
   return {
     id: campaign.id,
@@ -229,6 +282,10 @@ function mapFallbackCampaignToPublicShape(campaign: ReturnType<typeof whatsappSe
     category: campaign.category ?? "outro",
     goal,
     vipApartmentAmountCents: Math.max(0, Number(campaign.vipApartmentAmountCents ?? DEFAULT_VIP_APARTMENT_AMOUNT_CENTS)),
+    vipContributionTitle: typeof campaign.vipContributionTitle === "string" && campaign.vipContributionTitle.trim().length > 0 ? campaign.vipContributionTitle.trim() : "Inscrição completa",
+    vipContributionSubtitle: typeof campaign.vipContributionSubtitle === "string" && campaign.vipContributionSubtitle.trim().length > 0 ? campaign.vipContributionSubtitle.trim() : "Contribuição especial com acesso ao fluxo completo de pagamento",
+    vipContributionDescription: typeof campaign.vipContributionDescription === "string" && campaign.vipContributionDescription.trim().length > 0 ? campaign.vipContributionDescription.trim() : "Escolha este fluxo para apoiar a campanha com uma contribuição especial e os métodos de pagamento disponíveis.",
+    helpTierOptions: normalizeHelpTierOptions(campaign.helpTierOptions),
     imageUrl: campaign.imageUrl ?? (isCanonicalRecantoCampaign({ id: campaign.id ?? 0, title: campaign.title }) ? "/obra-paredes.jpg" : null),
     createdBy: campaign.createdBy ?? 1,
     status: campaign.status ?? "active",
@@ -239,7 +296,13 @@ function mapFallbackCampaignToPublicShape(campaign: ReturnType<typeof whatsappSe
     remaining: Math.max(0, goal - raised),
     progress,
     contributorsCount: 0,
-    galleryImages: campaign.imageUrl ? [campaign.imageUrl] : (isCanonicalRecantoCampaign({ id: campaign.id ?? 0, title: campaign.title }) ? ["/obra-paredes.jpg"] : []),
+    galleryImages: Array.from(new Set([
+      ...(campaign.imageUrl ? [campaign.imageUrl] : []),
+      ...vipMediaImages,
+      ...(isCanonicalRecantoCampaign({ id: campaign.id ?? 0, title: campaign.title }) ? ["/obra-paredes.jpg"] : []),
+    ])),
+    vipMediaImages,
+    vipMediaVideos,
     needs: (campaign.needs ?? []).map((need) => ({
       id: need.id,
       campaignId: campaign.id,
@@ -298,6 +361,29 @@ function normalizeCampaignTitleKey(title: string | null | undefined) {
     .replace(/\s+/g, " ");
 }
 
+function findMatchingFallbackCampaign<T extends { id?: number; title?: string | null }>(
+  campaign: T,
+  fallbackCampaigns: ReturnType<typeof getMappedFallbackCampaigns>,
+) {
+  const normalizedTitle = normalizeCampaignTitleKey(campaign.title);
+
+  return fallbackCampaigns.find((fallbackCampaign) => {
+    if (typeof campaign.id === "number" && fallbackCampaign.id === campaign.id) {
+      return true;
+    }
+
+    if (normalizedTitle && normalizeCampaignTitleKey(fallbackCampaign.title) === normalizedTitle) {
+      return true;
+    }
+
+    if (isLegendarioAlias(campaign) && fallbackCampaign.id === LEGENDARIO_PUBLIC_ID) {
+      return true;
+    }
+
+    return false;
+  });
+}
+
 function isLegendarioAlias(campaign: { id?: number; title?: string | null }) {
   const normalizedTitle = normalizeCampaignTitleKey(campaign.title);
   return campaign.id === LEGENDARIO_PUBLIC_ID
@@ -309,7 +395,7 @@ function isLegendarioNeedsHiddenCampaignId(campaignId: number) {
   return campaignId === LEGENDARIO_PUBLIC_ID || campaignId === 2;
 }
 
-function sanitizeLegendarioPublicCampaign<T extends {
+export function sanitizeLegendarioPublicCampaign<T extends {
   id: number;
   title?: string | null;
   status?: string;
@@ -320,7 +406,15 @@ function sanitizeLegendarioPublicCampaign<T extends {
   vipApartmentAmountCents?: number;
   imageUrl?: string | null;
   needs?: unknown[];
-}>(campaign: T, fallbackCampaign?: T): T {
+}>(campaign: T, fallbackCampaign?: {
+  description?: string | null;
+  longDescription?: string | null;
+  category?: string | null;
+  goal?: number;
+  vipApartmentAmountCents?: number;
+  imageUrl?: string | null;
+  needs?: unknown[];
+}): T {
   if (!isLegendarioAlias(campaign)) return campaign;
 
   return {
@@ -336,7 +430,9 @@ function sanitizeLegendarioPublicCampaign<T extends {
       : campaign.goal,
     vipApartmentAmountCents: fallbackCampaign?.vipApartmentAmountCents ?? campaign.vipApartmentAmountCents,
     imageUrl: fallbackCampaign?.imageUrl ?? campaign.imageUrl,
-    needs: [],
+    needs: Array.isArray(campaign.needs) && campaign.needs.length > 0
+      ? campaign.needs
+      : (Array.isArray(fallbackCampaign?.needs) ? fallbackCampaign.needs : []),
   };
 }
 
@@ -591,6 +687,10 @@ const createCampaignSchema = z.object({
   category: z.enum(["moradia", "educacao", "saude", "alimentacao", "infraestrutura", "outro"]).optional().default("outro"),
   goal: z.number().int().positive("Meta deve ser um valor positivo"),
   vipApartmentAmountCents: z.number().int().min(0, "Valor VIP deve ser zero ou maior").default(0),
+  vipContributionTitle: z.string().trim().max(120).optional(),
+  vipContributionSubtitle: z.string().trim().max(180).optional(),
+  vipContributionDescription: z.string().trim().max(260).optional(),
+  helpTierOptions: z.array(z.enum(["material", "financial", "vip"])).default(HELP_TIER_OPTIONS),
   initialRaised: z.number().int().min(0).default(0),
   imageUrl: z.string().optional(),
   needs: z.array(z.object({
@@ -605,6 +705,61 @@ const createCampaignSchema = z.object({
 });
 
 const VIP_MEDIA_CONFIG_TITLE = "[VIP_MEDIA_CONFIG]";
+const VIP_CONTRIBUTION_CONFIG_TITLE = "[VIP_CONTRIBUTION_CONFIG]";
+
+function parseVipContributionConfigFromDescription(description: string | null | undefined) {
+  if (!description) return null;
+
+  try {
+    const parsed = JSON.parse(description);
+    if (parsed && typeof parsed === "object") {
+      const title = typeof parsed.title === "string" ? parsed.title.trim() : "";
+      const subtitle = typeof parsed.subtitle === "string" ? parsed.subtitle.trim() : "";
+      const descriptionText = typeof parsed.description === "string" ? parsed.description.trim() : "";
+      return {
+        title: title || "Inscrição completa",
+        subtitle: subtitle || "Contribuição especial com acesso ao fluxo completo de pagamento",
+        description: descriptionText || "Escolha este fluxo para apoiar a campanha com uma contribuição especial e os métodos de pagamento disponíveis.",
+      };
+    }
+  } catch {
+    // Ignora valores legados e usa os defaults.
+  }
+
+  return null;
+}
+
+function serializeVipContributionConfig(payload: { title?: string | null; subtitle?: string | null; description?: string | null }) {
+  return JSON.stringify({
+    title: payload.title?.trim() || "Inscrição completa",
+    subtitle: payload.subtitle?.trim() || "Contribuição especial com acesso ao fluxo completo de pagamento",
+    description: payload.description?.trim() || "Escolha este fluxo para apoiar a campanha com uma contribuição especial e os métodos de pagamento disponíveis.",
+  });
+}
+
+async function upsertVipContributionConfigUpdate(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  campaignId: number,
+  payload: { title?: string | null; subtitle?: string | null; description?: string | null },
+) {
+  const nextDescription = serializeVipContributionConfig(payload);
+
+  try {
+    await db.delete(campaignUpdates).where(and(
+      eq(campaignUpdates.campaignId, campaignId),
+      eq(campaignUpdates.title, VIP_CONTRIBUTION_CONFIG_TITLE),
+    ));
+
+    await db.insert(campaignUpdates).values({
+      campaignId,
+      title: VIP_CONTRIBUTION_CONFIG_TITLE,
+      description: nextDescription,
+      phase: "during",
+    });
+  } catch (error) {
+    if (!isMissingColumnError(error)) throw error;
+  }
+}
 
 function isValidAbsoluteUrl(value: string) {
   try {
@@ -615,16 +770,18 @@ function isValidAbsoluteUrl(value: string) {
   }
 }
 
+const mediaUrlSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine(
+    (value) => value.startsWith("/") || value.startsWith("data:") || isValidAbsoluteUrl(value),
+    "Use uma URL válida (http/https), um caminho local iniciando com / ou um data URL",
+  );
+
 const vipMediaUrlsSchema = z
   .array(
-    z
-      .string()
-      .trim()
-      .min(1)
-      .refine(
-        (value) => value.startsWith("/") || isValidAbsoluteUrl(value),
-        "Use uma URL válida (http/https) ou caminho local iniciando com /",
-      ),
+    mediaUrlSchema,
   )
   .max(10, "Informe no máximo 10 URLs")
   .default([]);
@@ -636,6 +793,10 @@ const updateCampaignSchema = z.object({
   longDescription: z.string().min(50).optional(),
   goal: z.number().int().positive().optional(),
   vipApartmentAmountCents: z.number().int().min(0).optional(),
+  vipContributionTitle: z.string().trim().max(120).optional(),
+  vipContributionSubtitle: z.string().trim().max(180).optional(),
+  vipContributionDescription: z.string().trim().max(260).optional(),
+  helpTierOptions: z.array(z.enum(["material", "financial", "vip"])).optional(),
   initialRaised: z.number().int().min(0).optional(),
   status: z.enum(["active", "completed", "paused", "archived"]).optional(),
   imageUrl: z.string().nullable().optional(),
@@ -682,6 +843,13 @@ const uploadCampaignImageSchema = z.object({
   base64: z.string().min(4).max(7_500_000),
 });
 
+const uploadCampaignVideoSchema = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.enum(["video/mp4", "video/webm", "video/ogg", "video/quicktime"]),
+  size: z.number().int().positive().max(50 * 1024 * 1024),
+  base64: z.string().min(4).max(80_000_000),
+});
+
 const reviewCommentSchema = z.object({
   id: z.number().int().positive(),
   status: z.enum(["approved", "rejected", "pending"]),
@@ -704,10 +872,45 @@ function decodeCampaignImage(file: z.infer<typeof uploadCampaignImageSchema>) {
   return buffer;
 }
 
+function decodeCampaignVideo(file: z.infer<typeof uploadCampaignVideoSchema>) {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(file.base64)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Arquivo em formato inválido." });
+  }
+
+  const buffer = Buffer.from(file.base64, "base64");
+  if (buffer.length !== file.size || buffer.length > 50 * 1024 * 1024) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Tamanho do arquivo inválido." });
+  }
+
+  return buffer;
+}
+
 function extensionForCampaignMimeType(mimeType: z.infer<typeof uploadCampaignImageSchema>["mimeType"]) {
   if (mimeType === "image/jpeg") return "jpg";
   if (mimeType === "image/png") return "png";
   return "webp";
+}
+
+function extensionForCampaignVideoMimeType(mimeType: z.infer<typeof uploadCampaignVideoSchema>["mimeType"]) {
+  if (mimeType === "video/webm") return "webm";
+  if (mimeType === "video/ogg") return "ogv";
+  if (mimeType === "video/quicktime") return "mov";
+  return "mp4";
+}
+
+function saveLocalCampaignUpload(fileNameBase: string, extension: string, bytes: Buffer) {
+  const uploadsDir = path.resolve(process.cwd(), "client", "public", "uploads", "campaigns");
+  mkdirSync(uploadsDir, { recursive: true });
+
+  const safeBase = cleanFileName(fileNameBase).replace(/\.[^.]+$/, "") || "campaign-media";
+  const finalFileName = `${Date.now()}-${safeBase}.${extension}`;
+  const absolutePath = path.join(uploadsDir, finalFileName);
+  writeFileSync(absolutePath, bytes);
+
+  return {
+    url: `/uploads/campaigns/${finalFileName}`,
+    key: `local-file-${finalFileName}`,
+  };
 }
 
 async function requireCampaign(
@@ -834,6 +1037,7 @@ type PublicCampaignRow = {
   category: "moradia" | "educacao" | "saude" | "alimentacao" | "infraestrutura" | "outro" | null;
   goal: number;
   vipApartmentAmountCents: number;
+  helpTierOptions: string | string[] | null;
   raised: number;
   status: "active" | "completed" | "paused" | "archived";
   imageUrl: string | null;
@@ -855,6 +1059,7 @@ function normalizePublicCampaignRow(
     category: row.category ?? "outro",
     goal: row.goal,
     vipApartmentAmountCents: Math.max(0, Number(row.vipApartmentAmountCents ?? DEFAULT_VIP_APARTMENT_AMOUNT_CENTS)),
+    helpTierOptions: normalizeHelpTierOptions(row.helpTierOptions),
     raised: row.raised,
     status: row.status,
     imageUrl: row.imageUrl ?? null,
@@ -1023,12 +1228,52 @@ export const campaignsRouter = router({
         const message = error instanceof Error ? error.message : "Falha ao enviar imagem da campanha.";
         const storageNotConfigured = /Storage config missing|BUILT_IN_FORGE_API_(URL|KEY)/i.test(message);
 
-        // Sem storage configurado, usar data URL como fallback em qualquer ambiente.
+        // Sem storage configurado, salva arquivo local e retorna URL curta.
         if (storageNotConfigured) {
+          const localUpload = saveLocalCampaignUpload(safeName, extension, bytes);
           return {
             success: true as const,
-            url: `data:${input.mimeType};base64,${input.base64}`,
-            key: `local-inline-${Date.now()}`,
+            url: localUpload.url,
+            key: localUpload.key,
+          };
+        }
+
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message,
+        });
+      }
+    }),
+
+  uploadVideo: adminProcedure
+    .input(uploadCampaignVideoSchema)
+    .mutation(async ({ input }) => {
+      const bytes = decodeCampaignVideo(input);
+      const extension = extensionForCampaignVideoMimeType(input.mimeType);
+      const safeName = cleanFileName(input.fileName).replace(/\.[^.]+$/, "") || "campaign-video";
+
+      try {
+        const uploaded = await storagePut(
+          `campaigns/${Date.now()}-${safeName}.${extension}`,
+          bytes,
+          input.mimeType,
+        );
+
+        return {
+          success: true as const,
+          url: uploaded.url,
+          key: uploaded.key,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Falha ao enviar vídeo da campanha.";
+        const storageNotConfigured = /Storage config missing|BUILT_IN_FORGE_API_(URL|KEY)/i.test(message);
+
+        if (storageNotConfigured) {
+          const localUpload = saveLocalCampaignUpload(safeName, extension, bytes);
+          return {
+            success: true as const,
+            url: localUpload.url,
+            key: localUpload.key,
           };
         }
 
@@ -1067,12 +1312,13 @@ export const campaignsRouter = router({
 
     try {
       const rows = await db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
+      const campaignIds = rows.map((campaign) => campaign.id);
 
       let metrics = new Map<number, CampaignMetrics>();
       try {
         metrics = await loadCampaignMetrics(
           db,
-          rows.map((campaign) => campaign.id),
+          campaignIds,
         );
       } catch (error) {
         console.warn("[campaigns.getAll] Falling back to basic metrics after metrics query error:", error);
@@ -1081,9 +1327,56 @@ export const campaignsRouter = router({
         });
       }
 
+      const vipMediaByCampaignId = new Map<number, { vipMediaImages: string[]; vipMediaVideos: string[] }>();
+      const vipContributionConfigByCampaignId = new Map<number, { title: string; subtitle: string; description: string }>();
+      if (campaignIds.length > 0) {
+        try {
+          const vipConfigUpdates = await db
+            .select({
+              campaignId: campaignUpdates.campaignId,
+              title: campaignUpdates.title,
+              imageUrls: campaignUpdates.imageUrls,
+              videoUrls: campaignUpdates.videoUrls,
+              description: campaignUpdates.description,
+            })
+            .from(campaignUpdates)
+            .where(
+              and(
+                inArray(campaignUpdates.campaignId, campaignIds),
+                inArray(campaignUpdates.title, [VIP_MEDIA_CONFIG_TITLE, VIP_CONTRIBUTION_CONFIG_TITLE]),
+              ),
+            );
+
+          vipConfigUpdates.forEach((row) => {
+            if (row.title === VIP_MEDIA_CONFIG_TITLE) {
+              vipMediaByCampaignId.set(row.campaignId, {
+                vipMediaImages: parseMediaUrls(row.imageUrls),
+                vipMediaVideos: parseMediaUrls(row.videoUrls),
+              });
+            }
+
+            if (row.title === VIP_CONTRIBUTION_CONFIG_TITLE) {
+              const parsedConfig = parseVipContributionConfigFromDescription(row.description);
+              if (parsedConfig) {
+                vipContributionConfigByCampaignId.set(row.campaignId, parsedConfig);
+              }
+            }
+          });
+        } catch (error) {
+          console.warn("[campaigns.getAll] Unable to load VIP config updates:", error);
+        }
+      }
+
       return rows.map((campaign) => ({
         ...campaign,
+        helpTierOptions: normalizeHelpTierOptions((campaign as { helpTierOptions?: unknown }).helpTierOptions),
         initialRaised: campaign.raised,
+        ...(vipMediaByCampaignId.get(campaign.id) ?? { vipMediaImages: [], vipMediaVideos: [] }),
+        ...(vipContributionConfigByCampaignId.get(campaign.id) ?? {
+          vipContributionTitle: "Inscrição completa",
+          vipContributionSubtitle: "Contribuição especial com acesso ao fluxo completo de pagamento",
+          vipContributionDescription: "Escolha este fluxo para apoiar a campanha com uma contribuição especial e os métodos de pagamento disponíveis.",
+        }),
         ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
       }));
     } catch (error) {
@@ -1113,8 +1406,7 @@ export const campaignsRouter = router({
     )
     .query(async ({ input, ctx }) => {
       const db = await getDb();
-      const preferLocalFallback = isLocalHostHeader(ctx.req.headers.host);
-      if (!db || preferLocalFallback) {
+      if (!db) {
         const mappedFallback = getMappedFallbackCampaigns({
           status: input?.status,
           query: input?.query,
@@ -1184,8 +1476,7 @@ export const campaignsRouter = router({
 
   getPublicStats: publicProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    const preferLocalFallback = isLocalHostHeader(ctx.req.headers.host);
-    if (!db || preferLocalFallback) {
+    if (!db) {
       const mappedActiveFallback = getMappedFallbackCampaigns({ status: "active" })
         .filter((campaign) => !isInternalLocalSeedCampaign(campaign));
       const mergedActiveCampaigns = dedupeCampaignsById(mappedActiveFallback);
@@ -1243,7 +1534,6 @@ export const campaignsRouter = router({
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ input, ctx }) => {
       const db = await getDb();
-      const preferLocalFallback = isLocalHostHeader(ctx.req.headers.host);
       const fallbackCampaigns = getMappedFallbackCampaigns();
       const fallbackCampaignByInputId = fallbackCampaigns.find((item) => item.id === input.id);
       const fallbackLegendarioCampaign = fallbackCampaigns.find((item) => item.id === LEGENDARIO_PUBLIC_ID);
@@ -1251,10 +1541,7 @@ export const campaignsRouter = router({
       const effectiveFallbackCampaign = isLegendarioLegacyAlias
         ? (fallbackCampaignByInputId ?? fallbackLegendarioCampaign)
         : fallbackCampaignByInputId;
-      if (fallbackCampaignByInputId && input.id === 100001) {
-        return withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaignByInputId));
-      }
-      if (!db || preferLocalFallback) {
+      if (!db) {
         let fallbackCampaign = fallbackCampaigns.find((campaign) => campaign.id === input.id);
         if (!fallbackCampaign && input.id === 1) {
           fallbackCampaign =
@@ -1263,11 +1550,13 @@ export const campaignsRouter = router({
         }
 
         if (fallbackCampaign) {
-          return withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaign));
+          return withFallbackRecantoContentIfEmpty(
+            withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaign)),
+          );
         }
 
         const demoCampaign = getDemoCampaignById(input.id);
-        if (demoCampaign) return withMaterialProgressFromFallback(demoCampaign);
+        if (demoCampaign) return withFallbackRecantoContentIfEmpty(withMaterialProgressFromFallback(demoCampaign));
 
         return null;
       }
@@ -1311,13 +1600,17 @@ export const campaignsRouter = router({
           fallbackCampaign = getMappedFallbackCampaigns().find((item) => /recanto de paz/i.test(item.title));
         }
         if (fallbackCampaign) {
-          return withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaign));
+          return withFallbackRecantoContentIfEmpty(
+            withMaterialProgressFromFallback(withDefaultNeedsIfMissing(fallbackCampaign)),
+          );
         }
 
         return null;
       }
 
-      const [updates, needs, documents, metrics, materialContributions] = await Promise.all([
+      const matchingFallbackCampaign = findMatchingFallbackCampaign(campaign, fallbackCampaigns) ?? effectiveFallbackCampaign;
+
+      const [updates, dbNeeds, documents, metrics, materialContributions] = await Promise.all([
         db
           .select()
           .from(campaignUpdates)
@@ -1352,6 +1645,21 @@ export const campaignsRouter = router({
           }
         })(),
       ]);
+      const needs = matchingFallbackCampaign
+        ? (matchingFallbackCampaign.needs ?? []).map((need) => ({
+            id: need.id,
+            campaignId: campaign.id,
+            type: need.type,
+            name: need.name,
+            description: need.description ?? null,
+            quantity: need.quantity,
+            targetQuantityExact: need.targetQuantityExact ?? null,
+            unitValueCents: need.unitValueCents ?? null,
+            priority: need.priority,
+            fulfilled: need.fulfilled ?? 0,
+            createdAt: campaign.createdAt,
+          }))
+        : dbNeeds;
       const campaignMetrics =
         metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, []);
       const effectiveGoal = campaign.goal > 0
@@ -1362,8 +1670,12 @@ export const campaignsRouter = router({
           ? deriveCampaignMetrics(effectiveGoal, campaign.raised, [])
           : campaignMetrics;
       const vipMediaConfigUpdate = updates.find((update) => update.title === VIP_MEDIA_CONFIG_TITLE);
+      const vipContributionConfigUpdate = updates.find((update) => update.title === VIP_CONTRIBUTION_CONFIG_TITLE);
       const vipMediaImages = vipMediaConfigUpdate ? parseMediaUrls(vipMediaConfigUpdate.imageUrls) : [];
       const vipMediaVideos = vipMediaConfigUpdate ? parseMediaUrls(vipMediaConfigUpdate.videoUrls) : [];
+      const vipContributionConfig = vipContributionConfigUpdate
+        ? parseVipContributionConfigFromDescription(vipContributionConfigUpdate.description)
+        : null;
       const galleryImages = Array.from(
         new Set(
           [
@@ -1424,6 +1736,9 @@ export const campaignsRouter = router({
           })),
           vipMediaImages,
           vipMediaVideos,
+          vipContributionTitle: vipContributionConfig?.title ?? "Inscrição completa",
+          vipContributionSubtitle: vipContributionConfig?.subtitle ?? "Contribuição especial com acesso ao fluxo completo de pagamento",
+          vipContributionDescription: vipContributionConfig?.description ?? "Escolha este fluxo para apoiar a campanha com uma contribuição especial e os métodos de pagamento disponíveis.",
           needs: needsWithProgress,
           documents,
           galleryImages,
@@ -1446,6 +1761,10 @@ export const campaignsRouter = router({
           category: "outro",
           goal: input.goal,
           vipApartmentAmountCents: input.vipApartmentAmountCents,
+          vipContributionTitle: input.vipContributionTitle,
+          vipContributionSubtitle: input.vipContributionSubtitle,
+          vipContributionDescription: input.vipContributionDescription,
+          helpTierOptions: input.helpTierOptions,
           raised: input.initialRaised,
           longDescription: input.longDescription,
           imageUrl: input.imageUrl,
@@ -1468,6 +1787,7 @@ export const campaignsRouter = router({
           category: input.category,
           goal: input.goal,
           vipApartmentAmountCents: input.vipApartmentAmountCents,
+          helpTierOptions: serializeHelpTierOptions(input.helpTierOptions),
           raised: input.initialRaised,
           imageUrl: input.imageUrl,
           createdBy: userId,
@@ -1479,6 +1799,7 @@ export const campaignsRouter = router({
           longDescription: input.longDescription,
           category: input.category,
           goal: input.goal,
+          helpTierOptions: serializeHelpTierOptions(input.helpTierOptions),
           raised: input.initialRaised,
           imageUrl: input.imageUrl,
           createdBy: userId,
@@ -1488,6 +1809,7 @@ export const campaignsRouter = router({
           title: input.title,
           description: input.description,
           goal: input.goal,
+          helpTierOptions: serializeHelpTierOptions(input.helpTierOptions),
           raised: input.initialRaised,
           createdBy: userId,
         },
@@ -1525,6 +1847,14 @@ export const campaignsRouter = router({
           .orderBy(desc(campaigns.id))
           .limit(1);
         createdCampaignId = recentCampaign?.id ?? 0;
+      }
+
+      if (createdCampaignId) {
+        await upsertVipContributionConfigUpdate(db, createdCampaignId, {
+          title: input.vipContributionTitle,
+          subtitle: input.vipContributionSubtitle,
+          description: input.vipContributionDescription,
+        });
       }
 
       if (createdCampaignId && input.needs.length > 0) {
@@ -1573,6 +1903,12 @@ export const campaignsRouter = router({
           longDescription: input.longDescription,
           goal: input.goal,
           vipApartmentAmountCents: input.vipApartmentAmountCents,
+          vipContributionTitle: input.vipContributionTitle,
+          vipContributionSubtitle: input.vipContributionSubtitle,
+          vipContributionDescription: input.vipContributionDescription,
+          helpTierOptions: input.helpTierOptions ? normalizeHelpTierOptions(input.helpTierOptions) : undefined,
+          vipImageUrls: input.vipImageUrls,
+          vipVideoUrls: input.vipVideoUrls,
           raised: input.initialRaised,
           imageUrl: input.imageUrl ?? undefined,
           status: input.status,
@@ -1588,7 +1924,7 @@ export const campaignsRouter = router({
         return { success: true, message: "Campanha atualizada com sucesso!" };
       }
 
-      const { id, initialRaised, vipImageUrls, vipVideoUrls, ...updateData } = input;
+      const { id, initialRaised, vipImageUrls, vipVideoUrls, helpTierOptions, vipContributionTitle, vipContributionSubtitle, vipContributionDescription, ...updateData } = input;
       await requireCampaign(db, id);
       const endDate = input.status
         ? input.status === "completed"
@@ -1597,8 +1933,22 @@ export const campaignsRouter = router({
         : undefined;
       await db
         .update(campaigns)
-        .set({ ...updateData, raised: initialRaised, endDate, updatedAt: new Date() })
+        .set({
+          ...updateData,
+          ...(helpTierOptions !== undefined ? { helpTierOptions: serializeHelpTierOptions(helpTierOptions) } : {}),
+          raised: initialRaised,
+          endDate,
+          updatedAt: new Date(),
+        })
         .where(eq(campaigns.id, id));
+
+      if (vipContributionTitle !== undefined || vipContributionSubtitle !== undefined || vipContributionDescription !== undefined) {
+        await upsertVipContributionConfigUpdate(db, id, {
+          title: vipContributionTitle,
+          subtitle: vipContributionSubtitle,
+          description: vipContributionDescription,
+        });
+      }
 
       if (vipImageUrls !== undefined || vipVideoUrls !== undefined) {
         await db
@@ -1782,15 +2132,10 @@ export const campaignsRouter = router({
   getNeeds: publicProcedure
     .input(z.object({ campaignId: z.number().int().positive() }))
     .query(async ({ input }) => {
-      if (isLegendarioNeedsHiddenCampaignId(input.campaignId)) {
-        return [];
-      }
-
       const db = await getDb();
+      const fallbackCampaigns = getMappedFallbackCampaigns();
       if (!db) {
-        const fallbackCampaign = whatsappService
-          .getFallbackCampaigns()
-          .find((campaign) => campaign.id === input.campaignId);
+        const fallbackCampaign = fallbackCampaigns.find((campaign) => campaign.id === input.campaignId);
 
         return (fallbackCampaign?.needs ?? []).map((need) => ({
           id: need.id,
@@ -1806,12 +2151,31 @@ export const campaignsRouter = router({
           createdAt: fallbackCampaign?.createdAt ?? new Date(),
         }));
       }
+      const dbCampaign = await loadPublicCampaignByIdWithLegacyFallback(db, input.campaignId);
+      const matchingFallbackCampaign = dbCampaign
+        ? findMatchingFallbackCampaign(dbCampaign, fallbackCampaigns)
+        : fallbackCampaigns.find((campaign) => campaign.id === input.campaignId);
+
+      if (matchingFallbackCampaign) {
+        return (matchingFallbackCampaign.needs ?? []).map((need) => ({
+          id: need.id,
+          campaignId: input.campaignId,
+          type: need.type,
+          name: need.name,
+          description: need.description ?? null,
+          quantity: need.quantity,
+          targetQuantityExact: need.targetQuantityExact ?? null,
+          unitValueCents: need.unitValueCents ?? null,
+          priority: need.priority,
+          fulfilled: need.fulfilled ?? 0,
+          createdAt: matchingFallbackCampaign.createdAt,
+        }));
+      }
+
       const dbNeeds = await loadCampaignNeedsWithLegacyFallback(db, input.campaignId);
       if (dbNeeds.length > 0) return dbNeeds;
 
-      const fallbackCampaign = whatsappService
-        .getFallbackCampaigns()
-        .find((campaign) => campaign.id === input.campaignId);
+      const fallbackCampaign = fallbackCampaigns.find((campaign) => campaign.id === input.campaignId);
 
       if (!fallbackCampaign) return dbNeeds;
 

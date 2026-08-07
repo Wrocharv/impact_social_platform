@@ -11,9 +11,15 @@ type FallbackCampaign = {
   category: string;
   goal: number;
   vipApartmentAmountCents?: number;
+  vipContributionTitle?: string | null;
+  vipContributionSubtitle?: string | null;
+  vipContributionDescription?: string | null;
+  helpTierOptions?: string[] | string | null;
   raised: number;
   status: "active" | "completed" | "paused" | "archived";
   imageUrl?: string;
+  vipImageUrls?: string[];
+  vipVideoUrls?: string[];
   needs?: Array<{
     id: number;
     campaignId: number;
@@ -82,6 +88,65 @@ const fallbackCampaignsFile = process.env.WHATSAPP_FALLBACK_CAMPAIGNS_FILE?.trim
   ? path.resolve(process.cwd(), process.env.WHATSAPP_FALLBACK_CAMPAIGNS_FILE.trim())
   : path.resolve(process.cwd(), "server", ".whatsapp-fallback-campaigns.json");
 
+function extensionForMediaMimeType(mimeType: string) {
+  if (mimeType === "image/jpeg") return "jpg";
+  if (mimeType === "image/png") return "png";
+  if (mimeType === "image/webp") return "webp";
+  if (mimeType === "video/mp4") return "mp4";
+  if (mimeType === "video/webm") return "webm";
+  if (mimeType === "video/ogg") return "ogv";
+  if (mimeType === "video/quicktime") return "mov";
+  return "bin";
+}
+
+function cleanMediaName(value: string) {
+  return value.replace(/[^A-Za-z0-9._ -]/g, "_").replace(/\s+/g, "-").slice(0, 120);
+}
+
+function persistDataUrlLocally(dataUrl: string, fileBaseName: string) {
+  const match = /^data:([^;]+);base64,(.+)$/i.exec(dataUrl);
+  if (!match) return null;
+
+  const mimeType = match[1].toLowerCase();
+  const base64 = match[2];
+  const bytes = Buffer.from(base64, "base64");
+  if (bytes.length === 0) return null;
+
+  const uploadsDir = path.resolve(process.cwd(), "client", "public", "uploads", "campaigns");
+  mkdirSync(uploadsDir, { recursive: true });
+
+  const extension = extensionForMediaMimeType(mimeType);
+  const safeBase = cleanMediaName(fileBaseName) || "campaign-media";
+  const fileName = `${Date.now()}-${safeBase}.${extension}`;
+  const absolutePath = path.join(uploadsDir, fileName);
+  writeFileSync(absolutePath, bytes);
+
+  return `/uploads/campaigns/${fileName}`;
+}
+
+function normalizeMediaValue(value: unknown, fileBaseName: string) {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  if (!trimmed.startsWith("data:")) return trimmed;
+
+  try {
+    return persistDataUrlLocally(trimmed, fileBaseName) ?? undefined;
+  } catch (error) {
+    console.warn("[WhatsApp] Unable to persist data URL locally:", error);
+    return undefined;
+  }
+}
+
+function normalizeMediaList(values: unknown, fileBasePrefix: string) {
+  if (!Array.isArray(values)) return undefined;
+
+  return values
+    .map((value, index) => normalizeMediaValue(value, `${fileBasePrefix}-${index}`))
+    .filter((value): value is string => Boolean(value));
+}
+
 function loadFallbackCampaignsFromDisk(): FallbackCampaign[] {
   try {
     if (!existsSync(fallbackCampaignsFile)) return [];
@@ -92,6 +157,8 @@ function loadFallbackCampaignsFromDisk(): FallbackCampaign[] {
 
     return parsed.map((item) => ({
       ...item,
+      vipImageUrls: Array.isArray(item.vipImageUrls) ? item.vipImageUrls.filter((value: unknown) => typeof value === "string") : undefined,
+      vipVideoUrls: Array.isArray(item.vipVideoUrls) ? item.vipVideoUrls.filter((value: unknown) => typeof value === "string") : undefined,
       createdAt: new Date(item.createdAt),
       updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined,
     })) as FallbackCampaign[];
@@ -198,6 +265,12 @@ export const whatsappService = {
     category: string;
     goal: number;
     vipApartmentAmountCents?: number;
+    vipContributionTitle?: string | null;
+    vipContributionSubtitle?: string | null;
+    vipContributionDescription?: string | null;
+    helpTierOptions?: string[] | string | null;
+    vipImageUrls?: string[];
+    vipVideoUrls?: string[];
     raised?: number;
     longDescription?: string;
     imageUrl?: string;
@@ -225,9 +298,15 @@ export const whatsappService = {
       category: data.category,
       goal: data.goal,
       vipApartmentAmountCents: Math.max(1, Number(data.vipApartmentAmountCents ?? 12_000_000)),
+      vipContributionTitle: data.vipContributionTitle ?? null,
+      vipContributionSubtitle: data.vipContributionSubtitle ?? null,
+      vipContributionDescription: data.vipContributionDescription ?? null,
+      helpTierOptions: data.helpTierOptions,
       raised: Math.max(0, Number(data.raised ?? 0)),
       status: "active",
-      imageUrl: data.imageUrl ?? "/obra-paredes.jpg",
+      imageUrl: normalizeMediaValue(data.imageUrl, `campaign-${nextId}-cover`) ?? "/obra-paredes.jpg",
+      vipImageUrls: normalizeMediaList(data.vipImageUrls, `campaign-${nextId}-vip-image`),
+      vipVideoUrls: normalizeMediaList(data.vipVideoUrls, `campaign-${nextId}-vip-video`),
       needs: (data.needs ?? []).map((need, index) => ({
         id: Date.now() + index,
         campaignId: nextId,
@@ -255,7 +334,7 @@ export const whatsappService = {
     data: Partial<
       Pick<
         FallbackCampaign,
-        "title" | "description" | "longDescription" | "goal" | "vipApartmentAmountCents" | "raised" | "status" | "imageUrl"
+        "title" | "description" | "longDescription" | "goal" | "vipApartmentAmountCents" | "vipContributionTitle" | "vipContributionSubtitle" | "vipContributionDescription" | "helpTierOptions" | "vipImageUrls" | "vipVideoUrls" | "raised" | "status" | "imageUrl"
       >
     >,
   ) {
@@ -271,6 +350,19 @@ export const whatsappService = {
       vipApartmentAmountCents: data.vipApartmentAmountCents !== undefined
         ? Math.max(1, Number(data.vipApartmentAmountCents))
         : current.vipApartmentAmountCents,
+      vipContributionTitle: data.vipContributionTitle !== undefined ? data.vipContributionTitle : current.vipContributionTitle,
+      vipContributionSubtitle: data.vipContributionSubtitle !== undefined ? data.vipContributionSubtitle : current.vipContributionSubtitle,
+      vipContributionDescription: data.vipContributionDescription !== undefined ? data.vipContributionDescription : current.vipContributionDescription,
+      helpTierOptions: data.helpTierOptions !== undefined ? data.helpTierOptions : current.helpTierOptions,
+      imageUrl: data.imageUrl !== undefined
+        ? normalizeMediaValue(data.imageUrl, `campaign-${id}-cover`) ?? undefined
+        : current.imageUrl,
+      vipImageUrls: data.vipImageUrls !== undefined
+        ? normalizeMediaList(data.vipImageUrls, `campaign-${id}-vip-image`)
+        : current.vipImageUrls,
+      vipVideoUrls: data.vipVideoUrls !== undefined
+        ? normalizeMediaList(data.vipVideoUrls, `campaign-${id}-vip-video`)
+        : current.vipVideoUrls,
       raised: data.raised !== undefined ? Math.max(0, Number(data.raised)) : current.raised,
       updatedAt: new Date(),
     };

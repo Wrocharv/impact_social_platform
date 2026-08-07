@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { readLocalNeedProgressForCampaign, readLocalNeedsForCampaign } from "@/lib/localNeeds";
+import { buildPublicNeedsList } from "@/lib/publicNeeds";
 import { useDonorStorage } from "@/hooks/useDonorStorage";
 import { ChevronLeft } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -68,6 +69,7 @@ export default function ContributionNeedsPage() {
   const [, setLocation] = useLocation();
   const { isLoaded, currentDonor } = useDonorStorage();
   const [materialQuantities, setMaterialQuantities] = useState<Record<number, string>>({});
+  const [, setRefreshVersion] = useState(0);
 
   const campaignQuery = trpc.campaigns.getById.useQuery(
     { id: campaignId },
@@ -75,33 +77,14 @@ export default function ContributionNeedsPage() {
   );
 
   const campaign = campaignQuery.data;
+  const isLocalhost = typeof window !== "undefined" && /localhost|127\.0\.0\.1/i.test(window.location.hostname);
   const vipApartmentAmountCents = (campaign && "vipApartmentAmountCents" in campaign && typeof campaign.vipApartmentAmountCents === "number")
     ? campaign.vipApartmentAmountCents
     : 120_000_00;
   const needsFromCampaign = sortNeeds((campaign?.needs ?? []) as NeedItem[]);
-  const localNeeds = sortNeeds(readLocalNeedsForCampaign(campaignId) as NeedItem[]);
+  const localNeeds = isLocalhost ? sortNeeds(readLocalNeedsForCampaign(campaignId) as NeedItem[]) : [];
   const localNeedProgress = readLocalNeedProgressForCampaign(campaignId);
-  const needsMergedMap = new Map<number, NeedItem>();
-  [...needsFromCampaign, ...localNeeds].forEach((need) => {
-    const progress = localNeedProgress.get(need.id);
-    const baseOfferedQuantity = Math.max(0, need.offeredQuantity ?? 0);
-    const baseOfferedValueCents = Math.max(0, need.offeredValueCents ?? 0);
-    const targetQuantity = Math.max(0, need.targetQuantityExact ?? 0);
-    const unitValueCents = Math.max(0, need.unitValueCents ?? 0);
-    const offeredQuantity = baseOfferedQuantity + Math.max(0, progress?.offeredQuantity ?? 0);
-    const offeredValueCents = baseOfferedValueCents + Math.max(0, progress?.offeredValueCents ?? 0);
-    const remainingQuantity = Math.max(0, targetQuantity - offeredQuantity);
-    const remainingValueCents = Math.max(0, (remainingQuantity * unitValueCents));
-
-    needsMergedMap.set(need.id, {
-      ...need,
-      offeredQuantity,
-      offeredValueCents,
-      remainingQuantity,
-      remainingValueCents,
-    });
-  });
-  const needsFromAllSources = sortNeeds(Array.from(needsMergedMap.values()));
+  const needsFromAllSources = sortNeeds(buildPublicNeedsList(needsFromCampaign, localNeedProgress, localNeeds) as NeedItem[]);
   const needs = needsFromAllSources.length > 0 ? needsFromAllSources : LOCAL_NEEDS_FALLBACK;
   const hasSingleRegistration = isLoaded && !!currentDonor;
   const [currentPage, setCurrentPage] = useState(1);
@@ -114,6 +97,25 @@ export default function ContributionNeedsPage() {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    const refreshFromStorage = () => setRefreshVersion((value) => value + 1);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshFromStorage();
+      }
+    };
+
+    window.addEventListener("storage", refreshFromStorage);
+    window.addEventListener("focus", refreshFromStorage);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("storage", refreshFromStorage);
+      window.removeEventListener("focus", refreshFromStorage);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   if (!Number.isInteger(campaignId) || campaignId <= 0) {
     return (

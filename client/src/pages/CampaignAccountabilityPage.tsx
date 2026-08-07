@@ -10,6 +10,21 @@ import { Link, useRoute } from "wouter";
 const formatCurrency = (value: number) =>
   (value / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+type CampaignAccountabilityView = {
+  id: number;
+  title: string;
+  goal: number;
+  raised: number;
+  documents: Array<{
+    id: number;
+    title: string;
+    amount?: number | null;
+    uploadedAt: Date | string;
+    documentUrl: string;
+    fileName?: string | null;
+  }>;
+};
+
 export default function CampaignAccountabilityPage() {
   const [, params] = useRoute("/:route/:id");
   const campaignId = Number(params?.id ?? 0);
@@ -21,11 +36,12 @@ export default function CampaignAccountabilityPage() {
   const reportQuery = trpc.accountability.getPublicReport.useQuery(accountabilityInput, {
     enabled: Number.isInteger(campaignId) && campaignId > 0,
   });
+  const campaign = query.data as CampaignAccountabilityView | null | undefined;
   const totalSpent = reportQuery.data?.financialSummary.totalSpent ?? reportQuery.data?.summary.totalSpent ?? 0;
-  const confirmedEntries = reportQuery.data?.financialSummary.totalConfirmedEntries ?? query.data?.raised ?? 0;
+  const confirmedEntries = reportQuery.data?.financialSummary.totalConfirmedEntries ?? campaign?.raised ?? 0;
   const availableBalance = reportQuery.data?.financialSummary.availableBalance ?? (confirmedEntries - totalSpent);
   const confirmedCount = reportQuery.data?.financialSummary.confirmedContributionsCount ?? 0;
-  const documents = reportQuery.data?.documents ?? query.data?.documents ?? [];
+  const documents = reportQuery.data?.documents ?? campaign?.documents ?? [];
 
   return (
     <div className="min-h-screen bg-[#f8faf7]">
@@ -47,12 +63,12 @@ export default function CampaignAccountabilityPage() {
           <>
             <div className="mt-8">
               <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#228B22]">Prestação de contas</p>
-              <h1 className="mt-3 text-4xl font-bold text-[#2d2d2d] md:text-5xl">{query.data.title}</h1>
+              <h1 className="mt-3 text-4xl font-bold text-[#2d2d2d] md:text-5xl">{campaign?.title ?? ""}</h1>
               <p className="mt-4 max-w-3xl text-lg text-[#656565]">Valores confirmados, despesas registradas e documentos publicados para esta campanha.</p>
             </div>
 
             <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              <Metric label="Meta" value={formatCurrency(query.data.goal)} />
+              <Metric label="Meta" value={formatCurrency(campaign?.goal ?? 0)} />
               <Metric label="Entradas confirmadas" value={formatCurrency(confirmedEntries)} accent />
               <Metric label="Gasto" value={formatCurrency(totalSpent)} />
               <Metric label="Saldo disponível" value={formatCurrency(availableBalance)} accent={availableBalance >= 0} warning={availableBalance < 0} />
@@ -66,7 +82,7 @@ export default function CampaignAccountabilityPage() {
 
             <Card className="mt-6 p-7">
               <h2 className="text-xl font-bold text-[#2d2d2d]">Progresso de arrecadação</h2>
-              <div className="mt-5"><AnimatedProgressBar current={confirmedEntries} goal={query.data.goal} animated showLabel /></div>
+              <div className="mt-5"><AnimatedProgressBar current={confirmedEntries} goal={campaign?.goal ?? 0} animated showLabel /></div>
             </Card>
 
             <section className="mt-12" aria-labelledby="expenses-title">

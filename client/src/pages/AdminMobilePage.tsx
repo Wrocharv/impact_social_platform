@@ -5,6 +5,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { isAdminUser } from "@/_core/hooks/adminAccess";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -27,6 +28,7 @@ export default function AdminMobilePage() {
     category: "outro" as any,
     goal: "",
     vipApartmentAmount: "",
+    helpTierOptions: ["material", "financial", "vip"] as Array<"material" | "financial" | "vip">,
     imageUrl: "",
   });
 
@@ -57,7 +59,7 @@ export default function AdminMobilePage() {
   const createCampaignMutation = trpc.campaigns.create.useMutation({
     onSuccess: async () => {
       toast.success("✅ Campanha criada!");
-      setCampaignForm({ title: "", description: "", longDescription: "", category: "outro", goal: "", vipApartmentAmount: "", imageUrl: "" });
+      setCampaignForm({ title: "", description: "", longDescription: "", category: "outro", goal: "", vipApartmentAmount: "", helpTierOptions: ["material", "financial", "vip"], imageUrl: "" });
       setActiveTab("campaigns");
       await campaignsQuery.refetch();
     },
@@ -384,6 +386,28 @@ export default function AdminMobilePage() {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">Opções de ajuda</label>
+                  <div className="grid gap-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
+                    {(["material", "financial", "vip"] as Array<"material" | "financial" | "vip">).map((option) => {
+                      const label = option === "material" ? "Materiais" : option === "financial" ? "Dinheiro" : "VIP";
+                      const checked = campaignForm.helpTierOptions.includes(option);
+                      return (
+                        <label key={option} className="flex items-center gap-2 rounded-md border border-[#dce5d8] bg-white px-3 py-2 text-sm font-medium text-[#334139]">
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(value) => {
+                              const next = value ? [...campaignForm.helpTierOptions, option] : campaignForm.helpTierOptions.filter((item) => item !== option);
+                              setCampaignForm({ ...campaignForm, helpTierOptions: next });
+                            }}
+                          />
+                          {label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
                   <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">URL da Imagem</label>
                   <Input
                     placeholder="/obra-paredes.jpg"
@@ -414,6 +438,7 @@ export default function AdminMobilePage() {
                       longDescription: campaignForm.longDescription,
                       goal: Math.round(Number(campaignForm.goal) * 100),
                       vipApartmentAmountCents,
+                      helpTierOptions: campaignForm.helpTierOptions.length > 0 ? campaignForm.helpTierOptions : ["material", "financial", "vip"],
                       imageUrl: campaignForm.imageUrl || "/obra-paredes.jpg",
                       category: campaignForm.category,
                     });

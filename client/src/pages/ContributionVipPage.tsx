@@ -1,6 +1,7 @@
 import PublicHeader from "@/components/PublicHeader";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isLegendarioCampaign } from "@/lib/campaignVisibility";
 import { trpc } from "@/lib/trpc";
 import { ChevronLeft, Crown } from "lucide-react";
 import { useState } from "react";
@@ -9,8 +10,8 @@ import { Link, useRoute } from "wouter";
 const SPECIAL_APARTMENT_DONATION_CENTS = 120_000_00;
 const HOTEL_CAMPAIGN_ID = 100001;
 const HOTEL_LEGACY_CAMPAIGN_ID = 1;
-const DEFAULT_VIP_MEDIA_VIDEO_URL = "/89343f15-ccb1-4937-b353-a3cbb5f23bd6.mp4";
-const DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL = "/Parceiros/WhatsApp Video 2026-07-28 at 15.37.04.mp4";
+const DEFAULT_VIP_MEDIA_VIDEO_URL = "/vip-demo.mp4";
+const DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL = "/vip-demo.mp4";
 const DEFAULT_VIP_MEDIA_IMAGES = ["/render-quarto.jpg", "/render-hotel.jpg", "/obra-lavanderia.jpg"];
 
 const formatCurrency = (valueInCents: number) =>
@@ -40,6 +41,14 @@ const toEmbedVideoUrl = (rawUrl: string) => {
   } catch {
     return null;
   }
+};
+
+const getVideoMimeType = (rawUrl: string | null) => {
+  const normalized = (rawUrl ?? "").toLowerCase();
+  if (normalized.endsWith(".webm")) return "video/webm";
+  if (normalized.endsWith(".ogg") || normalized.endsWith(".ogv")) return "video/ogg";
+  if (normalized.endsWith(".mov") || normalized.endsWith(".qt")) return "video/quicktime";
+  return "video/mp4";
 };
 
 export default function ContributionVipPage() {
@@ -101,6 +110,7 @@ export default function ContributionVipPage() {
     || campaignDataId === HOTEL_CAMPAIGN_ID
     || campaignTitle.includes("hotel recanto de paz")
     || (campaignId === HOTEL_LEGACY_CAMPAIGN_ID && campaignTitle.includes("hotel recanto de paz"));
+  const legendarioCampaign = isLegendarioCampaign(campaign);
   const vipApartmentAmountCents = ("vipApartmentAmountCents" in campaign && typeof campaign.vipApartmentAmountCents === "number")
     ? campaign.vipApartmentAmountCents
     : SPECIAL_APARTMENT_DONATION_CENTS;
@@ -134,16 +144,13 @@ export default function ContributionVipPage() {
     : campaignGalleryImages.length > 0
       ? campaignGalleryImages
       : DEFAULT_VIP_MEDIA_IMAGES;
-  const videoCandidates = Array.from(new Set([
-    ...configuredVipVideos,
-    ...campaignVideoUrls,
-    DEFAULT_VIP_MEDIA_VIDEO_URL,
-    DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL,
-  ].filter((url) => typeof url === "string" && url.trim().length > 0)));
-  const vipVideoUrl = videoCandidates[videoIndex] ?? null;
+  const configuredVideoCandidates = [...configuredVipVideos, ...campaignVideoUrls].filter((url) => typeof url === "string" && url.trim().length > 0);
+  const videoCandidates = [...configuredVideoCandidates, DEFAULT_VIP_MEDIA_VIDEO_URL, DEFAULT_VIP_MEDIA_VIDEO_FALLBACK_URL]
+    .filter((url) => typeof url === "string" && url.trim().length > 0);
+  const vipVideoUrl = videoCandidates[0] ?? null;
   const vipVideoEmbedUrl = vipVideoUrl ? toEmbedVideoUrl(vipVideoUrl) : null;
 
-  if (!isHotelCampaign || vipApartmentAmountCents <= 0) {
+  if (legendarioCampaign || !isHotelCampaign || vipApartmentAmountCents <= 0) {
     return (
       <div className="min-h-screen bg-[#f8faf7]">
         <PublicHeader />
@@ -212,7 +219,7 @@ export default function ContributionVipPage() {
                 className="mt-2 inline-flex min-h-10 items-center justify-center rounded-md bg-[#8a6708] px-4 text-xs font-extrabold uppercase tracking-[0.04em] text-white transition hover:bg-[#6d5006]"
                 onClick={() => {
                   setVideoFailed(false);
-                  setVideoIndex((current) => (current + 1 < videoCandidates.length ? current + 1 : 0));
+                  setVideoIndex(0);
                 }}
               >
                 Tentar outro vídeo aqui
@@ -222,33 +229,42 @@ export default function ContributionVipPage() {
 
           {vipVideoUrl && (
             <div className="mt-3 overflow-hidden rounded-lg border border-[#e3c98a] bg-black">
-              {vipVideoEmbedUrl ? (
-                <div className="aspect-video w-full">
-                  <iframe
-                    src={vipVideoEmbedUrl}
-                    title={`Vídeo de apresentação do apartamento VIP da campanha ${campaign.title}`}
-                    className="h-full w-full"
-                    loading="lazy"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
-              ) : (
+              <div className="aspect-video w-full">
                 <video
                   key={vipVideoUrl}
-                  className="aspect-video w-full"
+                  className="h-full w-full"
                   controls
                   preload="metadata"
                   playsInline
+                  muted={false}
                   poster={vipGalleryImages[0]}
+                  autoPlay={false}
+                  onLoadedMetadata={(event) => {
+                    event.currentTarget.muted = false;
+                    event.currentTarget.volume = 1;
+                  }}
+                  onPlay={(event) => {
+                    event.currentTarget.muted = false;
+                    event.currentTarget.volume = 1;
+                  }}
                   onError={() => {
                     setVideoFailed(true);
                     setVideoIndex((current) => (current + 1 < videoCandidates.length ? current + 1 : current));
                   }}
                 >
-                  <source src={encodeURI(vipVideoUrl)} />
+                  <source src={vipVideoUrl ?? undefined} type={getVideoMimeType(vipVideoUrl)} />
                 </video>
-              )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <a
+                    href={vipVideoUrl ?? "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-h-10 items-center justify-center rounded-md bg-[#8a6708] px-3 text-xs font-extrabold uppercase tracking-[0.04em] text-white transition hover:bg-[#6d5006]"
+                  >
+                    Abrir vídeo em nova aba
+                  </a>
+                </div>
+              </div>
             </div>
           )}
 

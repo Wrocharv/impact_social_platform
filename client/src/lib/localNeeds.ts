@@ -114,6 +114,14 @@ export function removeLocalNeed(campaignId: number, needId: number): boolean {
   return true;
 }
 
+export function clearLocalNeedsForCampaign(campaignId: number): boolean {
+  const all = readAllLocalNeeds();
+  const next = all.filter((need) => need.campaignId !== campaignId);
+  if (next.length === all.length) return false;
+  writeAllLocalNeeds(next);
+  return true;
+}
+
 function readAllLocalNeedsProgress(): LocalNeedProgress[] {
   if (!canUseStorage()) return [];
 
