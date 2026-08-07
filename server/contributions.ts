@@ -21,7 +21,7 @@ import {
 import { whatsappService } from "./whatsapp.service";
 
 const CASH_AUDIT_DETAILS = ["cash_validated_in_person", "cash_validation_rejected"] as const;
-const CASH_PENDING_DETAILS = ["awaiting_cash_confirmation", "awaiting_validation"] as const;
+const CASH_PENDING_DETAILS = ["awaiting_cash_confirmation", "awaiting_validation", "awaiting_payment"] as const;
 const MATERIAL_AUDIT_DETAILS = ["material_validated", "material_rejected"] as const;
 const MATERIAL_PENDING_DETAILS = ["awaiting_triage"] as const;
 const CANONICAL_LOCAL_CAMPAIGN_ID = 100001;
@@ -34,6 +34,33 @@ function normalizeWhatsapp(value?: string | null) {
   if (!value) return undefined;
   const digits = value.replace(/\D/g, "");
   return digits.length > 0 ? digits : undefined;
+}
+
+function normalizeCpf(value?: string | null) {
+  if (!value) return undefined;
+  const digits = value.replace(/\D/g, "");
+  return digits.length > 0 ? digits : undefined;
+}
+
+function donorLookupKey(input: {
+  donorCpf?: string | null;
+  donorWhatsapp?: string | null;
+  donorEmail?: string | null;
+  donorName?: string | null;
+}) {
+  const cpf = normalizeCpf(input.donorCpf);
+  if (cpf) return `cpf:${cpf}`;
+
+  const whatsapp = normalizeWhatsapp(input.donorWhatsapp);
+  if (whatsapp) return `whatsapp:${whatsapp}`;
+
+  const email = input.donorEmail?.trim().toLowerCase();
+  if (email) return `email:${email}`;
+
+  const name = input.donorName?.trim().toLowerCase();
+  if (name) return `name:${name}`;
+
+  return null;
 }
 
 function isMissingColumnError(error: unknown): boolean {
@@ -72,6 +99,10 @@ const donorInfoSchema = z.object({
   donorName: z.preprocess(
     (value) => (typeof value === "string" ? value.trim() : ""),
     z.string().max(255).optional().default(""),
+  ),
+  donorCpf: z.preprocess(
+    (value) => (typeof value === "string" ? normalizeCpf(value) ?? "" : ""),
+    z.string().max(14).optional().default(""),
   ),
   donorWhatsapp: z.preprocess(
     (value) => (typeof value === "string" ? normalizeWhatsapp(value) ?? "" : ""),
@@ -152,6 +183,7 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
   let description = input.description;
   let estimatedAmount: number | undefined;
   const donorEmail = input.donorEmail?.trim().toLowerCase() || undefined;
+  const donorCpf = normalizeCpf((input as { donorCpf?: string }).donorCpf);
   const donorWhatsapp = normalizeWhatsapp(input.donorWhatsapp);
 
   if (!db) {
@@ -344,6 +376,7 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
       type,
       description,
       donorName: input.donorName,
+      donorCpf,
       donorEmail,
       donorWhatsapp,
       donorCity: input.donorCity,
@@ -367,6 +400,7 @@ async function createOffer(input: z.infer<typeof offerSchema>, ctx: {
       type,
       description,
       donorName: input.donorName,
+      donorCpf,
       donorEmail,
       donorWhatsapp,
       donorCity: input.donorCity,
@@ -413,20 +447,40 @@ export const contributionsRouter = router({
         };
       }
 
-      await db.insert(contributions).values({
-        campaignId: input.campaignId,
-        userId: ctx.user?.id,
-        type: "financial",
-        amount: input.amount,
-        donorName: input.donorName,
-        donorEmail: input.donorEmail,
-        donorWhatsapp: input.donorWhatsapp,
-        donorCity: input.donorCity,
-        donorChurch: input.donorChurch,
-        allowPublicDisplay: Boolean(input.allowPublicDisplay),
-        status: "pending",
-        paymentStatusDetail: "awaiting_payment",
-      });
+      try {
+        await db.insert(contributions).values({
+          campaignId: input.campaignId,
+          userId: ctx.user?.id,
+          type: "financial",
+          amount: input.amount,
+          donorName: input.donorName,
+          donorCpf: input.donorCpf,
+          donorEmail: input.donorEmail,
+          donorWhatsapp: input.donorWhatsapp,
+          donorCity: input.donorCity,
+          donorChurch: input.donorChurch,
+          allowPublicDisplay: Boolean(input.allowPublicDisplay),
+          status: "pending",
+          paymentStatusDetail: "awaiting_payment",
+        });
+      } catch (error) {
+        if (!isMissingColumnError(error)) throw error;
+
+        await db.insert(contributions).values({
+          campaignId: input.campaignId,
+          userId: ctx.user?.id,
+          type: "financial",
+          amount: input.amount,
+          donorName: input.donorName,
+          donorEmail: input.donorEmail,
+          donorWhatsapp: input.donorWhatsapp,
+          donorCity: input.donorCity,
+          donorChurch: input.donorChurch,
+          allowPublicDisplay: Boolean(input.allowPublicDisplay),
+          status: "pending",
+          paymentStatusDetail: "awaiting_payment",
+        });
+      }
 
       return {
         success: true,
@@ -435,33 +489,61 @@ export const contributionsRouter = router({
     }),
 
   getDonorProfileByWhatsapp: publicProcedure
-    .input(z.object({ donorWhatsapp: z.string().trim().min(8).max(20) }))
+    .input(z.object({ donorWhatsapp: z.string().trim().min(8).max(20).optional(), donorCpf: z.string().trim().min(8).max(14).optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) {
         return null;
       }
 
-      const normalizedInput = input.donorWhatsapp.replace(/\D/g, "");
-      if (!normalizedInput) {
+      const normalizedWhatsapp = input.donorWhatsapp?.replace(/\D/g, "") ?? "";
+      const normalizedCpf = normalizeCpf(input.donorCpf) ?? "";
+      if (!normalizedWhatsapp && !normalizedCpf) {
         return null;
       }
 
-      const rows = await db
-        .select({
-          donorName: contributions.donorName,
-          donorWhatsapp: contributions.donorWhatsapp,
-          donorEmail: contributions.donorEmail,
-          donorCity: contributions.donorCity,
-          donorChurch: contributions.donorChurch,
-          allowPublicDisplay: contributions.allowPublicDisplay,
-        })
-        .from(contributions)
-        .limit(50);
+      let rows: Array<{
+        donorName: string | null;
+        donorCpf?: string | null;
+        donorWhatsapp: string | null;
+        donorEmail: string | null;
+        donorCity: string | null;
+        donorChurch: string | null;
+        allowPublicDisplay: boolean | null;
+      }> = [];
+
+      try {
+        rows = await db
+          .select({
+            donorName: contributions.donorName,
+            donorCpf: contributions.donorCpf,
+            donorWhatsapp: contributions.donorWhatsapp,
+            donorEmail: contributions.donorEmail,
+            donorCity: contributions.donorCity,
+            donorChurch: contributions.donorChurch,
+            allowPublicDisplay: contributions.allowPublicDisplay,
+          })
+          .from(contributions)
+          .limit(50);
+      } catch (error) {
+        if (!isMissingColumnError(error)) throw error;
+        rows = await db
+          .select({
+            donorName: contributions.donorName,
+            donorWhatsapp: contributions.donorWhatsapp,
+            donorEmail: contributions.donorEmail,
+            donorCity: contributions.donorCity,
+            donorChurch: contributions.donorChurch,
+            allowPublicDisplay: contributions.allowPublicDisplay,
+          })
+          .from(contributions)
+          .limit(50);
+      }
 
       const match = rows.find((row) => {
-        const normalizedStored = (row.donorWhatsapp || "").replace(/\D/g, "");
-        return normalizedStored === normalizedInput;
+        const storedCpf = normalizeCpf(row.donorCpf) ?? "";
+        const storedWhatsapp = (row.donorWhatsapp || "").replace(/\D/g, "");
+        return (normalizedCpf && storedCpf === normalizedCpf) || (normalizedWhatsapp && storedWhatsapp === normalizedWhatsapp);
       });
 
       if (!match) {
@@ -470,6 +552,7 @@ export const contributionsRouter = router({
 
       return {
         donorName: match.donorName,
+        donorCpf: match.donorCpf,
         donorWhatsapp: match.donorWhatsapp,
         donorEmail: match.donorEmail,
         donorCity: match.donorCity,
@@ -480,6 +563,7 @@ export const contributionsRouter = router({
 
   getDonorProfileLookup: publicProcedure
     .input(z.object({
+      donorCpf: z.string().trim().min(8).max(14).optional(),
       donorWhatsapp: z.string().trim().min(8).max(20).optional(),
       donorName: z.string().trim().min(2).max(255).optional(),
       donorEmail: z.string().trim().email().optional(),
@@ -490,28 +574,61 @@ export const contributionsRouter = router({
         return null;
       }
 
+      const normalizedCpf = normalizeCpf(input.donorCpf) ?? "";
       const normalizedWhatsapp = input.donorWhatsapp?.replace(/\D/g, "") ?? "";
       const normalizedName = input.donorName?.trim().toLowerCase() ?? "";
       const normalizedEmail = input.donorEmail?.trim().toLowerCase() ?? "";
 
-      if (!normalizedWhatsapp && normalizedName.length < 2 && !normalizedEmail) {
+      if (!normalizedCpf && !normalizedWhatsapp && normalizedName.length < 2 && !normalizedEmail) {
         return null;
       }
 
-      const rows = await db
-        .select({
-          donorName: contributions.donorName,
-          donorWhatsapp: contributions.donorWhatsapp,
-          donorEmail: contributions.donorEmail,
-          donorCity: contributions.donorCity,
-          donorChurch: contributions.donorChurch,
-          allowPublicDisplay: contributions.allowPublicDisplay,
-          createdAt: contributions.createdAt,
-        })
-        .from(contributions)
-        .orderBy(desc(contributions.createdAt))
-        .limit(300);
+      let rows: Array<{
+        donorName: string | null;
+        donorCpf?: string | null;
+        donorWhatsapp: string | null;
+        donorEmail: string | null;
+        donorCity: string | null;
+        donorChurch: string | null;
+        allowPublicDisplay: boolean | null;
+        createdAt: Date;
+      }> = [];
 
+      try {
+        rows = await db
+          .select({
+            donorName: contributions.donorName,
+            donorCpf: contributions.donorCpf,
+            donorWhatsapp: contributions.donorWhatsapp,
+            donorEmail: contributions.donorEmail,
+            donorCity: contributions.donorCity,
+            donorChurch: contributions.donorChurch,
+            allowPublicDisplay: contributions.allowPublicDisplay,
+            createdAt: contributions.createdAt,
+          })
+          .from(contributions)
+          .orderBy(desc(contributions.createdAt))
+          .limit(300);
+      } catch (error) {
+        if (!isMissingColumnError(error)) throw error;
+        rows = await db
+          .select({
+            donorName: contributions.donorName,
+            donorWhatsapp: contributions.donorWhatsapp,
+            donorEmail: contributions.donorEmail,
+            donorCity: contributions.donorCity,
+            donorChurch: contributions.donorChurch,
+            allowPublicDisplay: contributions.allowPublicDisplay,
+            createdAt: contributions.createdAt,
+          })
+          .from(contributions)
+          .orderBy(desc(contributions.createdAt))
+          .limit(300);
+      }
+
+      const byCpf = normalizedCpf
+        ? rows.find((row) => normalizeCpf(row.donorCpf) === normalizedCpf)
+        : undefined;
       const byEmail = normalizedEmail
         ? rows.find((row) => (row.donorEmail || "").trim().toLowerCase() === normalizedEmail)
         : undefined;
@@ -520,20 +637,21 @@ export const contributionsRouter = router({
         ? rows.find((row) => (row.donorWhatsapp || "").replace(/\D/g, "") === normalizedWhatsapp)
         : undefined;
 
-      const byName = !byWhatsapp && normalizedName
+      const byName = !byCpf && !byWhatsapp && normalizedName
         ? (
           rows.find((row) => (row.donorName || "").trim().toLowerCase() === normalizedName)
           || rows.find((row) => (row.donorName || "").trim().toLowerCase().includes(normalizedName))
         )
         : undefined;
 
-      const match = byEmail ?? byWhatsapp ?? byName;
+      const match = byCpf ?? byEmail ?? byWhatsapp ?? byName;
       if (!match) {
         return null;
       }
 
       return {
         donorName: match.donorName,
+        donorCpf: match.donorCpf,
         donorWhatsapp: match.donorWhatsapp,
         donorEmail: match.donorEmail,
         donorCity: match.donorCity,
@@ -541,6 +659,114 @@ export const contributionsRouter = router({
         allowPublicDisplay: match.allowPublicDisplay ?? false,
       };
     }),
+
+  getRegisteredDonors: adminProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) {
+      return [];
+    }
+
+    let rows: Array<{
+      donorName: string | null;
+      donorCpf?: string | null;
+      donorWhatsapp: string | null;
+      donorEmail: string | null;
+      donorCity: string | null;
+      donorChurch: string | null;
+      allowPublicDisplay: boolean | null;
+      amount: number | null;
+      createdAt: Date;
+    }> = [];
+
+    try {
+      rows = await db
+        .select({
+          donorName: contributions.donorName,
+          donorCpf: contributions.donorCpf,
+          donorWhatsapp: contributions.donorWhatsapp,
+          donorEmail: contributions.donorEmail,
+          donorCity: contributions.donorCity,
+          donorChurch: contributions.donorChurch,
+          allowPublicDisplay: contributions.allowPublicDisplay,
+          amount: contributions.amount,
+          createdAt: contributions.createdAt,
+        })
+        .from(contributions)
+        .orderBy(desc(contributions.createdAt))
+        .limit(1000);
+    } catch (error) {
+      if (!isMissingColumnError(error)) throw error;
+      rows = await db
+        .select({
+          donorName: contributions.donorName,
+          donorWhatsapp: contributions.donorWhatsapp,
+          donorEmail: contributions.donorEmail,
+          donorCity: contributions.donorCity,
+          donorChurch: contributions.donorChurch,
+          allowPublicDisplay: contributions.allowPublicDisplay,
+          amount: contributions.amount,
+          createdAt: contributions.createdAt,
+        })
+        .from(contributions)
+        .orderBy(desc(contributions.createdAt))
+        .limit(1000);
+    }
+
+    const aggregated = new Map<string, {
+      key: string;
+      donorCpf: string | null;
+      donorName: string;
+      donorWhatsapp: string;
+      donorEmail: string;
+      donorCity: string;
+      donorChurch: string;
+      donationsCount: number;
+      totalAmountCents: number;
+      lastDonationAt: Date;
+      allowPublicDisplay: boolean;
+    }>();
+
+    for (const row of rows) {
+      const key = donorLookupKey(row) ?? `row:${row.donorName || row.donorEmail || row.donorWhatsapp || row.createdAt.toISOString()}`;
+      const current = aggregated.get(key);
+      if (current) {
+        current.donationsCount += 1;
+        current.totalAmountCents += Math.max(0, row.amount ?? 0);
+        if (row.createdAt > current.lastDonationAt) {
+          current.lastDonationAt = row.createdAt;
+          current.donorName = row.donorName || current.donorName;
+          current.donorCpf = row.donorCpf || current.donorCpf;
+          current.donorWhatsapp = row.donorWhatsapp || current.donorWhatsapp;
+          current.donorEmail = row.donorEmail || current.donorEmail;
+          current.donorCity = row.donorCity || current.donorCity;
+          current.donorChurch = row.donorChurch || current.donorChurch;
+          current.allowPublicDisplay = Boolean(row.allowPublicDisplay ?? current.allowPublicDisplay);
+        }
+        continue;
+      }
+
+      aggregated.set(key, {
+        key,
+        donorCpf: row.donorCpf ?? null,
+        donorName: row.donorName || "Não informado",
+        donorWhatsapp: row.donorWhatsapp || "",
+        donorEmail: row.donorEmail || "",
+        donorCity: row.donorCity || "",
+        donorChurch: row.donorChurch || "",
+        donationsCount: 1,
+        totalAmountCents: Math.max(0, row.amount ?? 0),
+        lastDonationAt: row.createdAt,
+        allowPublicDisplay: Boolean(row.allowPublicDisplay),
+      });
+    }
+
+    return Array.from(aggregated.values())
+      .sort((a, b) => b.lastDonationAt.getTime() - a.lastDonationAt.getTime())
+      .map((donor) => ({
+        ...donor,
+        lastDonationAt: donor.lastDonationAt.toISOString(),
+      }));
+  }),
 
   getUserContributions: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();

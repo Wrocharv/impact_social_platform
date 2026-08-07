@@ -22,6 +22,7 @@ const createPaymentPreferenceSchema = z.object({
     z.string().email().optional(),
   ),
   donorName: z.string().trim().max(255).optional().default(""),
+  donorCpf: z.string().trim().max(14).optional().default(""),
   donorWhatsapp: z.string().trim().max(20).optional().default(""),
   donorCity: z.string().trim().max(255).optional().default(""),
   donorChurch: z.string().trim().max(255).optional().default(""),
@@ -64,6 +65,12 @@ function mapMercadoPagoStatus(status?: string): ContributionStatus {
 function amountToCents(amount?: number) {
   if (amount === undefined || !Number.isFinite(amount)) return undefined;
   return Math.round(amount * 100);
+}
+
+function normalizeCpf(value?: string | null) {
+  if (!value) return undefined;
+  const digits = value.replace(/\D/g, "");
+  return digits.length > 0 ? digits : undefined;
 }
 
 function requestOrigin(req: {
@@ -453,6 +460,7 @@ export const paymentsRouter = router({
 
       const externalReference = `pdb-${input.campaignId}-${randomUUID()}`;
       const donorName = input.donorName?.trim() ?? "";
+      const donorCpf = normalizeCpf(input.donorCpf);
       const donorWhatsapp = input.donorWhatsapp?.trim() ?? "";
       const donorCity = input.donorCity?.trim() ?? "";
       const donorChurch = input.donorChurch?.trim() ?? "";
@@ -467,6 +475,7 @@ export const paymentsRouter = router({
           type: "financial",
           amount: input.amount,
           donorName,
+          donorCpf,
           donorEmail,
           donorWhatsapp,
           donorCity,

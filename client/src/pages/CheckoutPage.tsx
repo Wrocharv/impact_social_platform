@@ -14,17 +14,38 @@ export default function CheckoutPage() {
 
   const [amount, setAmount] = useState("");
   const [donorName, setDonorName] = useState("");
+  const [donorCpf, setDonorCpf] = useState("");
   const [donorWhatsapp, setDonorWhatsapp] = useState("");
   const [donorEmail, setDonorEmail] = useState("");
   const [donorCity, setDonorCity] = useState("");
   const [donorChurch, setDonorChurch] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"pix" | "card" | "boleto" | "cash">("pix");
   const [isProcessing, setIsProcessing] = useState(false);
-  const { currentDonor, isLoaded, saveDonor, clearSavedDonors } = useDonorStorage();
+  const [lastLookupKey, setLastLookupKey] = useState("");
+  const { currentDonor, isLoaded, saveDonor, clearSavedDonors, findDonorByCpf, findDonorByName, findDonorByWhatsapp } = useDonorStorage();
+
+  function parseBrlAmount(value: string) {
+    const normalized = value.trim().replace(/\s+/g, "");
+    if (!normalized) return NaN;
+
+    const hasComma = normalized.includes(",");
+    const hasDot = normalized.includes(".");
+
+    if (hasComma && hasDot) {
+      return Number(normalized.replace(/\./g, "").replace(",", "."));
+    }
+
+    if (hasComma) {
+      return Number(normalized.replace(",", "."));
+    }
+
+    return Number(normalized.replace(/\./g, ""));
+  }
 
   const handleForgetSavedDonor = () => {
     clearSavedDonors();
     setDonorName("");
+    setDonorCpf("");
     setDonorWhatsapp("");
     setDonorEmail("");
     setDonorCity("");
@@ -35,11 +56,36 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (!isLoaded || !currentDonor) return;
     setDonorName((current) => current || currentDonor.donorName || "");
+    setDonorCpf((current) => current || currentDonor.donorCpf || "");
     setDonorWhatsapp((current) => current || currentDonor.donorWhatsapp || "");
     setDonorEmail((current) => current || currentDonor.donorEmail || "");
     setDonorCity((current) => current || currentDonor.donorCity || "");
     setDonorChurch((current) => current || currentDonor.donorChurch || "");
   }, [currentDonor, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const normalizedCpf = donorCpf.replace(/\D/g, "");
+    const normalizedWhatsapp = donorWhatsapp.replace(/\D/g, "");
+    const normalizedName = donorName.trim().toLowerCase();
+    const lookupKey = `${normalizedCpf}|${normalizedWhatsapp}|${normalizedName}`;
+    if (lookupKey === lastLookupKey) return;
+
+    const matchedDonor = findDonorByCpf(normalizedCpf)
+      ?? findDonorByWhatsapp(normalizedWhatsapp)
+      ?? findDonorByName(donorName);
+
+    if (!matchedDonor) return;
+
+    setLastLookupKey(lookupKey);
+    setDonorName((current) => current || matchedDonor.donorName || "");
+    setDonorCpf((current) => current || matchedDonor.donorCpf || "");
+    setDonorWhatsapp((current) => current || matchedDonor.donorWhatsapp || "");
+    setDonorEmail((current) => current || matchedDonor.donorEmail || "");
+    setDonorCity((current) => current || matchedDonor.donorCity || "");
+    setDonorChurch((current) => current || matchedDonor.donorChurch || "");
+  }, [currentDonor, donorCpf, donorWhatsapp, donorName, isLoaded, lastLookupKey, findDonorByCpf, findDonorByName, findDonorByWhatsapp]);
 
   const campaignQuery = trpc.campaigns.getById.useQuery(
     { id: campaignId },
@@ -50,7 +96,7 @@ export default function CheckoutPage() {
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const amountInCents = Math.round(Number(amount.replace(",", ".")) * 100);
+    const amountInCents = Math.round(parseBrlAmount(amount) * 100);
     if (!Number.isInteger(amountInCents) || amountInCents < 100 || !donorEmail.trim() || donorWhatsapp.replace(/\D/g, "").length < 8 || donorCity.trim().length < 2) {
       toast.error("Preencha os campos obrigatórios (incluindo WhatsApp e cidade)");
       return;
@@ -60,6 +106,7 @@ export default function CheckoutPage() {
 
     saveDonor({
       donorName: donorName.trim() || "Doador",
+      donorCpf: donorCpf.trim(),
       donorWhatsapp: donorWhatsapp.trim(),
       donorEmail: donorEmail.trim(),
       donorCity: donorCity.trim(),
@@ -73,6 +120,7 @@ export default function CheckoutPage() {
         paymentMethod,
         donorEmail: donorEmail.trim(),
         donorName: donorName.trim() || undefined,
+        donorCpf: donorCpf.trim() || undefined,
         donorWhatsapp: donorWhatsapp.trim(),
         donorCity: donorCity.trim(),
         donorChurch: donorChurch.trim() || undefined,
@@ -270,10 +318,9 @@ export default function CheckoutPage() {
                       ))}
                     </div>
                     <Input
-                      type="number"
-                      step="0.01"
-                      min="1"
-                      placeholder="Ou digite outro valor"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="Ex.: 1.000,00"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       className="text-lg"
@@ -290,6 +337,19 @@ export default function CheckoutPage() {
                       placeholder="Como você gostaria de ser reconhecido?"
                       value={donorName}
                       onChange={(e) => setDonorName(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-[#2d2d2d] mb-2">
+                      CPF (opcional)
+                    </label>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="000.000.000-00"
+                      value={donorCpf}
+                      onChange={(e) => setDonorCpf(e.target.value)}
                     />
                   </div>
 

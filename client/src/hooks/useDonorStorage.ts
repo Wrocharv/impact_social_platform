@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 export interface DonorData {
   donorId: string; // ID único para sorteios
   donorName: string;
+  donorCpf: string;
   donorWhatsapp: string;
   donorEmail: string;
   donorCity: string;
@@ -15,6 +16,10 @@ const DONORS_STORAGE_KEY = "impact_donors";
 const CURRENT_DONOR_KEY = "impact_current_donor";
 
 function normalizeWhatsapp(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function normalizeCpf(value: string) {
   return value.replace(/\D/g, "");
 }
 
@@ -63,12 +68,30 @@ export function useDonorStorage() {
     return donors.find((d) => normalizeWhatsapp(d.donorWhatsapp) === normalized);
   }
 
+  function findDonorByCpf(cpf: string): DonorData | undefined {
+    const normalized = normalizeCpf(cpf);
+    return donors.find((d) => normalizeCpf(d.donorCpf || "") === normalized);
+  }
+
+  function findDonorByName(name: string): DonorData | undefined {
+    const normalized = name.trim().toLowerCase();
+    if (!normalized) return undefined;
+    return donors.find((d) => d.donorName.trim().toLowerCase() === normalized)
+      || donors.find((d) => d.donorName.trim().toLowerCase().includes(normalized));
+  }
+
   /**
    * Salvar ou atualizar doador
    */
   function saveDonor(donorData: Omit<DonorData, "donorId" | "createdAt" | "donationsCount">) {
+    const normalizedCpf = normalizeCpf(donorData.donorCpf.trim());
     const normalizedWhatsapp = normalizeWhatsapp(donorData.donorWhatsapp.trim());
-    const existing = donors.find((d) => normalizeWhatsapp(d.donorWhatsapp) === normalizedWhatsapp);
+    const normalizedEmail = donorData.donorEmail.trim().toLowerCase();
+    const normalizedName = donorData.donorName.trim().toLowerCase();
+    const existing = donors.find((d) => normalizeCpf(d.donorCpf || "") === normalizedCpf)
+      || donors.find((d) => normalizeWhatsapp(d.donorWhatsapp) === normalizedWhatsapp)
+      || donors.find((d) => d.donorEmail.trim().toLowerCase() === normalizedEmail)
+      || donors.find((d) => d.donorName.trim().toLowerCase() === normalizedName);
 
     let donor: DonorData;
 
@@ -76,6 +99,7 @@ export function useDonorStorage() {
       donor = {
         ...existing,
         donorName: donorData.donorName.trim() || existing.donorName,
+        donorCpf: normalizedCpf || existing.donorCpf,
         donorEmail: donorData.donorEmail.trim() || existing.donorEmail,
         donorCity: donorData.donorCity.trim() || existing.donorCity,
         donorChurch: donorData.donorChurch.trim() || existing.donorChurch,
@@ -88,6 +112,7 @@ export function useDonorStorage() {
     } else {
       donor = {
         ...donorData,
+        donorCpf: normalizedCpf || "",
         donorWhatsapp: normalizedWhatsapp,
         donorName: donorData.donorName.trim(),
         donorEmail: donorData.donorEmail.trim(),
@@ -151,6 +176,8 @@ export function useDonorStorage() {
     saveDonor,
     clearCurrentDonor,
     clearSavedDonors,
+      findDonorByCpf,
+      findDonorByName,
     findDonorByWhatsapp,
     getAllDonors,
     getDonorsStats,

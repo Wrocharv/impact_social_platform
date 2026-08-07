@@ -115,6 +115,7 @@ const DEFAULT_VIP_MEDIA_IMAGES = ["/render-quarto.jpg", "/render-hotel.jpg", "/o
 interface WizardState {
   type: ContributionType | null;
   donorName: string;
+  donorCpf: string;
   donorWhatsapp: string;
   donorEmail: string;
   donorCity: string;
@@ -177,6 +178,7 @@ export default function ContributionWizardPage() {
   const [state, setState] = useState<WizardState>({
     type: null,
     donorName: "",
+    donorCpf: "",
     donorWhatsapp: "",
     donorEmail: "",
     donorCity: "",
@@ -201,6 +203,7 @@ export default function ContributionWizardPage() {
       setState((prev) => ({
         ...prev,
         donorName: currentDonor.donorName,
+        donorCpf: currentDonor.donorCpf,
         donorWhatsapp: currentDonor.donorWhatsapp,
         donorEmail: currentDonor.donorEmail,
         donorCity: currentDonor.donorCity,
@@ -264,13 +267,14 @@ export default function ContributionWizardPage() {
   useEffect(() => {
     if (step !== "donor-info") return;
 
+    const normalizedCpf = state.donorCpf.replace(/\D/g, "");
     const normalizedWhatsapp = state.donorWhatsapp.replace(/\D/g, "");
     const normalizedName = state.donorName.trim().toLowerCase();
     const normalizedEmail = state.donorEmail.trim().toLowerCase();
 
-    if (normalizedWhatsapp.length < 8 && normalizedName.length < 3 && !normalizedEmail) return;
+    if (normalizedCpf.length < 8 && normalizedWhatsapp.length < 8 && normalizedName.length < 3 && !normalizedEmail) return;
 
-    const lookupKey = `${normalizedWhatsapp}|${normalizedName}|${normalizedEmail}`;
+    const lookupKey = `${normalizedCpf}|${normalizedWhatsapp}|${normalizedName}|${normalizedEmail}`;
     if (lookupKey === lastLookupKey) return;
 
     const timer = window.setTimeout(async () => {
@@ -279,6 +283,7 @@ export default function ContributionWizardPage() {
 
       try {
         profile = await utils.contributions.getDonorProfileLookup.fetch({
+          donorCpf: normalizedCpf.length >= 8 ? state.donorCpf : undefined,
           donorWhatsapp: normalizedWhatsapp.length >= 8 ? state.donorWhatsapp : undefined,
           donorName: normalizedName.length >= 3 ? state.donorName : undefined,
           donorEmail: normalizedEmail || undefined,
@@ -294,6 +299,7 @@ export default function ContributionWizardPage() {
         const next = {
           ...prev,
           donorName: resolvedProfile.donorName || prev.donorName,
+          donorCpf: resolvedProfile.donorCpf || prev.donorCpf,
           donorWhatsapp: resolvedProfile.donorWhatsapp || prev.donorWhatsapp,
           donorEmail: resolvedProfile.donorEmail || prev.donorEmail,
           donorCity: resolvedProfile.donorCity || prev.donorCity,
@@ -303,6 +309,7 @@ export default function ContributionWizardPage() {
 
         const changed =
           next.donorName !== prev.donorName
+          || next.donorCpf !== prev.donorCpf
           || next.donorWhatsapp !== prev.donorWhatsapp
           || next.donorEmail !== prev.donorEmail
           || next.donorCity !== prev.donorCity
@@ -320,6 +327,7 @@ export default function ContributionWizardPage() {
     return () => window.clearTimeout(timer);
   }, [
     step,
+    state.donorCpf,
     state.donorWhatsapp,
     state.donorName,
     utils,
@@ -495,6 +503,7 @@ export default function ContributionWizardPage() {
       if (isSingleRegistrationFlow && state.type === null) {
         saveDonor({
           donorName: state.donorName,
+          donorCpf: state.donorCpf,
           donorWhatsapp: state.donorWhatsapp,
           donorEmail: state.donorEmail,
           donorCity: state.donorCity,
@@ -541,6 +550,7 @@ export default function ContributionWizardPage() {
       // Salvar dados do doador para próximas doações
       const donor = saveDonor({
         donorName: state.donorName,
+        donorCpf: state.donorCpf,
         donorWhatsapp: state.donorWhatsapp,
         donorEmail: state.donorEmail,
         donorCity: state.donorCity,
@@ -557,6 +567,7 @@ export default function ContributionWizardPage() {
           campaignNeedId: state.materialNeedId,
           description: effectiveMaterialSubmissionDescription,
           donorName: state.donorName,
+          donorCpf: state.donorCpf,
           donorWhatsapp: state.donorWhatsapp,
           donorEmail: state.donorEmail.trim() ? state.donorEmail.trim() : undefined,
           donorCity: state.donorCity,
@@ -585,6 +596,7 @@ export default function ContributionWizardPage() {
           campaignId,
           description: state.volunteerDescription,
           donorName: state.donorName,
+          donorCpf: state.donorCpf,
           donorWhatsapp: state.donorWhatsapp,
           donorEmail: state.donorEmail.trim() ? state.donorEmail.trim() : undefined,
           donorCity: state.donorCity,
@@ -600,6 +612,7 @@ export default function ContributionWizardPage() {
           amount: Math.round(state.amount * 100),
           paymentMethod: state.paymentMethod,
           donorName: state.donorName,
+          donorCpf: state.donorCpf,
           donorWhatsapp: state.donorWhatsapp,
           donorEmail: state.donorEmail.trim(),
           donorCity: state.donorCity,
@@ -826,6 +839,7 @@ export default function ContributionWizardPage() {
                           setState((prev) => ({
                             ...prev,
                             donorName: "",
+                            donorCpf: "",
                             donorWhatsapp: "",
                             donorEmail: "",
                             donorCity: "",
@@ -851,6 +865,18 @@ export default function ContributionWizardPage() {
                         className={donorInfoErrors.name ? "border-red-500" : ""}
                       />
                       {donorInfoErrors.name && <p className="text-xs text-red-500 mt-1">{donorInfoErrors.name}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">CPF (opcional)</label>
+                      <Input
+                        autoComplete="off"
+                        inputMode="numeric"
+                        placeholder="000.000.000-00"
+                        value={state.donorCpf}
+                        onChange={(e) => setState({ ...state, donorCpf: e.target.value })}
+                        disabled={loading}
+                      />
                     </div>
 
                     <div>

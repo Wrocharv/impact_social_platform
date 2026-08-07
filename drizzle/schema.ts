@@ -62,6 +62,7 @@ export const contributions = mysqlTable("contributions", {
   amount: int("amount"), // Para financeiro: valor em centavos
   description: text("description"), // Para material/voluntário: descrição
   donorName: varchar("donorName", { length: 255 }), // Para doadores anônimos
+  donorCpf: varchar("donorCpf", { length: 14 }),
   donorEmail: varchar("donorEmail", { length: 320 }),
   donorWhatsapp: varchar("donorWhatsapp", { length: 20 }),
   donorCity: varchar("donorCity", { length: 255 }),
