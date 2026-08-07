@@ -381,10 +381,91 @@ export const paymentsRouter = router({
         const origin = requestOrigin(ctx.req);
 
         if (isCashPayment) {
+          const donorName = input.donorName?.trim() || "Doador";
+          const donorCpf = normalizeCpf(input.donorCpf);
+          const donorWhatsapp = input.donorWhatsapp?.trim() ?? "";
+          const donorCity = input.donorCity?.trim() ?? "";
+          const donorChurch = input.donorChurch?.trim() ?? "";
+          const allowPublicDisplay = input.allowPublicDisplay ?? false;
+
+          let persistedContribution = false;
+          let persistError: unknown;
+
+          try {
+            await db.insert(contributions).values({
+              campaignId: input.campaignId,
+              userId: ctx.user?.id,
+              type: "financial",
+              amount: input.amount,
+              donorName,
+              donorCpf,
+              donorEmail,
+              donorWhatsapp,
+              donorCity,
+              donorChurch,
+              allowPublicDisplay,
+              paymentMethod: "cash",
+              status: "pending",
+              externalReference,
+              paymentStatusDetail: "awaiting_cash_confirmation",
+            });
+            persistedContribution = true;
+          } catch (error) {
+            persistError = error;
+            if (isMissingColumnError(error)) {
+              try {
+                const legacyPersisted = await tryInsertCashLegacy(db as { execute: (query: unknown) => Promise<unknown> }, {
+                  campaignId: input.campaignId,
+                  amount: input.amount,
+                  donorName,
+                  donorEmail,
+                  externalReference,
+                });
+                if (legacyPersisted) {
+                  persistedContribution = true;
+                  persistError = undefined;
+                }
+              } catch (legacyError) {
+                persistError = legacyError;
+              }
+            }
+          }
+
+          if (persistedContribution) {
+            let contribution: { id: number } | undefined;
+            try {
+              contribution = (
+                await db
+                  .select({ id: contributions.id })
+                  .from(contributions)
+                  .where(eq(contributions.externalReference, externalReference))
+                  .limit(1)
+              )[0];
+            } catch {
+              contribution = undefined;
+            }
+
+            return {
+              checkoutUrl: buildContributionConfirmationUrl({
+                baseUrl: origin,
+                campaignId: input.campaignId,
+                campaignTitle: fallbackCampaignTitle,
+                donorName,
+                amountCents: input.amount,
+                paymentMethod: "cash",
+                paymentStatus: "awaiting_validation",
+              }),
+              contributionId: contribution?.id,
+              preferenceId: "cash-fallback-campaign-db",
+              environment: ENV.isProduction ? "production" as const : "test" as const,
+            };
+          }
+
+          console.error("[Payments] Fallback cash persistência no banco falhou; usando arquivo local", persistError);
           const fallbackContribution = createFallbackCashContribution({
             campaignId: input.campaignId,
             amount: input.amount,
-            donorName: input.donorName?.trim() || "Doador",
+            donorName,
             donorWhatsapp: input.donorWhatsapp,
             donorCity: input.donorCity,
           });
@@ -394,7 +475,7 @@ export const paymentsRouter = router({
               baseUrl: origin,
               campaignId: input.campaignId,
               campaignTitle: fallbackCampaignTitle,
-              donorName: input.donorName?.trim() || "Doador",
+              donorName,
               amountCents: input.amount,
               paymentMethod: "cash",
               paymentStatus: "awaiting_validation",
