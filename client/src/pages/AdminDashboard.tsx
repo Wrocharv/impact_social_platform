@@ -169,13 +169,13 @@ export default function AdminDashboard() {
     : Number.parseInt(validationCampaignFilter, 10);
 
   const registeredDonorsQuery = trpc.contributions.getRegisteredDonors.useQuery(undefined, { enabled: isAdmin });
-  const [communityGenderFilter, setCommunityGenderFilter] = useState("");
+  const [communityGenderFilter, setCommunityGenderFilter] = useState("all");
   const [communityCityFilter, setCommunityCityFilter] = useState("");
   const [communityAgeMin, setCommunityAgeMin] = useState("");
   const [communityAgeMax, setCommunityAgeMax] = useState("");
 
   const filteredCommunityDonors = (registeredDonorsQuery.data ?? []).filter((d) => {
-    if (communityGenderFilter && (d as { donorGender?: string }).donorGender !== communityGenderFilter) return false;
+    if (communityGenderFilter !== "all" && (d as { donorGender?: string }).donorGender !== communityGenderFilter) return false;
     if (communityCityFilter && !(d.donorCity ?? "").toLowerCase().includes(communityCityFilter.toLowerCase())) return false;
     if (communityAgeMin || communityAgeMax) {
       const birth = (d as { donorBirthDate?: string }).donorBirthDate;
@@ -1798,7 +1798,7 @@ export default function AdminDashboard() {
                     <Select value={communityGenderFilter} onValueChange={setCommunityGenderFilter}>
                       <SelectTrigger className="h-9 bg-white text-sm"><SelectValue placeholder="Todos" /></SelectTrigger>
                       <SelectContent className="bg-white">
-                        <SelectItem value="">Todos</SelectItem>
+                        <SelectItem value="all">Todos</SelectItem>
                         <SelectItem value="male">Masculino</SelectItem>
                         <SelectItem value="female">Feminino</SelectItem>
                         <SelectItem value="other">Outro</SelectItem>
