@@ -921,7 +921,26 @@ export default function ContributionWizardPage() {
                         inputMode="numeric"
                         placeholder="000.000.000-00"
                         value={state.donorCpf}
-                        onChange={(e) => setState({ ...state, donorCpf: formatCpf(e.target.value) })}
+                        onChange={(e) => {
+                          const newCpf = formatCpf(e.target.value);
+                          const newDigits = newCpf.replace(/\D/g, "");
+                          const savedDigits = (currentDonor?.donorCpf ?? "").replace(/\D/g, "");
+                          // Se CPF mudou para algo diferente do salvo, limpa os demais campos
+                          if (newDigits.length >= 3 && savedDigits && newDigits !== savedDigits) {
+                            setState((prev) => ({
+                              ...prev,
+                              donorCpf: newCpf,
+                              donorName: "",
+                              donorWhatsapp: "",
+                              donorEmail: "",
+                              donorCity: "",
+                              donorChurch: "",
+                            }));
+                            setLastLookupKey("");
+                          } else {
+                            setState({ ...state, donorCpf: newCpf });
+                          }
+                        }}
                         maxLength={14}
                         disabled={loading}
                         className={donorInfoErrors.cpf ? "border-red-500" : ""}
