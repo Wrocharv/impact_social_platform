@@ -106,13 +106,14 @@ async function startServer() {
   // Run pending SQL migrations on startup (safe to run repeatedly — uses IF NOT EXISTS / MODIFY COLUMN)
   if (process.env.DATABASE_URL) {
     try {
-      const { getDb } = await import("../db");
+      const mysql = await import("mysql2/promise");
+      const { drizzle } = await import("drizzle-orm/mysql2");
       const { migrate } = await import("drizzle-orm/mysql2/migrator");
-      const db = await getDb();
-      if (db) {
-        await migrate(db, { migrationsFolder: path.resolve(process.cwd(), "drizzle") });
-        console.log("[Database] Migrations applied successfully.");
-      }
+      const conn = await mysql.createConnection(process.env.DATABASE_URL);
+      const migrateDb = drizzle(conn);
+      await migrate(migrateDb, { migrationsFolder: path.resolve(process.cwd(), "drizzle") });
+      await conn.end();
+      console.log("[Database] Migrations applied successfully.");
     } catch (err) {
       console.error("[Database] Migration error (non-fatal):", err);
     }
