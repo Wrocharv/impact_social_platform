@@ -815,8 +815,8 @@ export default function AdminDashboard() {
       return;
     }
 
-    if (file.size > 50 * 1024 * 1024) {
-      toast.error("O vídeo deve ter no máximo 50MB.");
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error("O vídeo deve ter no máximo 100MB.");
       return;
     }
 
@@ -889,8 +889,8 @@ export default function AdminDashboard() {
 
     const mimeType = inferSupportedVideoMimeType(file);
     if (mimeType) {
-      if (file.size > 50 * 1024 * 1024) {
-        throw new Error("O vídeo deve ter no máximo 50MB.");
+      if (file.size > 100 * 1024 * 1024) {
+        throw new Error("O vídeo deve ter no máximo 100MB.");
       }
 
       const base64 = await fileToBase64(file);
@@ -943,8 +943,8 @@ export default function AdminDashboard() {
       return;
     }
 
-    if (file.size > 50 * 1024 * 1024) {
-      toast.error("O vídeo deve ter no máximo 50MB.");
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error("O vídeo deve ter no máximo 100MB.");
       return;
     }
 

@@ -846,8 +846,8 @@ const uploadCampaignImageSchema = z.object({
 const uploadCampaignVideoSchema = z.object({
   fileName: z.string().trim().min(1).max(255),
   mimeType: z.enum(["video/mp4", "video/webm", "video/ogg", "video/quicktime"]),
-  size: z.number().int().positive().max(50 * 1024 * 1024),
-  base64: z.string().min(4).max(80_000_000),
+  size: z.number().int().positive().max(100 * 1024 * 1024),
+  base64: z.string().min(4).max(150_000_000),
 });
 
 const reviewCommentSchema = z.object({
@@ -878,7 +878,7 @@ function decodeCampaignVideo(file: z.infer<typeof uploadCampaignVideoSchema>) {
   }
 
   const buffer = Buffer.from(file.base64, "base64");
-  if (buffer.length !== file.size || buffer.length > 50 * 1024 * 1024) {
+  if (buffer.length !== file.size || buffer.length > 100 * 1024 * 1024) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Tamanho do arquivo inválido." });
   }
 

@@ -93,7 +93,7 @@ export default function ContributionChoicePage() {
         <div className={`mt-6 grid gap-4 ${gridClassName}`}>
           {visibleHelpTierOptions.includes("material") ? (
             <Card className="flex h-full flex-col border-2 border-[#aeb4be] bg-gradient-to-b from-[#f4f4f5] via-[#d9dde3] to-[#bcc4cf] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-              <h2 className="text-center text-[1.6rem] font-black uppercase tracking-[0.03em] text-[#3f4754] md:text-[1.7rem]">Material</h2>
+              <h2 className="text-center text-[1.6rem] font-black uppercase tracking-[0.03em] text-[#3f4754] md:text-[1.7rem]">🥈 Prata</h2>
               <p className="mt-2 text-center text-base font-extrabold text-[#505a68]">Doação detalhada ou avulsa</p>
               <p className="mt-2 flex min-h-[56px] items-center justify-center rounded-md bg-black/70 px-3 py-1.5 text-center text-sm font-semibold text-white shadow-[0_2px_6px_rgba(0,0,0,0.22)]">Lista de itens da campanha com quantidade e confirmação.</p>
               <Link
@@ -107,7 +107,7 @@ export default function ContributionChoicePage() {
 
           {visibleHelpTierOptions.includes("financial") ? (
             <Card className="flex h-full flex-col border-2 border-[#95502a] bg-gradient-to-b from-[#f3c9ae] via-[#cc8358] to-[#9e5834] p-5 shadow-[inset_0_1px_0_rgba(255,230,210,0.55)]">
-              <h2 className="text-center text-[1.6rem] font-black uppercase tracking-[0.03em] text-[#5d240d] md:text-[1.7rem]">Dinheiro</h2>
+              <h2 className="text-center text-[1.6rem] font-black uppercase tracking-[0.03em] text-[#5d240d] md:text-[1.7rem]">🥉 Bronze</h2>
               <p className="mt-2 text-center text-base font-extrabold text-[#662d12]">Doação financeira</p>
               <p className="mt-2 flex min-h-[56px] items-center justify-center rounded-md bg-black/70 px-3 py-1.5 text-center text-sm font-semibold text-white shadow-[0_2px_6px_rgba(0,0,0,0.22)]">Doação única ou parcelada, com confirmação no wizard financeiro.</p>
               <Link
@@ -122,7 +122,7 @@ export default function ContributionChoicePage() {
 
           {hasVipOffer ? (
             <Card className="flex h-full flex-col border-2 border-[#c5961a] bg-gradient-to-b from-[#fff3bf] via-[#f0ce68] to-[#d9a729] p-5 shadow-[inset_0_1px_0_rgba(255,248,203,0.8)]">
-              <h2 className="text-center text-[1.6rem] font-black uppercase tracking-[0.03em] text-[#6a4600] md:text-[1.7rem]">VIP</h2>
+              <h2 className="text-center text-[1.6rem] font-black uppercase tracking-[0.03em] text-[#6a4600] md:text-[1.7rem]">🥇 Ouro</h2>
               <p className="mt-2 text-center text-base font-extrabold text-[#7a5202]">Apartamento completo</p>
               <p className="mt-2 flex min-h-[56px] items-center justify-center rounded-md bg-black/70 px-3 py-1.5 text-center text-sm font-semibold text-white shadow-[0_2px_6px_rgba(0,0,0,0.22)]">Valor sugerido: {formatCurrency(vipApartmentAmountCents)}.</p>
               <Link
