@@ -237,6 +237,34 @@ async function tryInsertCashLegacy(
   return false;
 }
 
+async function tryUpdatePaymentLegacy(
+  db: { execute: (query: unknown) => Promise<unknown> },
+  input: {
+    contributionId: number;
+    status: ContributionStatus;
+    paymentId: string;
+    paidAt: Date | null;
+  },
+) {
+  const attempts = [
+    sql`update contributions set status = ${input.status}, paymentId = ${input.paymentId}, paidAt = ${input.paidAt}, updatedAt = ${new Date()} where id = ${input.contributionId}`,
+    sql`update contributions set status = ${input.status}, paymentId = ${input.paymentId}, updatedAt = ${new Date()} where id = ${input.contributionId}`,
+    sql`update contributions set status = ${input.status}, paymentId = ${input.paymentId} where id = ${input.contributionId}`,
+    sql`update contributions set status = ${input.status} where id = ${input.contributionId}`,
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      await db.execute(attempt);
+      return true;
+    } catch (error) {
+      if (!isMissingColumnError(error)) throw error;
+    }
+  }
+
+  return false;
+}
+
 function buildContributionConfirmationUrl(input: {
   baseUrl: string;
   campaignId: number;
@@ -784,7 +812,13 @@ export const paymentsRouter = router({
           }
 
           const [contribution] = await db
-            .select()
+            .select({
+              id: contributions.id,
+              campaignId: contributions.campaignId,
+              amount: contributions.amount,
+              status: contributions.status,
+              externalReference: contributions.externalReference,
+            })
             .from(contributions)
             .where(and(eq(contributions.type, "financial"), or(...conditions)))
             .limit(1);
@@ -801,7 +835,7 @@ export const paymentsRouter = router({
 
           const paidAmount = amountToCents(payment.transaction_amount);
           const validAmount = paidAmount === contribution.amount;
-          const validCurrency = payment.currency_id === contribution.currency;
+          const validCurrency = payment.currency_id === "BRL";
 
           if (!validAmount || !validCurrency) {
             return {
@@ -813,17 +847,28 @@ export const paymentsRouter = router({
             } as const;
           }
 
-          await db
-            .update(contributions)
-            .set({
+          try {
+            await db
+              .update(contributions)
+              .set({
+                status,
+                paymentId: String(payment.id),
+                paymentStatusDetail: payment.status_detail || payment.status || null,
+                paymentMethod,
+                paidAt,
+                updatedAt: new Date(),
+              })
+              .where(eq(contributions.id, contribution.id));
+          } catch (error) {
+            if (!isMissingColumnError(error)) throw error;
+            const updated = await tryUpdatePaymentLegacy(db as { execute: (query: unknown) => Promise<unknown> }, {
+              contributionId: contribution.id,
               status,
               paymentId: String(payment.id),
-              paymentStatusDetail: payment.status_detail || payment.status || null,
-              paymentMethod,
               paidAt,
-              updatedAt: new Date(),
-            })
-            .where(eq(contributions.id, contribution.id));
+            });
+            if (!updated) throw error;
+          }
 
           return {
             success: true,
@@ -856,7 +901,12 @@ export const paymentsRouter = router({
       }
 
       const [existingContribution] = await db
-        .select()
+        .select({
+          campaignId: contributions.campaignId,
+          amount: contributions.amount,
+          status: contributions.status,
+          externalReference: contributions.externalReference,
+        })
         .from(contributions)
         .where(and(eq(contributions.type, "financial"), or(...fallbackConditions)))
         .limit(1);

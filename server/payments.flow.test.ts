@@ -1,15 +1,17 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
-const { getDbMock, createPreferenceMock, createFallbackCashContributionMock } = vi.hoisted(() => ({
+const { getDbMock, createPreferenceMock, createFallbackCashContributionMock, getPaymentMock } = vi.hoisted(() => ({
   getDbMock: vi.fn(),
   createPreferenceMock: vi.fn(),
   createFallbackCashContributionMock: vi.fn(),
+  getPaymentMock: vi.fn(),
 }));
 
 vi.mock("./db", () => ({ getDb: getDbMock }));
 vi.mock("./mercadopago", () => ({
   createMercadoPagoPreference: createPreferenceMock,
+  getMercadoPagoPayment: getPaymentMock,
 }));
 
 vi.mock("./cashValidationFallback", () => ({
@@ -134,7 +136,7 @@ describe("payments.createPaymentPreference", () => {
     expect(values).toHaveBeenCalledTimes(1);
     const inserted = values.mock.calls[0]?.[0];
     expect(inserted).toMatchObject({
-      donorName: "",
+      donorName: "Doador",
       donorWhatsapp: "",
       donorCity: "",
       allowPublicDisplay: false,
@@ -424,6 +426,58 @@ describe("payments.createPaymentPreference", () => {
       }),
     );
     expect(result).toMatchObject({ preferenceId: "pref-fallback-1", environment: "test" });
+  });
+});
+
+describe("payments.syncPaymentStatus", () => {
+  it("sincroniza PIX aprovado consultando somente campos compatíveis com schema legado", async () => {
+    const updateWhere = vi.fn().mockResolvedValue({});
+    const set = vi.fn(() => ({ where: updateWhere }));
+    const limit = vi.fn().mockResolvedValue([{
+      id: 21,
+      campaignId: 100001,
+      amount: 5_000,
+      status: "pending",
+      externalReference: "pdb-100001-ref",
+    }]);
+    const db = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({ where: vi.fn(() => ({ limit })) })),
+      })),
+      update: vi.fn(() => ({ set })),
+    };
+    getDbMock.mockResolvedValue(db);
+    getPaymentMock.mockResolvedValue({
+      id: 171591165657,
+      status: "approved",
+      status_detail: "accredited",
+      transaction_amount: 50,
+      currency_id: "BRL",
+      external_reference: "pdb-100001-ref",
+      payment_type_id: "bank_transfer",
+      payment_method_id: "pix",
+      date_approved: "2026-08-07T04:30:57.000-04:00",
+    });
+
+    const caller = appRouter.createCaller(createContext());
+    const result = await caller.payments.syncPaymentStatus({
+      paymentId: "171591165657",
+      externalReference: "pdb-100001-ref",
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      synced: true,
+      credited: true,
+      status: "approved",
+      campaignId: 100001,
+      amount: 5_000,
+    });
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({
+      status: "approved",
+      paymentId: "171591165657",
+      paymentStatusDetail: "accredited",
+    }));
   });
 });
 

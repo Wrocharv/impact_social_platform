@@ -171,7 +171,15 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
     }
 
     const [contribution] = await db
-      .select()
+      .select({
+        id: contributions.id,
+        campaignId: contributions.campaignId,
+        type: contributions.type,
+        amount: contributions.amount,
+        externalReference: contributions.externalReference,
+        donorEmail: contributions.donorEmail,
+        donorName: contributions.donorName,
+      })
       .from(contributions)
       .where(eq(contributions.externalReference, externalReference))
       .limit(1);
@@ -181,7 +189,7 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
     }
 
     const paidAmount = amountToCents(payment.transaction_amount);
-    if (paidAmount !== contribution.amount || payment.currency_id !== contribution.currency) {
+    if (paidAmount !== contribution.amount || payment.currency_id !== "BRL") {
       throw new Error("Valor ou moeda do pagamento não corresponde à contribuição");
     }
 
