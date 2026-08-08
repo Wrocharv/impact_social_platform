@@ -625,7 +625,7 @@ function parseMediaUrls(value: string | null): string[] {
   }
 }
 
-async function loadCampaignMetrics(
+export async function loadCampaignMetrics(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
   campaignIds: number[],
 ) {
@@ -697,6 +697,11 @@ async function loadCampaignMetrics(
       campaign.id,
       deriveCampaignMetrics(campaign.goal, campaign.initialRaised, grouped.get(campaign.id) ?? []),
     );
+  });
+
+  grouped.forEach((approvedContributions, campaignId) => {
+    if (metrics.has(campaignId)) return;
+    metrics.set(campaignId, deriveCampaignMetrics(0, 0, approvedContributions));
   });
 
   return metrics;

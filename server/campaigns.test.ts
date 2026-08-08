@@ -22,7 +22,7 @@ vi.mock("./whatsapp.service", () => ({
 }));
 
 import { appRouter } from "./routers";
-import { deriveCampaignMetrics, normalizeHelpTierOptions, resolveVipContributionConfig, sanitizeLegendarioPublicCampaign } from "./campaigns";
+import { deriveCampaignMetrics, loadCampaignMetrics, normalizeHelpTierOptions, resolveVipContributionConfig, sanitizeLegendarioPublicCampaign } from "./campaigns";
 
 function createPublicContext(): TrpcContext {
   return {
@@ -310,6 +310,39 @@ describe("deriveCampaignMetrics", () => {
       remaining: 10_000,
       progress: 0,
       contributorsCount: 0,
+    });
+  });
+
+  it("preserva aprovações de uma campanha fallback que não existe na tabela campaigns", async () => {
+    let selectCall = 0;
+    const db = {
+      select: vi.fn(() => {
+        selectCall += 1;
+        if (selectCall === 1) {
+          return {
+            from: () => ({
+              where: async () => ([{
+                id: 15,
+                campaignId: 100001,
+                amount: 10_000_000,
+                userId: null,
+                donorEmail: "doador@example.org",
+              }]),
+            }),
+          };
+        }
+
+        return { from: () => ({ where: async () => [] }) };
+      }),
+    };
+
+    const metrics = await loadCampaignMetrics(db as any, [100001]);
+
+    expect(metrics.get(100001)).toEqual({
+      raised: 10_000_000,
+      remaining: 0,
+      progress: 0,
+      contributorsCount: 1,
     });
   });
 });
