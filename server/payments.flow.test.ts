@@ -479,6 +479,44 @@ describe("payments.syncPaymentStatus", () => {
       paymentStatusDetail: "accredited",
     }));
   });
+
+  it("reconcilia PIX aprovado quando a contribuição local não foi criada", async () => {
+    const execute = vi.fn().mockResolvedValue({});
+    const limit = vi.fn().mockResolvedValue([]);
+    getDbMock.mockResolvedValue({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({ where: vi.fn(() => ({ limit })) })),
+      })),
+      execute,
+    });
+    getPaymentMock.mockResolvedValue({
+      id: 171591165657,
+      status: "approved",
+      status_detail: "accredited",
+      transaction_amount: 50,
+      currency_id: "BRL",
+      external_reference: "pdb-100001-7ad25fe9-75e7-4f28-896c-16b03b732752",
+      payment_type_id: "bank_transfer",
+      payment_method_id: "pix",
+      date_approved: "2026-08-07T04:30:57.000-04:00",
+    });
+
+    const caller = appRouter.createCaller(createContext());
+    const result = await caller.payments.syncPaymentStatus({
+      paymentId: "171591165657",
+      externalReference: "pdb-100001-7ad25fe9-75e7-4f28-896c-16b03b732752",
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      synced: true,
+      credited: true,
+      status: "approved",
+      campaignId: 100001,
+      amount: 5_000,
+    });
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("contributions", () => {

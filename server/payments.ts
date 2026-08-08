@@ -265,6 +265,41 @@ async function tryUpdatePaymentLegacy(
   return false;
 }
 
+async function tryInsertApprovedPaymentLegacy(
+  db: { execute: (query: unknown) => Promise<unknown> },
+  input: {
+    campaignId: number;
+    amount: number;
+    externalReference: string;
+    paymentId: string;
+    paidAt: Date | null;
+  },
+) {
+  const attempts = [
+    sql`insert into contributions (campaignId, type, amount, donorName, status, externalReference, paymentId, paidAt) values (${input.campaignId}, ${"financial"}, ${input.amount}, ${"Doador"}, ${"approved"}, ${input.externalReference}, ${input.paymentId}, ${input.paidAt})`,
+    sql`insert into contributions (campaignId, type, amount, donorName, status, externalReference, paymentId) values (${input.campaignId}, ${"financial"}, ${input.amount}, ${"Doador"}, ${"approved"}, ${input.externalReference}, ${input.paymentId})`,
+    sql`insert into contributions (campaignId, type, amount, donorName, status, externalReference) values (${input.campaignId}, ${"financial"}, ${input.amount}, ${"Doador"}, ${"approved"}, ${input.externalReference})`,
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      await db.execute(attempt);
+      return true;
+    } catch (error) {
+      if (!isMissingColumnError(error)) throw error;
+    }
+  }
+
+  return false;
+}
+
+function campaignIdFromExternalReference(externalReference: string | null | undefined) {
+  const match = externalReference?.match(/^pdb-(\d+)-[a-z0-9-]+$/i);
+  if (!match) return null;
+  const campaignId = Number(match[1]);
+  return Number.isSafeInteger(campaignId) && campaignId > 0 ? campaignId : null;
+}
+
 function buildContributionConfirmationUrl(input: {
   baseUrl: string;
   campaignId: number;
@@ -826,7 +861,42 @@ export const paymentsRouter = router({
             .where(and(eq(contributions.type, "financial"), or(...conditions)))
             .limit(1);
 
+          const paidAmount = amountToCents(payment.transaction_amount);
+
           if (!contribution || contribution.amount === null) {
+            const campaignId = campaignIdFromExternalReference(resolvedExternalReference);
+            if (
+              status === "approved"
+              && payment.currency_id === "BRL"
+              && typeof paidAmount === "number"
+              && paidAmount > 0
+              && campaignId !== null
+              && typeof resolvedExternalReference === "string"
+            ) {
+              const inserted = await tryInsertApprovedPaymentLegacy(
+                db as { execute: (query: unknown) => Promise<unknown> },
+                {
+                  campaignId,
+                  amount: paidAmount,
+                  externalReference: resolvedExternalReference,
+                  paymentId: String(payment.id),
+                  paidAt,
+                },
+              );
+
+              if (inserted) {
+                return {
+                  success: true,
+                  synced: true,
+                  credited: true,
+                  status,
+                  campaignId,
+                  amount: paidAmount,
+                  externalReference: resolvedExternalReference,
+                } as const;
+              }
+            }
+
             return {
               success: true,
               synced: false,
@@ -836,7 +906,6 @@ export const paymentsRouter = router({
             } as const;
           }
 
-          const paidAmount = amountToCents(payment.transaction_amount);
           const validAmount = paidAmount === contribution.amount;
           const validCurrency = payment.currency_id === "BRL";
 
