@@ -26,7 +26,7 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
   heroTitle: "Juntos Transformamos Vidas",
   heroSubtitle: "Cada contribuição se transforma em cuidado, dignidade e esperança para quem mais precisa.",
   heroImageUrl: "https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?auto=format&fit=crop&w=1600&q=80",
-  presentationVideoUrl: "/uploads/campaigns/1786089883743-Seque_ncia%2001_1.mp4",
+  presentationVideoUrl: "/uploads/campaigns/1786148529762-psrceriadobem.mp4",
   presentationTitle: "Veja o propósito e o objetivo deste projeto",
   presentationDescription: "Conheça algumas de nossas ações e seja um doador, seja um parceiro do bem.",
 };
