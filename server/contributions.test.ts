@@ -453,3 +453,31 @@ describe("contributions.reviewCashContribution", () => {
     expect(reviewed).toMatchObject({ success: true, status: "approved", contributionId: 700001 });
   });
 });
+
+describe("contributions.deleteTestContributions", () => {
+  it("exclui somente os IDs explicitamente confirmados pelo administrador", async () => {
+    const deleteWhere = vi.fn().mockResolvedValue({ affectedRows: 3 });
+    const db = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn().mockResolvedValue([{ id: 5 }, { id: 6 }, { id: 7 }]),
+        })),
+      })),
+      delete: vi.fn(() => ({ where: deleteWhere })),
+    };
+    getDbMock.mockResolvedValue(db);
+    const caller = appRouter.createCaller(createAdminContext());
+
+    await expect(caller.contributions.deleteTestContributions({
+      contributionIds: [5, 6, 7],
+      confirmation: "EXCLUIR DADOS DE TESTE",
+    })).resolves.toEqual({
+      success: true,
+      deletedCount: 3,
+      contributionIds: [5, 6, 7],
+    });
+
+    expect(db.delete).toHaveBeenCalledTimes(1);
+    expect(deleteWhere).toHaveBeenCalledTimes(1);
+  });
+});

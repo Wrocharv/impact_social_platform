@@ -509,6 +509,44 @@ export const contributionsRouter = router({
       };
     }),
 
+  deleteTestContributions: adminProcedure
+    .input(z.object({
+      contributionIds: z.array(z.number().int().positive()).min(1).max(100),
+      confirmation: z.literal("EXCLUIR DADOS DE TESTE"),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "O banco de dados não está disponível para excluir contribuições.",
+        });
+      }
+
+      const contributionIds = Array.from(new Set(input.contributionIds));
+      const existingRows = await db
+        .select({ id: contributions.id })
+        .from(contributions)
+        .where(inArray(contributions.id, contributionIds));
+      const existingIds = new Set(existingRows.map((row) => row.id));
+      const missingIds = contributionIds.filter((id) => !existingIds.has(id));
+
+      if (missingIds.length > 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Contribuições não encontradas: ${missingIds.join(", ")}`,
+        });
+      }
+
+      await db.delete(contributions).where(inArray(contributions.id, contributionIds));
+
+      return {
+        success: true as const,
+        deletedCount: contributionIds.length,
+        contributionIds,
+      };
+    }),
+
   getDonorProfileByWhatsapp: publicProcedure
     .input(z.object({ donorWhatsapp: z.string().trim().min(8).max(20).optional(), donorCpf: z.string().trim().min(8).max(14).optional() }))
     .query(async ({ input }) => {
