@@ -29,6 +29,7 @@ export type CreatePreferenceInput = {
   campaignId: number;
   campaignTitle: string;
   amountCents: number;
+  paymentMethod?: "pix" | "card" | "boleto";
   donorEmail: string;
   donorName?: string;
   externalReference: string;
@@ -65,6 +66,18 @@ export async function createMercadoPagoPreference(input: CreatePreferenceInput) 
       },
       auto_return: "approved",
       notification_url: `${origin}/api/webhooks/mercadopago`,
+      payment_methods: input.paymentMethod === "pix"
+        ? {
+            default_payment_method_id: "pix",
+            excluded_payment_types: [
+              { id: "credit_card" },
+              { id: "debit_card" },
+              { id: "ticket" },
+              { id: "atm" },
+              { id: "prepaid_card" },
+            ],
+          }
+        : undefined,
       // Keep descriptor short and plain to satisfy provider restrictions.
       statement_descriptor: "PARCERIABEM",
     },
