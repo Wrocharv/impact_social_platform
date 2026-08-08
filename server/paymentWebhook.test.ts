@@ -70,7 +70,7 @@ function createWebhookDb(existingEvent: unknown[] = []) {
   const updateWhere = vi.fn().mockResolvedValue({});
   const set = vi.fn(() => ({ where: updateWhere }));
   const update = vi.fn(() => ({ set }));
-  return { db: { select, insert, update }, values, set };
+  return { db: { select, insert, update }, select, limit, values, set };
 }
 
 describe("funções de pagamento", () => {
@@ -159,6 +159,50 @@ describe("Webhook do Mercado Pago", () => {
       amountCents: 5_000,
       reference: "pdb-7-ref",
     });
+    expect(status).toHaveBeenCalledWith(200);
+  });
+
+  it("processa pagamento quando a tabela de eventos ainda não existe", async () => {
+    const { db, select, limit, set } = createWebhookDb();
+    select.mockImplementationOnce(() => ({
+      from: () => ({
+        where: () => ({
+          limit: () => Promise.reject(Object.assign(
+            new Error("Table 'app.paymentWebhookEvents' doesn't exist"),
+            { code: "ER_NO_SUCH_TABLE" },
+          )),
+        }),
+      }),
+    }));
+    limit.mockReset()
+      .mockResolvedValueOnce([{
+        id: 20,
+        campaignId: 7,
+        type: "financial",
+        amount: 5_000,
+        externalReference: "pdb-7-ref",
+        donorEmail: "doador@example.com",
+        donorName: "Maria",
+      }])
+      .mockResolvedValueOnce([{ title: "Casa da Viúva" }]);
+    getDbMock.mockResolvedValue(db);
+    getPaymentMock.mockResolvedValue({
+      id: "pay-1",
+      external_reference: "pdb-7-ref",
+      transaction_amount: 50,
+      currency_id: "BRL",
+      status: "approved",
+      status_detail: "accredited",
+      payment_type_id: "bank_transfer",
+      payment_method_id: "pix",
+      date_approved: "2026-07-25T12:00:00.000Z",
+    });
+    const { res, status } = createResponse();
+
+    await handleMercadoPagoWebhook(createRequest(), res);
+
+    expect(getPaymentMock).toHaveBeenCalledWith("pay-1");
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({ status: "approved" }));
     expect(status).toHaveBeenCalledWith(200);
   });
 

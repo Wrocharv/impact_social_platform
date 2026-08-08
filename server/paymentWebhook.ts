@@ -36,6 +36,24 @@ function isMissingColumnError(error: unknown) {
   return false;
 }
 
+function isMissingWebhookEventsTableError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { message?: unknown; code?: unknown; sqlMessage?: unknown; cause?: unknown };
+  const messages = [candidate.message, candidate.sqlMessage]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toLowerCase();
+
+  if (
+    (candidate.code === "ER_NO_SUCH_TABLE" || messages.includes("doesn't exist"))
+    && messages.includes("paymentwebhookevents")
+  ) {
+    return true;
+  }
+
+  return candidate.cause ? isMissingWebhookEventsTableError(candidate.cause) : false;
+}
+
 async function tryUpdateContributionLegacy(
   db: { execute: (query: unknown) => Promise<unknown> },
   input: { contributionId: number; status: ContributionStatus; paymentId: string; paidAt: Date | null },
@@ -133,22 +151,31 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
     payloadHash,
   });
 
-  const [existingEvent] = await db
-    .select()
-    .from(paymentWebhookEvents)
-    .where(eq(paymentWebhookEvents.eventKey, eventKey))
-    .limit(1);
+  let webhookEventStoreAvailable = true;
+  let existingEvent: typeof paymentWebhookEvents.$inferSelect | undefined;
+
+  try {
+    [existingEvent] = await db
+      .select()
+      .from(paymentWebhookEvents)
+      .where(eq(paymentWebhookEvents.eventKey, eventKey))
+      .limit(1);
+  } catch (error) {
+    if (!isMissingWebhookEventsTableError(error)) throw error;
+    webhookEventStoreAvailable = false;
+    console.warn("[MercadoPago] Tabela de eventos ausente; processando Webhook sem idempotência persistida");
+  }
 
   if (existingEvent?.status === "completed" || existingEvent?.status === "processing") {
     return res.status(200).json({ received: true, duplicate: true });
   }
 
-  if (existingEvent) {
+  if (existingEvent && webhookEventStoreAvailable) {
     await db
       .update(paymentWebhookEvents)
       .set({ status: "processing", errorMessage: null, updatedAt: new Date() })
       .where(eq(paymentWebhookEvents.id, existingEvent.id));
-  } else {
+  } else if (webhookEventStoreAvailable) {
     try {
       await db.insert(paymentWebhookEvents).values({
         eventKey,
@@ -227,10 +254,12 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
       }
     }
 
-    await db
-      .update(paymentWebhookEvents)
-      .set({ status: "completed", processedAt: new Date(), updatedAt: new Date() })
-      .where(eq(paymentWebhookEvents.eventKey, eventKey));
+    if (webhookEventStoreAvailable) {
+      await db
+        .update(paymentWebhookEvents)
+        .set({ status: "completed", processedAt: new Date(), updatedAt: new Date() })
+        .where(eq(paymentWebhookEvents.eventKey, eventKey));
+    }
 
     if (status === "approved") {
       try {
@@ -260,10 +289,12 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro desconhecido";
     console.error("[MercadoPago] Falha ao processar Webhook", { requestId, dataId, message });
-    await db
-      .update(paymentWebhookEvents)
-      .set({ status: "failed", errorMessage: message.slice(0, 1000), updatedAt: new Date() })
-      .where(eq(paymentWebhookEvents.eventKey, eventKey));
+    if (webhookEventStoreAvailable) {
+      await db
+        .update(paymentWebhookEvents)
+        .set({ status: "failed", errorMessage: message.slice(0, 1000), updatedAt: new Date() })
+        .where(eq(paymentWebhookEvents.eventKey, eventKey));
+    }
     return res.status(500).json({ received: false, error: "processing_failed" });
   }
 }
