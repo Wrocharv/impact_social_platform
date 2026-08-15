@@ -2235,12 +2235,23 @@ export const campaignsRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      const { needId, campaignId: _campaignId, ...updateFields } = input;
+      const { needId, campaignId, ...updateFields } = input;
       if (!db) {
-        whatsappService.updateFallbackCampaignNeed?.(input.campaignId, needId, updateFields);
+        whatsappService.updateFallbackCampaignNeed?.(campaignId, needId, updateFields);
         return { success: true };
       }
       await db.update(campaignNeeds).set({ ...updateFields }).where(eq(campaignNeeds.id, needId));
+
+      // Campanhas "críticas"/pinadas ao JSON de fallback sempre servem os needs de lá em getNeeds
+      // (nunca leem a tabela campaignNeeds pra elas) — mantém o JSON em sincronia com o UPDATE acima,
+      // senão a edição parece "não salvar" pra quem está usando essas campanhas.
+      const dbCampaign = await loadPublicCampaignByIdWithLegacyFallback(db, campaignId);
+      const fallbackCampaigns = getMappedFallbackCampaigns();
+      const matchingFallbackCampaign = dbCampaign ? findMatchingFallbackCampaign(dbCampaign, fallbackCampaigns) : undefined;
+      if (matchingFallbackCampaign) {
+        whatsappService.updateFallbackCampaignNeed?.(matchingFallbackCampaign.id, needId, updateFields);
+      }
+
       return { success: true };
     }),
 
