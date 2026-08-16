@@ -2244,10 +2244,16 @@ export const campaignsRouter = router({
 
       // Campanhas "críticas"/pinadas ao JSON de fallback sempre servem os needs de lá em getNeeds
       // (nunca leem a tabela campaignNeeds pra elas) — mantém o JSON em sincronia com o UPDATE acima,
-      // senão a edição parece "não salvar" pra quem está usando essas campanhas.
+      // senão a edição parece "não salvar" pra quem está usando essas campanhas. Espelha exatamente
+      // a mesma lógica de match usada em getNeeds (linha ~2270): quando não existe linha real na
+      // tabela campaigns pra esse ID (campanhas "virtuais", só existentes no fallback), cai pro
+      // match direto por ID no JSON — sem esse fallback, matchingFallbackCampaign nunca era achado
+      // pra essas campanhas e a sincronia nunca acontecia.
       const dbCampaign = await loadPublicCampaignByIdWithLegacyFallback(db, campaignId);
       const fallbackCampaigns = getMappedFallbackCampaigns();
-      const matchingFallbackCampaign = dbCampaign ? findMatchingFallbackCampaign(dbCampaign, fallbackCampaigns) : undefined;
+      const matchingFallbackCampaign = dbCampaign
+        ? findMatchingFallbackCampaign(dbCampaign, fallbackCampaigns)
+        : fallbackCampaigns.find((campaign) => campaign.id === campaignId);
       if (matchingFallbackCampaign) {
         whatsappService.updateFallbackCampaignNeed?.(matchingFallbackCampaign.id, needId, updateFields);
       }
