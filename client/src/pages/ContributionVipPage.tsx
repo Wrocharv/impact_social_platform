@@ -115,6 +115,15 @@ export default function ContributionVipPage() {
     ? campaign.vipApartmentAmountCents
     : SPECIAL_APARTMENT_DONATION_CENTS;
 
+  const vipTitle = (("vipContributionTitle" in campaign && typeof campaign.vipContributionTitle === "string" && campaign.vipContributionTitle.trim())
+    || (isHotelCampaign ? "Apartamento completo" : "Contribuição VIP"));
+  const vipSubtitle = (("vipContributionSubtitle" in campaign && typeof campaign.vipContributionSubtitle === "string" && campaign.vipContributionSubtitle.trim())
+    || (isHotelCampaign ? "Quero doar a construção de um apartamento completo" : `Quero fazer uma contribuição especial para ${campaign.title}`));
+  const vipDescription = (("vipContributionDescription" in campaign && typeof campaign.vipContributionDescription === "string" && campaign.vipContributionDescription.trim())
+    || (isHotelCampaign
+      ? "Aqui estão os detalhes do apartamento decorado que será construído com sua doação VIP. Você vê o vídeo e as fotos nesta página e depois segue para o pagamento."
+      : "Escolha este fluxo para apoiar a campanha com uma contribuição especial e os métodos de pagamento disponíveis."));
+
   const configuredVipImages = Array.isArray((campaign as { vipMediaImages?: unknown }).vipMediaImages)
     ? ((campaign as { vipMediaImages?: unknown }).vipMediaImages as unknown[])
       .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
@@ -150,7 +159,7 @@ export default function ContributionVipPage() {
   const vipVideoUrl = videoCandidates[0] ?? null;
   const vipVideoEmbedUrl = vipVideoUrl ? toEmbedVideoUrl(vipVideoUrl) : null;
 
-  if (legendarioCampaign || !isHotelCampaign || vipApartmentAmountCents <= 0) {
+  if (legendarioCampaign || vipApartmentAmountCents <= 0) {
     return (
       <div className="min-h-screen bg-[#f8faf7]">
         <PublicHeader />
@@ -182,13 +191,12 @@ export default function ContributionVipPage() {
           <p className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.12em] text-[#6a4600]">
             <Crown className="h-4 w-4" aria-hidden="true" /> Doador VIP
           </p>
-          <h1 className="mt-2 text-center text-3xl font-black uppercase tracking-[0.02em] text-[#5b3a00] md:text-4xl">Apartamento completo</h1>
+          <h1 className="mt-2 text-center text-3xl font-black uppercase tracking-[0.02em] text-[#5b3a00] md:text-4xl">{vipTitle}</h1>
           <p className="mt-2 flex w-fit mx-auto rounded-md border border-[#d6b35b] bg-white/70 px-3 py-1 text-center text-xs font-extrabold uppercase tracking-[0.05em] text-[#6a4600] md:text-sm">
-            Quero doar a construcao de um apartamento completo
+            {vipSubtitle}
           </p>
           <p className="mt-3 max-w-4xl text-center text-sm text-[#5b3a00] md:text-base">
-            Aqui estão os detalhes do apartamento decorado que será construído com sua doação VIP.
-            Você vê o vídeo e as fotos nesta página e depois segue para o pagamento.
+            {vipDescription}
           </p>
 
           <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
@@ -196,19 +204,23 @@ export default function ContributionVipPage() {
               <p className="text-xs font-extrabold uppercase tracking-[0.06em] text-[#8a5b00]">Valor sugerido</p>
               <p className="mt-1 text-xl font-black">{formatCurrency(vipApartmentAmountCents)}</p>
             </div>
-            <div className="rounded-md border border-[#e3c98a] bg-white/70 p-3 text-[#5b3a00]">
-              <p className="text-xs font-extrabold uppercase tracking-[0.06em] text-[#8a5b00]">Configuração</p>
-              <p className="mt-1 font-semibold">5 camas box de solteiro</p>
-            </div>
-            <div className="rounded-md border border-[#e3c98a] bg-white/70 p-3 text-[#5b3a00]">
-              <p className="text-xs font-extrabold uppercase tracking-[0.06em] text-[#8a5b00]">Adaptação</p>
-              <p className="mt-1 font-semibold">1 cama de casal para encontros</p>
-            </div>
+            {isHotelCampaign && (
+              <>
+                <div className="rounded-md border border-[#e3c98a] bg-white/70 p-3 text-[#5b3a00]">
+                  <p className="text-xs font-extrabold uppercase tracking-[0.06em] text-[#8a5b00]">Configuração</p>
+                  <p className="mt-1 font-semibold">5 camas box de solteiro</p>
+                </div>
+                <div className="rounded-md border border-[#e3c98a] bg-white/70 p-3 text-[#5b3a00]">
+                  <p className="text-xs font-extrabold uppercase tracking-[0.06em] text-[#8a5b00]">Adaptação</p>
+                  <p className="mt-1 font-semibold">1 cama de casal para encontros</p>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
         <section className="mt-5 rounded-xl border border-[#d7c18a] bg-gradient-to-b from-[#fff9e7] via-[#fff4d6] to-[#ffeab5] p-4 md:p-6">
-          <h2 className="text-xl font-black uppercase tracking-[0.03em] text-[#6a4600]">Vídeo e fotos do apartamento</h2>
+          <h2 className="text-xl font-black uppercase tracking-[0.03em] text-[#6a4600]">Vídeo e fotos</h2>
 
           {vipVideoUrl && (
             <div className="mt-3 rounded-md border border-[#e3c98a] bg-white/80 p-3 text-sm text-[#5b3a00]">
@@ -279,7 +291,7 @@ export default function ContributionVipPage() {
               <div key={imageUrl} className="overflow-hidden rounded-lg border border-[#e3c98a] bg-white">
                 <img
                   src={imageUrl}
-                  alt={`Foto do apartamento VIP da campanha ${campaign.title}`}
+                  alt={`Foto da contribuição VIP da campanha ${campaign.title}`}
                   className="h-44 w-full object-cover"
                   loading="lazy"
                 />
@@ -293,7 +305,7 @@ export default function ContributionVipPage() {
             href={`/contribute/wizard/${campaignId}?type=financial&offer=apartment&amount=${vipApartmentAmountCents / 100}&go=payment`}
             className="inline-flex min-h-11 items-center justify-center rounded-md bg-[#8a6708] px-5 text-sm font-extrabold uppercase tracking-[0.04em] text-white transition hover:bg-[#6d5006]"
           >
-            Quero doar a construcao de um apartamento completo
+            {vipSubtitle}
           </Link>
         </div>
       </main>

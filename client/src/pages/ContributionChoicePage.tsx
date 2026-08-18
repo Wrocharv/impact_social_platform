@@ -73,6 +73,8 @@ export default function ContributionChoicePage() {
     : SPECIAL_APARTMENT_DONATION_CENTS;
   const legendarioCampaign = isLegendarioCampaign(campaign);
   const hasVipOffer = !legendarioCampaign && visibleHelpTierOptions.includes("vip") && vipApartmentAmountCents > 0;
+  const vipCardTitle = ("vipContributionTitle" in campaign && typeof campaign.vipContributionTitle === "string" && campaign.vipContributionTitle.trim())
+    || "Contribuição especial";
   const visibleCardCount = [visibleHelpTierOptions.includes("material"), visibleHelpTierOptions.includes("financial"), hasVipOffer].filter(Boolean).length;
   const gridClassName = visibleCardCount === 1 ? "md:grid-cols-1" : visibleCardCount === 2 ? "md:grid-cols-2" : "md:grid-cols-3";
 
@@ -123,7 +125,7 @@ export default function ContributionChoicePage() {
           {hasVipOffer ? (
             <Card className="flex h-full flex-col border-2 border-[#c5961a] bg-gradient-to-b from-[#fff3bf] via-[#f0ce68] to-[#d9a729] p-5 shadow-[inset_0_1px_0_rgba(255,248,203,0.8)]">
               <h2 className="text-center text-[1.6rem] font-black uppercase tracking-[0.03em] text-[#6a4600] md:text-[1.7rem]">🥇 Ouro</h2>
-              <p className="mt-2 text-center text-base font-extrabold text-[#7a5202]">Apartamento completo</p>
+              <p className="mt-2 text-center text-base font-extrabold text-[#7a5202]">{vipCardTitle}</p>
               <p className="mt-2 flex min-h-[56px] items-center justify-center rounded-md bg-black/70 px-3 py-1.5 text-center text-sm font-semibold text-white shadow-[0_2px_6px_rgba(0,0,0,0.22)]">Valor sugerido: {formatCurrency(vipApartmentAmountCents)}.</p>
               <Link
                 href={`/contribute/vip/${campaignId}`}
