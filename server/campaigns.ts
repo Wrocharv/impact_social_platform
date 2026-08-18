@@ -1330,6 +1330,18 @@ export const campaignsRouter = router({
       }
     }),
 
+  // TEMPORARIO: diagnostico read-only da tabela real, sem fallback/merge, pra investigar
+  // divergencia entre o admin e o site publico. Remover depois de resolvido.
+  debugListRaw: publicProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return { db: "unavailable" };
+    const rows = await db
+      .select({ id: campaigns.id, title: campaigns.title, goal: campaigns.goal, status: campaigns.status, createdAt: campaigns.createdAt })
+      .from(campaigns)
+      .orderBy(desc(campaigns.createdAt));
+    return { db: "ok", count: rows.length, rows };
+  }),
+
   getAll: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) {
