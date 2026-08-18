@@ -870,18 +870,19 @@ export default function AdminDashboard() {
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("A imagem deve ter no máximo 2MB.");
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error("A imagem é grande demais. Tente uma foto menor.");
       return;
     }
 
     setUploadingCampaignImage(target);
     try {
-      const base64 = await fileToBase64(file);
+      const preparedFile = await prepareImageForUpload(file);
+      const base64 = await fileToBase64(preparedFile);
       const result = await uploadCampaignImage.mutateAsync({
-        fileName: file.name,
-        mimeType: (file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/webp") ? file.type : "image/png",
-        size: file.size,
+        fileName: preparedFile.name,
+        mimeType: (preparedFile.type === "image/jpeg" || preparedFile.type === "image/png" || preparedFile.type === "image/webp") ? preparedFile.type : "image/png",
+        size: preparedFile.size,
         base64,
       });
 
@@ -901,11 +902,12 @@ export default function AdminDashboard() {
 
   async function uploadCampaignMediaFile(file: File) {
     if (file.type.startsWith("image/")) {
-      const base64 = await fileToBase64(file);
+      const preparedFile = await prepareImageForUpload(file);
+      const base64 = await fileToBase64(preparedFile);
       const result = await uploadCampaignImage.mutateAsync({
-        fileName: file.name,
-        mimeType: (file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/webp") ? file.type : "image/png",
-        size: file.size,
+        fileName: preparedFile.name,
+        mimeType: (preparedFile.type === "image/jpeg" || preparedFile.type === "image/png" || preparedFile.type === "image/webp") ? preparedFile.type : "image/png",
+        size: preparedFile.size,
         base64,
       });
       return result.url;
@@ -2739,6 +2741,69 @@ function inferSupportedVideoMimeType(file: File): SupportedVideoMimeType | null 
   if (normalizedName.endsWith(".mp4") || normalizedName.endsWith(".m4v") || fileType === "video/x-m4v") return "video/mp4";
 
   return null;
+}
+
+function compressImageFile(file: File, maxDimension = 1920, quality = 0.82): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let { width, height } = img;
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Não foi possível processar a imagem."));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Não foi possível reduzir a imagem."));
+            return;
+          }
+          resolve(new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" }));
+        },
+        "image/jpeg",
+        quality,
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Não foi possível ler a imagem."));
+    };
+    img.src = objectUrl;
+  });
+}
+
+async function prepareImageForUpload(file: File): Promise<File> {
+  if (!file.type.startsWith("image/") || file.size <= 1.5 * 1024 * 1024) {
+    return file;
+  }
+
+  try {
+    let result = await compressImageFile(file);
+    if (result.size > 8 * 1024 * 1024) {
+      result = await compressImageFile(file, 1280, 0.7);
+    }
+    return result;
+  } catch {
+    return file;
+  }
 }
 
 function fileToBase64(file: File): Promise<string> {

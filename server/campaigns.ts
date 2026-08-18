@@ -885,8 +885,8 @@ const createCommentSchema = z.object({
 const uploadCampaignImageSchema = z.object({
   fileName: z.string().trim().min(1).max(255),
   mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
-  size: z.number().int().positive().max(2 * 1024 * 1024),
-  base64: z.string().min(4).max(7_500_000),
+  size: z.number().int().positive().max(10 * 1024 * 1024),
+  base64: z.string().min(4).max(14_000_000),
 });
 
 const uploadCampaignVideoSchema = z.object({
