@@ -50,6 +50,104 @@
       "when": 1784985242729,
       "tag": "0006_absurd_franklin_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1785971548000,
+      "tag": "0007_add_donor_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1785971548001,
+      "tag": "0008_add_delivery_method",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1785971548002,
+      "tag": "0009_add_installment_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1785971548003,
+      "tag": "0010_add_allow_public_display",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1785971548004,
+      "tag": "0011_add_campaign_category",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1785971548005,
+      "tag": "0012_restore_recanto_campaign",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1785984256000,
+      "tag": "0013_add_cash_validation_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1785984256001,
+      "tag": "0013_add_partner_profile_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1785984256002,
+      "tag": "0014_add_partner_testimonial_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1785984256003,
+      "tag": "0015_add_need_pricing_and_quantity_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1785984256004,
+      "tag": "0016_add_vip_apartment_amount",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1786102952000,
+      "tag": "0017_add_donor_cpf",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1786122193000,
+      "tag": "0018_add_beneficiary_transfer_category",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1786132637000,
+      "tag": "0019_add_donor_profile_fields",
+      "breakpoints": true
     }
   ]
 }
