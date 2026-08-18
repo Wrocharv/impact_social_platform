@@ -1126,6 +1126,7 @@ export default function AdminDashboard() {
                           <div>
                             <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
                             <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleCampaignImageUpload("create", event.target.files?.[0])} />
+                            <p className="mt-1 text-[11px] text-[#889284]">JPG, PNG ou WEBP. Ideal: 1920×1080px (paisagem). Fotos maiores são reduzidas automaticamente.</p>
                           </div>
                           <div>
                             <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
@@ -1657,6 +1658,7 @@ export default function AdminDashboard() {
                             <div>
                               <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
                               <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; void handleCampaignImageUpload("edit", file); }} />
+                              <p className="mt-1 text-[11px] text-[#889284]">JPG, PNG ou WEBP. Ideal: 1920×1080px (paisagem). Fotos maiores são reduzidas automaticamente.</p>
                             </div>
                             <div>
                               <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
@@ -1975,6 +1977,7 @@ export default function AdminDashboard() {
                     <div>
                       <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
                       <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleCampaignImageUpload("edit", event.target.files?.[0])} />
+                      <p className="mt-1 text-[11px] text-[#889284]">JPG, PNG ou WEBP. Ideal: 1920×1080px (paisagem). Fotos maiores são reduzidas automaticamente.</p>
                     </div>
                     <div>
                       <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
