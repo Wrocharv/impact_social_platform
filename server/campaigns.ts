@@ -1330,18 +1330,6 @@ export const campaignsRouter = router({
       }
     }),
 
-  // TEMPORARIO: diagnostico read-only da tabela real, sem fallback/merge, pra investigar
-  // divergencia entre o admin e o site publico. Remover depois de resolvido.
-  debugListRaw: publicProcedure.query(async () => {
-    const db = await getDb();
-    if (!db) return { db: "unavailable" };
-    const rows = await db
-      .select({ id: campaigns.id, title: campaigns.title, goal: campaigns.goal, status: campaigns.status, createdAt: campaigns.createdAt })
-      .from(campaigns)
-      .orderBy(desc(campaigns.createdAt));
-    return { db: "ok", count: rows.length, rows };
-  }),
-
   getAll: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) {
@@ -1425,18 +1413,20 @@ export const campaignsRouter = router({
         }
       }
 
-      return rows.map((campaign) => ({
-        ...campaign,
-        helpTierOptions: normalizeHelpTierOptions((campaign as { helpTierOptions?: unknown }).helpTierOptions),
-        initialRaised: campaign.raised,
-        ...(vipMediaByCampaignId.get(campaign.id) ?? { vipMediaImages: [], vipMediaVideos: [] }),
-        ...(vipContributionConfigByCampaignId.get(campaign.id) ?? {
-          vipContributionTitle: "Inscrição completa",
-          vipContributionSubtitle: "Contribuição especial com acesso ao fluxo completo de pagamento",
-          vipContributionDescription: "Escolha este fluxo para apoiar a campanha com uma contribuição especial e os métodos de pagamento disponíveis.",
-        }),
-        ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
-      }));
+      return rows.map((campaign) => {
+        const vipContributionConfig = vipContributionConfigByCampaignId.get(campaign.id);
+
+        return {
+          ...campaign,
+          helpTierOptions: normalizeHelpTierOptions((campaign as { helpTierOptions?: unknown }).helpTierOptions),
+          initialRaised: campaign.raised,
+          ...(vipMediaByCampaignId.get(campaign.id) ?? { vipMediaImages: [], vipMediaVideos: [] }),
+          vipContributionTitle: vipContributionConfig?.title ?? "Inscrição completa",
+          vipContributionSubtitle: vipContributionConfig?.subtitle ?? "Contribuição especial com acesso ao fluxo completo de pagamento",
+          vipContributionDescription: vipContributionConfig?.description ?? "Escolha este fluxo para apoiar a campanha com uma contribuição especial e os métodos de pagamento disponíveis.",
+          ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
+        };
+      });
     } catch (error) {
       console.error("[campaigns.getAll] DB query failed, surfacing error instead of falling back silently:", error);
       throw new Error(describeErrorWithCause(error));
