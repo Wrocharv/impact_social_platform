@@ -188,6 +188,11 @@ export default function AdminDashboard() {
   });
 
   const campaignsQuery = trpc.campaigns.getAll.useQuery(undefined, { enabled: isAdmin });
+  useEffect(() => {
+    if (campaignsQuery.error) {
+      toast.error(campaignsQuery.error.message || "Erro ao carregar campanhas");
+    }
+  }, [campaignsQuery.error]);
   const partnersQuery = trpc.partners.getAll.useQuery(undefined, { enabled: isAdmin });
   const pendingCashQuery = trpc.contributions.getPendingCashValidations.useQuery(
     selectedValidationCampaignId ? { campaignId: selectedValidationCampaignId } : undefined,

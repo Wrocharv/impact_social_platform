@@ -1426,17 +1426,8 @@ export const campaignsRouter = router({
         ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
       }));
     } catch (error) {
-      console.warn("[campaigns.getAll] Falling back to local campaigns after DB error:", error);
-
-      const fallbackCampaigns = getMappedFallbackCampaigns();
-      const mergedCampaigns = dedupeCampaignsById(fallbackCampaigns)
-        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
-
-      if (mergedCampaigns.length === 0) {
-        return [mapFallbackCampaignToPublicShape(DEMO_CAMPAIGN)];
-      }
-
-      return mergedCampaigns;
+      console.error("[campaigns.getAll] DB query failed, surfacing error instead of falling back silently:", error);
+      throw new Error(describeErrorWithCause(error));
     }
   }),
 
