@@ -1330,6 +1330,53 @@ export const campaignsRouter = router({
       }
     }),
 
+  // TEMPORARIO: mesma logica do getAll, mas publica, so pra confirmar em producao
+  // que o titulo nao esta mais sendo sobrescrito. Remover depois.
+  debugGetAllPublic: publicProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return { db: "unavailable" };
+
+    const rows = await db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
+    const campaignIds = rows.map((campaign) => campaign.id);
+
+    const vipContributionConfigByCampaignId = new Map<number, { title: string; subtitle: string; description: string }>();
+    if (campaignIds.length > 0) {
+      const vipConfigUpdates = await db
+        .select({
+          campaignId: campaignUpdates.campaignId,
+          title: campaignUpdates.title,
+          description: campaignUpdates.description,
+        })
+        .from(campaignUpdates)
+        .where(
+          and(
+            inArray(campaignUpdates.campaignId, campaignIds),
+            inArray(campaignUpdates.title, [VIP_MEDIA_CONFIG_TITLE, VIP_CONTRIBUTION_CONFIG_TITLE]),
+          ),
+        );
+
+      vipConfigUpdates.forEach((row) => {
+        if (row.title === VIP_CONTRIBUTION_CONFIG_TITLE) {
+          const parsedConfig = parseVipContributionConfigFromDescription(row.description);
+          if (parsedConfig) vipContributionConfigByCampaignId.set(row.campaignId, parsedConfig);
+        }
+      });
+    }
+
+    const mapped = rows.map((campaign) => {
+      const vipContributionConfig = vipContributionConfigByCampaignId.get(campaign.id);
+      return {
+        id: campaign.id,
+        title: campaign.title,
+        description: campaign.description,
+        goal: campaign.goal,
+        vipContributionTitle: vipContributionConfig?.title ?? "Inscrição completa",
+      };
+    });
+
+    return { db: "ok", count: mapped.length, rows: mapped };
+  }),
+
   getAll: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) {
