@@ -148,6 +148,13 @@
       "when": 1786132637000,
       "tag": "0019_add_donor_profile_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1786200000000,
+      "tag": "0020_add_help_tier_options_and_comments_table",
+      "breakpoints": true
     }
   ]
 }
