@@ -586,6 +586,25 @@ function isMissingColumnError(error: unknown): boolean {
   return false;
 }
 
+/** Junta a mensagem do erro com a de suas causas encadeadas (error.cause), pra não perder o motivo real (ex: erro do driver MySQL) atrás de um wrapper genérico do Drizzle. */
+function describeErrorWithCause(error: unknown): string {
+  const parts: string[] = [];
+  let current: unknown = error;
+  const seen = new Set<unknown>();
+
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    const candidate = current as { message?: unknown; sqlMessage?: unknown; cause?: unknown };
+    const message = typeof candidate.sqlMessage === "string" ? candidate.sqlMessage : typeof candidate.message === "string" ? candidate.message : null;
+    if (message && !parts.includes(message)) {
+      parts.push(message);
+    }
+    current = candidate.cause;
+  }
+
+  return parts.length > 0 ? parts.join(" — causa: ") : "Erro desconhecido ao salvar no banco de dados.";
+}
+
 type CampaignMetrics = {
   raised: number;
   remaining: number;
@@ -1942,14 +1961,14 @@ export const campaignsRouter = router({
         } catch (error) {
           lastInsertError = error;
           if (!isMissingColumnError(error)) {
-            throw error;
+            throw new Error(describeErrorWithCause(error));
           }
           console.warn("[campaigns.create] Retrying create with legacy-compatible payload after missing-column error:", error);
         }
       }
 
       if (!insertResult && lastInsertError) {
-        throw lastInsertError;
+        throw new Error(describeErrorWithCause(lastInsertError));
       }
 
       let createdCampaignId = Number((insertResult as { insertId?: number } | null)?.insertId ?? 0);
