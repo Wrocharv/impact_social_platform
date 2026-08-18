@@ -1250,7 +1250,7 @@ export default function AdminDashboard() {
                       )}
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={() => setIsCreateCampaignOpen(false)}>Cancelar</Button><Button type="submit" disabled={createCampaign.isPending}>{createCampaign.isPending ? "Criando..." : "Criar campanha"}</Button></div>
+                    <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={() => setIsCreateCampaignOpen(false)}>Cancelar</Button><Button type="submit" disabled={createCampaign.isPending || uploadingCampaignImage === "create"}>{uploadingCampaignImage === "create" ? "Enviando imagem..." : createCampaign.isPending ? "Criando..." : "Criar campanha"}</Button></div>
                   </form>
                 </DialogContent>
               </Dialog>
@@ -1992,7 +1992,7 @@ export default function AdminDashboard() {
               <p className="rounded-lg bg-[#fff8e6] p-3 text-sm text-[#70571a]">Campanhas pausadas ou arquivadas deixam de aparecer nas áreas públicas. Campanhas concluídas continuam disponíveis para prestação de contas.</p>
               <div className="sticky bottom-0 z-10 -mx-6 mt-4 flex justify-end gap-3 border-t border-[#e1e6df] bg-white px-6 py-3">
                 <Button type="button" variant="outline" onClick={closeEditCampaignDialog}>Cancelar</Button>
-                <Button type="submit" disabled={updateCampaign.isPending}>{updateCampaign.isPending ? "Salvando..." : "Salvar alterações"}</Button>
+                <Button type="submit" disabled={updateCampaign.isPending || uploadingCampaignImage === "edit"}>{uploadingCampaignImage === "edit" ? "Enviando imagem..." : updateCampaign.isPending ? "Salvando..." : "Salvar alterações"}</Button>
               </div>
             </form>
           </DialogContent>
