@@ -58,6 +58,14 @@ export function serveStatic(app: Express) {
     );
   }
 
+  // Uploads em runtime (fotos/vídeos de campanha) são gravados em client/public/uploads,
+  // fora do diretório de build (dist/public), que é sobrescrito a cada deploy. Servir essa
+  // pasta separadamente garante que o arquivo fique visível assim que é salvo, sem esperar
+  // um novo build — e, com o disco persistente do Render montado ali, sobrevive a deploys.
+  const uploadsPath = path.resolve(process.cwd(), "client", "public", "uploads");
+  fs.mkdirSync(uploadsPath, { recursive: true });
+  app.use("/uploads", express.static(uploadsPath));
+
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist
