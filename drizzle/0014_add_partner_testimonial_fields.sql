@@ -1,3 +1,3 @@
-ALTER TABLE partners
-  ADD COLUMN testimonialVideoUrl VARCHAR(512),
-  ADD COLUMN testimonialText TEXT;
+ALTER TABLE partners ADD COLUMN testimonialVideoUrl VARCHAR(512);
+--> statement-breakpoint
+ALTER TABLE partners ADD COLUMN testimonialText TEXT;

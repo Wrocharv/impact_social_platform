@@ -11,6 +11,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { registerMercadoPagoWebhook } from "../paymentWebhook";
 import { whatsappWebhook } from "../whatsapp.webhook";
+import { runMigrationsResiliently } from "./runMigrations";
 
 const PUBLIC_MAINTENANCE_MODE = process.env.PUBLIC_MAINTENANCE_MODE === "true";
 const PUBLIC_MAINTENANCE_CONFIRMATION =
@@ -107,11 +108,8 @@ async function startServer() {
   if (process.env.DATABASE_URL) {
     try {
       const mysql = await import("mysql2/promise");
-      const { drizzle } = await import("drizzle-orm/mysql2");
-      const { migrate } = await import("drizzle-orm/mysql2/migrator");
       const conn = await mysql.createConnection(process.env.DATABASE_URL);
-      const migrateDb = drizzle(conn);
-      await migrate(migrateDb, { migrationsFolder: path.resolve(process.cwd(), "drizzle") });
+      await runMigrationsResiliently(conn, path.resolve(process.cwd(), "drizzle"));
       await conn.end();
       console.log("[Database] Migrations applied successfully.");
     } catch (err) {
