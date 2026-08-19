@@ -243,7 +243,7 @@ export default function ContributionWizardPage() {
     donorChurch: "",
     donorBirthDate: "",
     donorGender: "" as "" | "male" | "female" | "other" | "prefer_not_to_say",
-    allowPublicDisplay: false,
+    allowPublicDisplay: true,
     recurrence: "unique",
     startDate: new Date().toISOString().split("T")[0],
     materialNeedId: undefined,

@@ -164,7 +164,7 @@ export default function ContributionNeedsPage() {
           quantityExact: item.quantityExact,
           deliveryMethod: "pickup",
           materialDeliveryFrequency: "unique",
-          allowPublicDisplay: false,
+          allowPublicDisplay: true,
         });
         successCount += 1;
       } catch {

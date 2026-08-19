@@ -36,7 +36,7 @@ export default function ContributionPage() {
     donorWhatsapp: "",
     donorCity: "",
     donorChurch: "",
-    allowPublicDisplay: false,
+    allowPublicDisplay: true,
     campaignNeedId: selectedNeedId ? Number(selectedNeedId) : undefined,
     quantity: materialQuantity.trim() || undefined,
   };
@@ -50,7 +50,7 @@ export default function ContributionPage() {
     donorWhatsapp: "",
     donorCity: "",
     donorChurch: "",
-    allowPublicDisplay: false,
+    allowPublicDisplay: true,
   };
 
   const resetContact = () => {

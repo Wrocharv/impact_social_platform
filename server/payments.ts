@@ -26,7 +26,7 @@ const createPaymentPreferenceSchema = z.object({
   donorWhatsapp: z.string().trim().max(20).optional().default(""),
   donorCity: z.string().trim().max(255).optional().default(""),
   donorChurch: z.string().trim().max(255).optional().default(""),
-  allowPublicDisplay: z.boolean().optional().default(false),
+  allowPublicDisplay: z.boolean().optional().default(true),
   numberOfInstallments: z.number().int().min(2).max(24).optional(),
   installmentFrequency: z.enum(["weekly", "biweekly", "monthly"]).optional(),
   paymentMethod: z.enum(["pix", "card", "boleto", "cash"]).optional(),
@@ -347,7 +347,7 @@ export const paymentsRouter = router({
       const donorWhatsapp = input.donorWhatsapp?.trim() ?? "";
       const donorCity = input.donorCity?.trim() ?? "";
       const donorChurch = input.donorChurch?.trim() ?? "";
-      const allowPublicDisplay = input.allowPublicDisplay ?? false;
+      const allowPublicDisplay = input.allowPublicDisplay ?? true;
 
       if (!db) {
         if (isCashPayment) {
@@ -466,7 +466,7 @@ export const paymentsRouter = router({
           const donorWhatsapp = input.donorWhatsapp?.trim() ?? "";
           const donorCity = input.donorCity?.trim() ?? "";
           const donorChurch = input.donorChurch?.trim() ?? "";
-          const allowPublicDisplay = input.allowPublicDisplay ?? false;
+          const allowPublicDisplay = input.allowPublicDisplay ?? true;
 
           let persistedContribution = false;
           let persistError: unknown;
