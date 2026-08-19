@@ -18,10 +18,26 @@ import { Textarea } from "@/components/ui/textarea";
 import { clearLocalNeedsForCampaign, mergeNeedsForManagement, readLocalNeedsForCampaign, removeLocalNeed, saveLocalNeed, updateLocalNeed } from "@/lib/localNeeds";
 import { resolveCampaignImageUrl } from "@/lib/campaignMedia";
 import { getCampaignContent, saveCampaignContent } from "@/lib/campaignContent";
-import { getSiteContent, saveSiteContent } from "@/lib/siteContent";
 import { resolveMediaUrl } from "@/lib/mediaInput";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+
+const DEFAULT_SITE_SETTINGS_FORM = {
+  heroTitle: "Juntos Transformamos Vidas",
+  heroSubtitle: "Cada contribuição se transforma em cuidado, dignidade e esperança para quem mais precisa.",
+  heroImageUrl: "https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?auto=format&fit=crop&w=1600&q=80",
+  presentationTitle: "Veja o propósito e o objetivo deste projeto",
+  presentationDescription: "Conheça algumas de nossas ações e seja um doador, seja um parceiro do bem.",
+  presentationVideoUrl: "",
+  step1Title: "Escolha uma campanha",
+  step1Description: "Conheça a etapa atual, as necessidades e as atualizações antes de contribuir para a obra.",
+  step2Title: "Contribua do seu jeito",
+  step2Description: "Doe financeiramente, ofereça materiais ou disponibilize sua mão de obra para a evolução da obra.",
+  step3Title: "Acompanhe o progresso",
+  step3Description: "Consulte fotos, registros e documentos publicados em cada etapa da campanha.",
+  helpButtonLabel: "Eu quero ajudar",
+  partnerButtonLabel: "Quero ser parceiro",
+};
 
 const EMPTY_PARTNER_FORM = {
   name: "",
@@ -161,7 +177,38 @@ export default function AdminDashboard() {
   const [cashValidationNotes, setCashValidationNotes] = useState<Record<number, string>>({});
   const [materialValidationNotes, setMaterialValidationNotes] = useState<Record<number, string>>({});
   const [validationCampaignFilter, setValidationCampaignFilter] = useState<string>("all");
-  const [siteContentForm, setSiteContentForm] = useState(getSiteContent());
+  const siteSettingsQuery = trpc.siteSettings.get.useQuery(undefined, { enabled: isAdmin });
+  const [siteContentForm, setSiteContentForm] = useState(DEFAULT_SITE_SETTINGS_FORM);
+  const [siteContentLoaded, setSiteContentLoaded] = useState(false);
+  useEffect(() => {
+    if (siteSettingsQuery.data && !siteContentLoaded) {
+      const data = siteSettingsQuery.data;
+      setSiteContentForm({
+        heroTitle: data.heroTitle ?? DEFAULT_SITE_SETTINGS_FORM.heroTitle,
+        heroSubtitle: data.heroSubtitle ?? DEFAULT_SITE_SETTINGS_FORM.heroSubtitle,
+        heroImageUrl: data.heroImageUrl ?? DEFAULT_SITE_SETTINGS_FORM.heroImageUrl,
+        presentationTitle: data.presentationTitle ?? DEFAULT_SITE_SETTINGS_FORM.presentationTitle,
+        presentationDescription: data.presentationDescription ?? DEFAULT_SITE_SETTINGS_FORM.presentationDescription,
+        presentationVideoUrl: data.presentationVideoUrl ?? DEFAULT_SITE_SETTINGS_FORM.presentationVideoUrl,
+        step1Title: data.step1Title ?? DEFAULT_SITE_SETTINGS_FORM.step1Title,
+        step1Description: data.step1Description ?? DEFAULT_SITE_SETTINGS_FORM.step1Description,
+        step2Title: data.step2Title ?? DEFAULT_SITE_SETTINGS_FORM.step2Title,
+        step2Description: data.step2Description ?? DEFAULT_SITE_SETTINGS_FORM.step2Description,
+        step3Title: data.step3Title ?? DEFAULT_SITE_SETTINGS_FORM.step3Title,
+        step3Description: data.step3Description ?? DEFAULT_SITE_SETTINGS_FORM.step3Description,
+        helpButtonLabel: data.helpButtonLabel ?? DEFAULT_SITE_SETTINGS_FORM.helpButtonLabel,
+        partnerButtonLabel: data.partnerButtonLabel ?? DEFAULT_SITE_SETTINGS_FORM.partnerButtonLabel,
+      });
+      setSiteContentLoaded(true);
+    }
+  }, [siteSettingsQuery.data, siteContentLoaded]);
+  const updateSiteSettings = trpc.siteSettings.update.useMutation({
+    onSuccess: async () => {
+      toast.success("Conteúdo do site atualizado com sucesso.");
+      await utils.siteSettings.get.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Erro ao salvar conteúdo do site."),
+  });
   const [campaignContentForm, setCampaignContentForm] = useState<{ [campaignId: number]: ReturnType<typeof getCampaignContent> }>({});
 
   const selectedValidationCampaignId = validationCampaignFilter === "all"
@@ -783,8 +830,7 @@ export default function AdminDashboard() {
 
   function handleSaveSiteContent(event: React.FormEvent) {
     event.preventDefault();
-    saveSiteContent(siteContentForm);
-    toast.success("Ajustes do painel foram aplicados no site público.");
+    updateSiteSettings.mutate(siteContentForm);
   }
 
   function handleSaveCampaignContent(event: React.FormEvent, campaignId: number) {
@@ -998,10 +1044,9 @@ export default function AdminDashboard() {
 
       setSiteContentForm((current) => {
         const next = { ...current, presentationVideoUrl: result.url };
-        saveSiteContent(next);
+        updateSiteSettings.mutate(next);
         return next;
       });
-      toast.success("Vídeo de apresentação enviado e salvo com sucesso.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível enviar o vídeo.");
     }
@@ -1322,6 +1367,27 @@ export default function AdminDashboard() {
                   <Field label="Imagem da home (URL direta ou caminho local)"><Input value={siteContentForm.heroImageUrl} onChange={(event) => setSiteContentForm({ ...siteContentForm, heroImageUrl: event.target.value })} placeholder="https://... ou /caminho/arquivo.jpg" /></Field>
                   <Field label="Título da seção de vídeo"><Input value={siteContentForm.presentationTitle} onChange={(event) => setSiteContentForm({ ...siteContentForm, presentationTitle: event.target.value })} /></Field>
                   <Field label="Descrição da seção de vídeo"><Textarea value={siteContentForm.presentationDescription} onChange={(event) => setSiteContentForm({ ...siteContentForm, presentationDescription: event.target.value })} rows={3} /></Field>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Texto do botão 'ajudar'"><Input value={siteContentForm.helpButtonLabel} onChange={(event) => setSiteContentForm({ ...siteContentForm, helpButtonLabel: event.target.value })} /></Field>
+                    <Field label="Texto do botão 'ser parceiro'"><Input value={siteContentForm.partnerButtonLabel} onChange={(event) => setSiteContentForm({ ...siteContentForm, partnerButtonLabel: event.target.value })} /></Field>
+                  </div>
+                  <div className="rounded-lg border border-[#e1e6df] bg-white p-4">
+                    <p className="text-sm font-bold text-[#243128]">Seção "Como funciona" (os 3 cards da home)</p>
+                    <div className="mt-3 space-y-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Card 1 — título"><Input value={siteContentForm.step1Title} onChange={(event) => setSiteContentForm({ ...siteContentForm, step1Title: event.target.value })} /></Field>
+                        <Field label="Card 1 — descrição"><Input value={siteContentForm.step1Description} onChange={(event) => setSiteContentForm({ ...siteContentForm, step1Description: event.target.value })} /></Field>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Card 2 — título"><Input value={siteContentForm.step2Title} onChange={(event) => setSiteContentForm({ ...siteContentForm, step2Title: event.target.value })} /></Field>
+                        <Field label="Card 2 — descrição"><Input value={siteContentForm.step2Description} onChange={(event) => setSiteContentForm({ ...siteContentForm, step2Description: event.target.value })} /></Field>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Card 3 — título"><Input value={siteContentForm.step3Title} onChange={(event) => setSiteContentForm({ ...siteContentForm, step3Title: event.target.value })} /></Field>
+                        <Field label="Card 3 — descrição"><Input value={siteContentForm.step3Description} onChange={(event) => setSiteContentForm({ ...siteContentForm, step3Description: event.target.value })} /></Field>
+                      </div>
+                    </div>
+                  </div>
                   <Field label="Vídeo de apresentação da home (trocar o vídeo de teste)">
                     <Input
                       value={siteContentForm.presentationVideoUrl}
@@ -1338,7 +1404,7 @@ export default function AdminDashboard() {
                       />
                     </div>
                   </Field>
-                  <div className="flex justify-end"><Button type="submit">Salvar conteúdo</Button></div>
+                  <div className="flex justify-end"><Button type="submit" disabled={updateSiteSettings.isPending}>{updateSiteSettings.isPending ? "Salvando..." : "Salvar conteúdo"}</Button></div>
                 </form>
               </div>
 

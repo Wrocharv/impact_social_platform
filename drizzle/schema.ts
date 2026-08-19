@@ -296,3 +296,28 @@ export const campaignExpenses = mysqlTable("campaignExpenses", {
 
 export type CampaignExpense = typeof campaignExpenses.$inferSelect;
 export type InsertCampaignExpense = typeof campaignExpenses.$inferInsert;
+
+/**
+ * Conteúdo editável da página inicial (linha única, id sempre 1).
+ */
+export const siteSettings = mysqlTable("siteSettings", {
+  id: int("id").autoincrement().primaryKey(),
+  heroTitle: varchar("heroTitle", { length: 255 }).notNull().default("Juntos Transformamos Vidas"),
+  heroSubtitle: text("heroSubtitle"),
+  heroImageUrl: varchar("heroImageUrl", { length: 512 }),
+  presentationTitle: varchar("presentationTitle", { length: 255 }),
+  presentationDescription: text("presentationDescription"),
+  presentationVideoUrl: varchar("presentationVideoUrl", { length: 512 }),
+  step1Title: varchar("step1Title", { length: 255 }).notNull().default("Escolha uma campanha"),
+  step1Description: text("step1Description"),
+  step2Title: varchar("step2Title", { length: 255 }).notNull().default("Contribua do seu jeito"),
+  step2Description: text("step2Description"),
+  step3Title: varchar("step3Title", { length: 255 }).notNull().default("Acompanhe o progresso"),
+  step3Description: text("step3Description"),
+  helpButtonLabel: varchar("helpButtonLabel", { length: 100 }).notNull().default("Eu quero ajudar"),
+  partnerButtonLabel: varchar("partnerButtonLabel", { length: 100 }).notNull().default("Quero ser parceiro"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SiteSettings = typeof siteSettings.$inferSelect;
+export type InsertSiteSettings = typeof siteSettings.$inferInsert;

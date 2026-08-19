@@ -4,9 +4,25 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { Building2, ExternalLink, Handshake, Heart, ShieldCheck, Zap } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "wouter";
-import { getSiteContent } from "@/lib/siteContent";
+
+const DEFAULT_SITE_SETTINGS = {
+  heroTitle: "Juntos Transformamos Vidas",
+  heroSubtitle: "Cada contribuição se transforma em cuidado, dignidade e esperança para quem mais precisa.",
+  heroImageUrl: "https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?auto=format&fit=crop&w=1600&q=80",
+  presentationTitle: "Veja o propósito e o objetivo deste projeto",
+  presentationDescription: "Conheça algumas de nossas ações e seja um doador, seja um parceiro do bem.",
+  presentationVideoUrl: "/uploads/campaigns/1786167100165-parceriadobem01.mov",
+  step1Title: "Escolha uma campanha",
+  step1Description: "Conheça a etapa atual, as necessidades e as atualizações antes de contribuir para a obra.",
+  step2Title: "Contribua do seu jeito",
+  step2Description: "Doe financeiramente, ofereça materiais ou disponibilize sua mão de obra para a evolução da obra.",
+  step3Title: "Acompanhe o progresso",
+  step3Description: "Consulte fotos, registros e documentos publicados em cada etapa da campanha.",
+  helpButtonLabel: "Eu quero ajudar",
+  partnerButtonLabel: "Quero ser parceiro",
+};
 
 const DEFAULT_HOME_PRESENTATION_VIDEO_URL = "";
 
@@ -137,27 +153,8 @@ export default function Home() {
   const completedQuery = trpc.campaigns.listPublished.useQuery(completedInput);
   const statsQuery = trpc.campaigns.getPublicStats.useQuery();
   const partnersQuery = trpc.partners.listPublished.useQuery();
-  const [siteContent, setSiteContent] = useState(() => getSiteContent());
-
-  useEffect(() => {
-    const refreshSiteContent = () => setSiteContent(getSiteContent());
-
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === "parceria-do-bem:site-content") {
-        refreshSiteContent();
-      }
-    };
-
-    window.addEventListener("storage", handleStorage);
-    window.addEventListener("focus", refreshSiteContent);
-    document.addEventListener("visibilitychange", refreshSiteContent);
-
-    return () => {
-      window.removeEventListener("storage", handleStorage);
-      window.removeEventListener("focus", refreshSiteContent);
-      document.removeEventListener("visibilitychange", refreshSiteContent);
-    };
-  }, []);
+  const siteSettingsQuery = trpc.siteSettings.get.useQuery();
+  const siteContent = siteSettingsQuery.data ?? DEFAULT_SITE_SETTINGS;
 
   const presentationVideoSource = useMemo(() => {
     const configured = (siteContent.presentationVideoUrl || import.meta.env.VITE_HOME_PRESENTATION_VIDEO_URL || DEFAULT_HOME_PRESENTATION_VIDEO_URL).trim();
@@ -197,13 +194,13 @@ export default function Home() {
                 href="/campaigns"
                 className="inline-flex min-h-12 items-center justify-center rounded-md bg-white px-7 font-semibold text-[#18751f] transition hover:bg-[#f2f7f1] active:scale-[0.97]"
               >
-                Eu quero ajudar
+                {siteContent.helpButtonLabel}
               </Link>
               <a
                 href="#parceiros"
                 className="inline-flex min-h-12 items-center justify-center rounded-md border border-white/70 px-7 font-semibold text-white transition hover:bg-white/10 active:scale-[0.97]"
               >
-                Quero ser parceiro
+                {siteContent.partnerButtonLabel}
               </a>
             </div>
           </div>
@@ -351,9 +348,9 @@ export default function Home() {
           </div>
           <div className="grid gap-6 md:grid-cols-3">
             {[
-              { icon: Heart, title: "Escolha uma campanha", description: "Conheça a etapa atual, as necessidades e as atualizações antes de contribuir para a obra." },
-              { icon: Zap, title: "Contribua do seu jeito", description: "Doe financeiramente, ofereça materiais ou disponibilize sua mão de obra para a evolução da obra." },
-              { icon: ShieldCheck, title: "Acompanhe o progresso", description: "Consulte fotos, registros e documentos publicados em cada etapa da campanha." },
+              { icon: Heart, title: siteContent.step1Title, description: siteContent.step1Description },
+              { icon: Zap, title: siteContent.step2Title, description: siteContent.step2Description },
+              { icon: ShieldCheck, title: siteContent.step3Title, description: siteContent.step3Description },
             ].map((item) => (
               <Card key={item.title} className="border-0 bg-white p-8 shadow-sm">
                 <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#228B22]/10">
@@ -369,13 +366,13 @@ export default function Home() {
               href="/campaigns"
               className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-7 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]"
             >
-              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
+              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> {siteContent.helpButtonLabel}
             </Link>
             <a
               href="#parceiros"
               className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-7 font-semibold text-[#228B22] hover:bg-[#228B22]/5 active:scale-[0.97]"
             >
-              <Handshake className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ser parceiro
+              <Handshake className="mr-2 h-5 w-5" aria-hidden="true" /> {siteContent.partnerButtonLabel}
             </a>
           </div>
         </div>
@@ -407,13 +404,13 @@ export default function Home() {
               href="/campaigns"
               className="inline-flex min-h-12 items-center justify-center rounded-md bg-[#228B22] px-7 font-semibold text-white transition hover:bg-[#1b711b] active:scale-[0.97]"
             >
-              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
+              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> {siteContent.helpButtonLabel}
             </Link>
             <a
               href="#parceiros"
               className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-7 font-semibold text-[#228B22] hover:bg-[#228B22]/5 active:scale-[0.97]"
             >
-              <Handshake className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ser parceiro
+              <Handshake className="mr-2 h-5 w-5" aria-hidden="true" /> {siteContent.partnerButtonLabel}
             </a>
           </div>
         </div>
@@ -469,13 +466,13 @@ export default function Home() {
               href="/campaigns"
               className="inline-flex min-h-12 items-center justify-center rounded-md bg-white px-7 font-semibold text-[#1f2c29] transition hover:bg-[#f0f5f0] active:scale-[0.97]"
             >
-              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> Eu quero ajudar
+              <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> {siteContent.helpButtonLabel}
             </Link>
             <a
               href="#parceiros"
               className="inline-flex min-h-12 items-center justify-center rounded-md border border-white px-7 font-semibold text-white transition hover:bg-white/10 active:scale-[0.97]"
             >
-              <Handshake className="mr-2 h-5 w-5" aria-hidden="true" /> Quero ser parceiro
+              <Handshake className="mr-2 h-5 w-5" aria-hidden="true" /> {siteContent.partnerButtonLabel}
             </a>
           </div>
         </div>
