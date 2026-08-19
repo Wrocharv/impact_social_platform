@@ -162,6 +162,13 @@
       "when": 1786210000000,
       "tag": "0021_add_legendario_campaign",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1786220000000,
+      "tag": "0022_add_expense_quantity_price",
+      "breakpoints": true
     }
   ]
 }

@@ -284,6 +284,8 @@ export const campaignExpenses = mysqlTable("campaignExpenses", {
   ]).notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
+  quantity: varchar("quantity", { length: 100 }),
+  unitPriceCents: int("unitPriceCents"),
   amount: int("amount").notNull(),
   expenseDate: timestamp("expenseDate").notNull(),
   documentId: int("documentId"),

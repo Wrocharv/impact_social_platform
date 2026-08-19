@@ -125,7 +125,8 @@ export default function CampaignAccountabilityPage() {
                         <div key={expense.id} className="flex flex-col justify-between gap-2 px-6 py-4 sm:flex-row sm:items-center">
                           <div>
                             <p className="font-semibold text-[#2d2d2d]">{expense.title}</p>
-                            <p className="mt-1 text-sm text-[#787878]">{categoryLabel(expense.category)} · {new Date(expense.expenseDate).toLocaleDateString("pt-BR")}</p>
+                            <p className="mt-1 text-sm text-[#787878]">{categoryLabel(expense.category)} · {new Date(expense.expenseDate).toLocaleDateString("pt-BR")}{expense.quantity ? ` · ${expense.quantity}` : ""}{expense.unitPriceCents ? ` × ${formatCurrency(expense.unitPriceCents)}` : ""}</p>
+                            {expense.description && <p className="mt-1 text-sm text-[#787878]">{expense.description}</p>}
                           </div>
                           <strong>{formatCurrency(expense.amount)}</strong>
                         </div>

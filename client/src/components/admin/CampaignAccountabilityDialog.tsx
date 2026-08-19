@@ -16,6 +16,8 @@ const EMPTY_EXPENSE = {
   category: "beneficiary_transfer" as "materials" | "labor" | "equipment" | "services" | "transport" | "fees" | "other" | "beneficiary_transfer",
   title: "",
   description: "",
+  quantity: "",
+  unitPrice: "",
   amount: "",
   expenseDate: new Date().toISOString().slice(0, 10),
   documentId: "none",
@@ -108,15 +110,29 @@ export default function CampaignAccountabilityDialog({
       return;
     }
 
+    const unitPriceCents = expenseForm.unitPrice ? parseCurrencyInput(expenseForm.unitPrice) : 0;
+
     createExpense.mutate({
       campaignId: campaign.id,
       category: expenseForm.category,
       title: expenseForm.title,
       description: expenseForm.description || undefined,
+      quantity: expenseForm.quantity || undefined,
+      unitPriceCents: unitPriceCents > 0 ? unitPriceCents : undefined,
       amount,
       expenseDate,
       documentId: expenseForm.documentId === "none" ? undefined : Number(expenseForm.documentId),
     });
+  }
+
+  function handleQuantityOrPriceChange(field: "quantity" | "unitPrice", value: string) {
+    const next = { ...expenseForm, [field]: value };
+    const quantityNumeric = Number((field === "quantity" ? value : expenseForm.quantity).replace(",", ".").match(/[\d.]+/)?.[0] ?? "");
+    const unitPriceCents = parseCurrencyInput(field === "unitPrice" ? value : expenseForm.unitPrice);
+    if (Number.isFinite(quantityNumeric) && quantityNumeric > 0 && unitPriceCents > 0) {
+      next.amount = (Math.round(quantityNumeric * unitPriceCents) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    setExpenseForm(next);
   }
 
   async function handleUploadDocument(event: React.FormEvent) {
@@ -199,14 +215,19 @@ export default function CampaignAccountabilityDialog({
             <form onSubmit={handleCreateExpense} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Categoria *"><Select value={expenseForm.category} onValueChange={(category: typeof expenseForm.category) => setExpenseForm({ ...expenseForm, category })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(CATEGORY_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field>
-                <Field label="Valor (R$) *"><Input inputMode="decimal" value={expenseForm.amount} onChange={(event) => setExpenseForm({ ...expenseForm, amount: event.target.value })} required placeholder="0,00" /></Field>
+                <Field label="Título *"><Input value={expenseForm.title} onChange={(event) => setExpenseForm({ ...expenseForm, title: event.target.value })} required minLength={2} /></Field>
               </div>
-              <Field label="Título *"><Input value={expenseForm.title} onChange={(event) => setExpenseForm({ ...expenseForm, title: event.target.value })} required minLength={2} /></Field>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Field label="Quantidade"><Input value={expenseForm.quantity} onChange={(event) => handleQuantityOrPriceChange("quantity", event.target.value)} placeholder="Ex.: 50 sacos" /></Field>
+                <Field label="Preço unitário (R$)"><Input inputMode="decimal" value={expenseForm.unitPrice} onChange={(event) => handleQuantityOrPriceChange("unitPrice", event.target.value)} placeholder="0,00" /></Field>
+                <Field label="Valor total (R$) *"><Input inputMode="decimal" value={expenseForm.amount} onChange={(event) => setExpenseForm({ ...expenseForm, amount: event.target.value })} required placeholder="0,00" /></Field>
+              </div>
+              <p className="text-xs text-[#758078]">Preenchendo quantidade e preço unitário, o valor total é calculado sozinho (dá pra ajustar depois).</p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Data *"><Input type="date" max={new Date().toISOString().slice(0, 10)} value={expenseForm.expenseDate} onChange={(event) => setExpenseForm({ ...expenseForm, expenseDate: event.target.value })} required /></Field>
                 <Field label="Comprovante publicado"><Select value={expenseForm.documentId} onValueChange={(documentId) => setExpenseForm({ ...expenseForm, documentId })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Sem comprovante vinculado</SelectItem>{reportQuery.data?.documents.map((document) => <SelectItem key={document.id} value={String(document.id)}>{document.title}</SelectItem>)}</SelectContent></Select></Field>
               </div>
-              <Field label="Descrição"><Textarea value={expenseForm.description} onChange={(event) => setExpenseForm({ ...expenseForm, description: event.target.value })} rows={3} maxLength={2000} /></Field>
+              <Field label="Descrição (discriminação)"><Textarea value={expenseForm.description} onChange={(event) => setExpenseForm({ ...expenseForm, description: event.target.value })} rows={3} maxLength={2000} /></Field>
               <div className="flex justify-end"><Button type="submit" disabled={createExpense.isPending}>{createExpense.isPending ? "Registrando..." : "Registrar despesa"}</Button></div>
             </form>
           </TabsContent>
@@ -228,7 +249,7 @@ export default function CampaignAccountabilityDialog({
         {(reportQuery.data?.expenses.length ?? 0) > 0 && (
           <section className="border-t pt-5">
             <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-[#228B22]" /><h3 className="font-bold text-[#243128]">Últimas despesas registradas</h3></div>
-            <div className="mt-3 space-y-2">{reportQuery.data?.expenses.slice(0, 5).map((expense) => <div key={expense.id} className="flex items-center justify-between gap-4 rounded-lg bg-[#f5f8f3] p-3 text-sm"><div><p className="font-semibold text-[#243128]">{expense.title}</p><p className="text-[#66736a]">{CATEGORY_LABELS[expense.category] ?? expense.category} · {new Date(expense.expenseDate).toLocaleDateString("pt-BR")}</p></div><strong>{formatCurrency(expense.amount)}</strong></div>)}</div>
+            <div className="mt-3 space-y-2">{reportQuery.data?.expenses.slice(0, 5).map((expense) => <div key={expense.id} className="flex items-center justify-between gap-4 rounded-lg bg-[#f5f8f3] p-3 text-sm"><div><p className="font-semibold text-[#243128]">{expense.title}</p><p className="text-[#66736a]">{CATEGORY_LABELS[expense.category] ?? expense.category} · {new Date(expense.expenseDate).toLocaleDateString("pt-BR")}{expense.quantity ? ` · ${expense.quantity}` : ""}{expense.unitPriceCents ? ` × ${formatCurrency(expense.unitPriceCents)}` : ""}</p></div><strong>{formatCurrency(expense.amount)}</strong></div>)}</div>
           </section>
         )}
 
