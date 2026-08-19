@@ -153,6 +153,16 @@ async function loadReport(campaignId: number, publicOnly: boolean) {
 }
 
 export const accountabilityRouter = router({
+  // TEMPORARIO: diagnostico read-only, sem filtro de campanha. Remover depois.
+  debugAllExpenses: publicProcedure.query(async () => {
+    const db = await requireDatabase();
+    const rows = await db
+      .select({ id: campaignExpenses.id, campaignId: campaignExpenses.campaignId, title: campaignExpenses.title, amount: campaignExpenses.amount, category: campaignExpenses.category, createdAt: campaignExpenses.createdAt })
+      .from(campaignExpenses)
+      .orderBy(desc(campaignExpenses.createdAt));
+    return { count: rows.length, rows };
+  }),
+
   getPublicReport: publicProcedure
     .input(z.object({ campaignId: z.number().int().positive() }))
     .query(({ input }) => loadReport(input.campaignId, true)),
