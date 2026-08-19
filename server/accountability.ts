@@ -152,10 +152,16 @@ async function loadReport(campaignId: number, publicOnly: boolean) {
   ]);
 
   const summary = summarizeExpenses(expenses);
-  const totalConfirmedEntries = confirmedEntries.reduce(
+  // campaign.raised guarda o valor de "arrecadação inicial" digitado pelo admin (dinheiro já
+  // recebido antes da campanha entrar na plataforma) — não é uma contribution de verdade, mas
+  // é dinheiro real que precisa contar como entrada na prestação de contas, senão o relatório
+  // subestima quanto já entrou (e o saldo disponível fica errado).
+  const initialRaisedEntry = Math.max(0, campaign.raised ?? 0);
+  const contributionsTotal = confirmedEntries.reduce(
     (sum, entry) => sum + Math.max(0, entry.amount ?? 0),
     0,
   );
+  const totalConfirmedEntries = initialRaisedEntry + contributionsTotal;
   const availableBalance = totalConfirmedEntries - summary.totalSpent;
 
   return {
@@ -165,6 +171,7 @@ async function loadReport(campaignId: number, publicOnly: boolean) {
     summary,
     financialSummary: {
       totalConfirmedEntries,
+      initialRaisedEntry,
       confirmedContributionsCount: confirmedEntries.length,
       totalSpent: summary.totalSpent,
       availableBalance,

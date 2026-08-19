@@ -183,6 +183,9 @@ export default function CampaignAccountabilityDialog({
           <p className="text-xs text-[#66736a]">
             {reportQuery.data?.financialSummary.confirmedContributionsCount ?? 0} contribuição(ões) financeira(s)
             confirmada(s) na campanha e {reportQuery.data?.documents.length ?? 0} comprovante(s) publicado(s).
+            {(reportQuery.data?.financialSummary.initialRaisedEntry ?? 0) > 0 && (
+              <> Inclui {formatCurrency(reportQuery.data?.financialSummary.initialRaisedEntry ?? 0)} de arrecadação inicial registrada na campanha.</>
+            )}
           </p>
         )}
 
