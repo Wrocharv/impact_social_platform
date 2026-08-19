@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { mkdirSync, writeFileSync } from "fs";
 import path from "path";
 import { z } from "zod";
-import { and, desc, eq, inArray, like, or } from "drizzle-orm";
+import { and, desc, eq, inArray, like, notInArray, or } from "drizzle-orm";
 import {
   campaigns,
   campaignComments,
@@ -1855,12 +1855,14 @@ export const campaignsRouter = router({
           initialRaised: campaign.raised,
           ...effectiveMetrics,
           goal: effectiveGoal > 0 ? effectiveGoal : campaign.goal,
-          updates: updates.map((update) => ({
-            ...update,
-            campaignId: responseCampaignId,
-            images: parseMediaUrls(update.imageUrls),
-            videos: parseMediaUrls(update.videoUrls),
-          })),
+          updates: updates
+            .filter((update) => update.title !== VIP_MEDIA_CONFIG_TITLE && update.title !== VIP_CONTRIBUTION_CONFIG_TITLE)
+            .map((update) => ({
+              ...update,
+              campaignId: responseCampaignId,
+              images: parseMediaUrls(update.imageUrls),
+              videos: parseMediaUrls(update.videoUrls),
+            })),
           vipMediaImages: effectiveVipMediaImages,
           vipMediaVideos: effectiveVipMediaVideos,
           vipContributionTitle: vipContributionConfig?.title ?? "Inscrição completa",
@@ -2157,7 +2159,10 @@ export const campaignsRouter = router({
       return db
         .select()
         .from(campaignUpdates)
-        .where(eq(campaignUpdates.campaignId, input.campaignId))
+        .where(and(
+          eq(campaignUpdates.campaignId, input.campaignId),
+          notInArray(campaignUpdates.title, [VIP_MEDIA_CONFIG_TITLE, VIP_CONTRIBUTION_CONFIG_TITLE]),
+        ))
         .orderBy(desc(campaignUpdates.createdAt));
     }),
 
