@@ -345,6 +345,8 @@ export default function AdminDashboard() {
   });
   const [uploadingPartnerField, setUploadingPartnerField] = useState<"logoUrl" | "storePhotoUrl" | "ownerPhotoUrl" | "testimonialVideoUrl" | null>(null);
   const [uploadingCampaignImage, setUploadingCampaignImage] = useState<"create" | "edit" | null>(null);
+  const [uploadingUpdateMedia, setUploadingUpdateMedia] = useState(false);
+  const [uploadingVipMedia, setUploadingVipMedia] = useState(false);
   const [campaignMediaYouTubeUrl, setCampaignMediaYouTubeUrl] = useState("");
   const [siteMediaYouTubeUrl, setSiteMediaYouTubeUrl] = useState("");
   const [partnerMediaYouTubeUrl, setPartnerMediaYouTubeUrl] = useState("");
@@ -1008,6 +1010,7 @@ export default function AdminDashboard() {
   async function handleCampaignUpdateMediaUpload(kind: "image" | "video", files?: FileList | null) {
     if (!files?.length) return;
 
+    setUploadingUpdateMedia(true);
     try {
       const entries: string[] = [];
       for (const file of Array.from(files)) {
@@ -1022,12 +1025,15 @@ export default function AdminDashboard() {
       toast.success(kind === "image" ? "Imagens adicionadas à atualização." : "Vídeos adicionados à atualização.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível adicionar a mídia.");
+    } finally {
+      setUploadingUpdateMedia(false);
     }
   }
 
   async function handleVipMediaUpload(kind: "image" | "video", files?: FileList | null) {
     if (!files?.length) return;
 
+    setUploadingVipMedia(true);
     try {
       const entries: string[] = [];
       for (const file of Array.from(files)) {
@@ -1042,6 +1048,8 @@ export default function AdminDashboard() {
       toast.success(kind === "image" ? "Imagens VIP adicionadas." : "Vídeos VIP adicionados.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível adicionar a mídia.");
+    } finally {
+      setUploadingVipMedia(false);
     }
   }
 
@@ -2074,7 +2082,7 @@ export default function AdminDashboard() {
               <p className="rounded-lg bg-[#fff8e6] p-3 text-sm text-[#70571a]">Campanhas pausadas ou arquivadas deixam de aparecer nas áreas públicas. Campanhas concluídas continuam disponíveis para prestação de contas.</p>
               <div className="sticky bottom-0 z-10 -mx-6 mt-4 flex justify-end gap-3 border-t border-[#e1e6df] bg-white px-6 py-3">
                 <Button type="button" variant="outline" onClick={closeEditCampaignDialog}>Cancelar</Button>
-                <Button type="submit" disabled={updateCampaign.isPending || uploadingCampaignImage === "edit"}>{uploadingCampaignImage === "edit" ? "Enviando imagem..." : updateCampaign.isPending ? "Salvando..." : "Salvar alterações"}</Button>
+                <Button type="submit" disabled={updateCampaign.isPending || uploadingCampaignImage === "edit" || uploadingVipMedia}>{uploadingCampaignImage === "edit" || uploadingVipMedia ? "Enviando mídia..." : updateCampaign.isPending ? "Salvando..." : "Salvar alterações"}</Button>
               </div>
             </form>
           </DialogContent>
@@ -2130,7 +2138,7 @@ export default function AdminDashboard() {
                 </Field>
               </div>
               <p className="rounded-lg bg-[#f1f6ef] p-3 text-sm text-[#55645a]">As mídias serão exibidas publicamente. Use somente arquivos autorizados e URLs HTTPS acessíveis.</p>
-              <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={closeCampaignUpdateDialog}>Cancelar</Button><Button type="submit" disabled={publishCampaignUpdate.isPending}>{publishCampaignUpdate.isPending ? "Publicando..." : "Publicar atualização"}</Button></div>
+              <div className="flex justify-end gap-3 pt-3"><Button type="button" variant="outline" onClick={closeCampaignUpdateDialog}>Cancelar</Button><Button type="submit" disabled={publishCampaignUpdate.isPending || uploadingUpdateMedia}>{uploadingUpdateMedia ? "Enviando mídia..." : publishCampaignUpdate.isPending ? "Publicando..." : "Publicar atualização"}</Button></div>
             </form>
           </DialogContent>
         </Dialog>
