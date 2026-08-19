@@ -2058,42 +2058,48 @@ export const campaignsRouter = router({
           ? new Date()
           : null
         : undefined;
-      await db
-        .update(campaigns)
-        .set({
-          ...updateData,
-          ...(helpTierOptions !== undefined ? { helpTierOptions: serializeHelpTierOptions(helpTierOptions) } : {}),
-          raised: initialRaised,
-          endDate,
-          updatedAt: new Date(),
-        })
-        .where(eq(campaigns.id, id));
 
-      if (vipContributionTitle !== undefined || vipContributionSubtitle !== undefined || vipContributionDescription !== undefined) {
-        await upsertVipContributionConfigUpdate(db, id, {
-          title: vipContributionTitle,
-          subtitle: vipContributionSubtitle,
-          description: vipContributionDescription,
-        });
-      }
-
-      if (vipImageUrls !== undefined || vipVideoUrls !== undefined) {
+      try {
         await db
-          .delete(campaignUpdates)
-          .where(and(eq(campaignUpdates.campaignId, id), eq(campaignUpdates.title, VIP_MEDIA_CONFIG_TITLE)));
+          .update(campaigns)
+          .set({
+            ...updateData,
+            ...(helpTierOptions !== undefined ? { helpTierOptions: serializeHelpTierOptions(helpTierOptions) } : {}),
+            raised: initialRaised,
+            endDate,
+            updatedAt: new Date(),
+          })
+          .where(eq(campaigns.id, id));
 
-        const nextVipImages = vipImageUrls ?? [];
-        const nextVipVideos = vipVideoUrls ?? [];
-        if (nextVipImages.length > 0 || nextVipVideos.length > 0) {
-          await db.insert(campaignUpdates).values({
-            campaignId: id,
-            title: VIP_MEDIA_CONFIG_TITLE,
-            description: "Configuração interna da vitrine VIP",
-            phase: "during",
-            imageUrls: nextVipImages.length > 0 ? JSON.stringify(nextVipImages) : undefined,
-            videoUrls: nextVipVideos.length > 0 ? JSON.stringify(nextVipVideos) : undefined,
+        if (vipContributionTitle !== undefined || vipContributionSubtitle !== undefined || vipContributionDescription !== undefined) {
+          await upsertVipContributionConfigUpdate(db, id, {
+            title: vipContributionTitle,
+            subtitle: vipContributionSubtitle,
+            description: vipContributionDescription,
           });
         }
+
+        if (vipImageUrls !== undefined || vipVideoUrls !== undefined) {
+          await db
+            .delete(campaignUpdates)
+            .where(and(eq(campaignUpdates.campaignId, id), eq(campaignUpdates.title, VIP_MEDIA_CONFIG_TITLE)));
+
+          const nextVipImages = vipImageUrls ?? [];
+          const nextVipVideos = vipVideoUrls ?? [];
+          if (nextVipImages.length > 0 || nextVipVideos.length > 0) {
+            await db.insert(campaignUpdates).values({
+              campaignId: id,
+              title: VIP_MEDIA_CONFIG_TITLE,
+              description: "Configuração interna da vitrine VIP",
+              phase: "during",
+              imageUrls: nextVipImages.length > 0 ? JSON.stringify(nextVipImages) : undefined,
+              videoUrls: nextVipVideos.length > 0 ? JSON.stringify(nextVipVideos) : undefined,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("[campaigns.update] Falha ao atualizar campanha:", error);
+        throw new Error(describeErrorWithCause(error));
       }
 
       return { success: true, message: "Campanha atualizada com sucesso!" };
@@ -2127,14 +2133,19 @@ export const campaignsRouter = router({
       if (!db) throw new Error("Database not available");
 
       await requireCampaign(db, input.campaignId);
-      await db.insert(campaignUpdates).values({
-        campaignId: input.campaignId,
-        title: input.title,
-        description: input.description,
-        phase: input.phase,
-        imageUrls: input.imageUrls.length > 0 ? JSON.stringify(input.imageUrls) : undefined,
-        videoUrls: input.videoUrls.length > 0 ? JSON.stringify(input.videoUrls) : undefined,
-      });
+      try {
+        await db.insert(campaignUpdates).values({
+          campaignId: input.campaignId,
+          title: input.title,
+          description: input.description,
+          phase: input.phase,
+          imageUrls: input.imageUrls.length > 0 ? JSON.stringify(input.imageUrls) : undefined,
+          videoUrls: input.videoUrls.length > 0 ? JSON.stringify(input.videoUrls) : undefined,
+        });
+      } catch (error) {
+        console.error("[campaigns.createUpdate] Falha ao publicar atualização:", error);
+        throw new Error(describeErrorWithCause(error));
+      }
       return { success: true, message: "Atualização criada com sucesso!" };
     }),
 
@@ -2216,7 +2227,8 @@ export const campaignsRouter = router({
           return { success: true, message: "Necessidade criada com sucesso!" };
         }
 
-        throw error;
+        console.error("[campaigns.createNeed] Falha ao criar necessidade:", error);
+        throw new Error(describeErrorWithCause(error));
       }
       return { success: true, message: "Necessidade criada com sucesso!" };
     }),
@@ -2229,7 +2241,12 @@ export const campaignsRouter = router({
         whatsappService.removeFallbackCampaignNeed(input.campaignId, input.needId);
         return { success: true };
       }
-      await db.delete(campaignNeeds).where(eq(campaignNeeds.id, input.needId));
+      try {
+        await db.delete(campaignNeeds).where(eq(campaignNeeds.id, input.needId));
+      } catch (error) {
+        console.error("[campaigns.deleteNeed] Falha ao remover necessidade:", error);
+        throw new Error(describeErrorWithCause(error));
+      }
       return { success: true };
     }),
 
@@ -2252,7 +2269,12 @@ export const campaignsRouter = router({
         whatsappService.updateFallbackCampaignNeed?.(campaignId, needId, updateFields);
         return { success: true };
       }
-      await db.update(campaignNeeds).set({ ...updateFields }).where(eq(campaignNeeds.id, needId));
+      try {
+        await db.update(campaignNeeds).set({ ...updateFields }).where(eq(campaignNeeds.id, needId));
+      } catch (error) {
+        console.error("[campaigns.updateNeed] Falha ao atualizar necessidade:", error);
+        throw new Error(describeErrorWithCause(error));
+      }
 
       // Campanhas "críticas"/pinadas ao JSON de fallback sempre servem os needs de lá em getNeeds
       // (nunca leem a tabela campaignNeeds pra elas) — mantém o JSON em sincronia com o UPDATE acima,
