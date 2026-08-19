@@ -2338,6 +2338,35 @@ export const campaignsRouter = router({
       }));
     }),
 
+  getAllComments: adminProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+
+    return db
+      .select({
+        id: campaignComments.id,
+        campaignId: campaignComments.campaignId,
+        campaignTitle: campaigns.title,
+        authorName: campaignComments.authorName,
+        content: campaignComments.content,
+        status: campaignComments.status,
+        createdAt: campaignComments.createdAt,
+      })
+      .from(campaignComments)
+      .innerJoin(campaigns, eq(campaigns.id, campaignComments.campaignId))
+      .orderBy(desc(campaignComments.createdAt));
+  }),
+
+  deleteComment: adminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { success: true };
+
+      await db.delete(campaignComments).where(eq(campaignComments.id, input.id));
+      return { success: true };
+    }),
+
   getComments: publicProcedure
     .input(z.object({ campaignId: z.number().int().positive() }))
     .query(async ({ input }) => {

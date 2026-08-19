@@ -126,7 +126,7 @@ export default function AdminDashboard() {
   const utils = trpc.useUtils();
   const isAdmin = isAdminUser(user, ["gospeltv@gmail.com"]);
   const isLocalhost = window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1");
-  const [activeTab, setActiveTab] = useState<"campaigns" | "partners" | "community">(() =>
+  const [activeTab, setActiveTab] = useState<"campaigns" | "partners" | "community" | "comments">(() =>
     new URLSearchParams(window.location.search).get("tab") === "partners" ? "partners" : "campaigns",
   );
   const [isCreateCampaignOpen, setIsCreateCampaignOpen] = useState(false);
@@ -169,6 +169,17 @@ export default function AdminDashboard() {
     : Number.parseInt(validationCampaignFilter, 10);
 
   const registeredDonorsQuery = trpc.contributions.getRegisteredDonors.useQuery(undefined, { enabled: isAdmin });
+  const commentsQuery = trpc.campaigns.getAllComments.useQuery(undefined, { enabled: isAdmin });
+  const [commentStatusFilter, setCommentStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const reviewComment = trpc.campaigns.reviewComment.useMutation({
+    onSuccess: async () => { await utils.campaigns.getAllComments.invalidate(); },
+    onError: (error) => toast.error(error.message || "Erro ao atualizar depoimento."),
+  });
+  const deleteComment = trpc.campaigns.deleteComment.useMutation({
+    onSuccess: async () => { await utils.campaigns.getAllComments.invalidate(); toast.success("Depoimento removido."); },
+    onError: (error) => toast.error(error.message || "Erro ao remover depoimento."),
+  });
+  const filteredComments = (commentsQuery.data ?? []).filter((c) => commentStatusFilter === "all" || c.status === commentStatusFilter);
   const [communityGenderFilter, setCommunityGenderFilter] = useState("all");
   const [communityCityFilter, setCommunityCityFilter] = useState("");
   const [communityAgeMin, setCommunityAgeMin] = useState("");
@@ -1046,11 +1057,12 @@ export default function AdminDashboard() {
           <p className="mt-2 text-[#66736a]">Gerencie campanhas e os parceiros exibidos publicamente.</p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "campaigns" | "partners" | "community")} className="space-y-7">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "campaigns" | "partners" | "community" | "comments")} className="space-y-7">
           <TabsList className="h-auto w-full justify-start gap-1 rounded-xl bg-[#eaf1e8] p-1 sm:w-auto">
             <TabsTrigger value="campaigns" className="min-h-11 gap-2 px-5"><Building2 className="h-4 w-4" /> Campanhas</TabsTrigger>
             <TabsTrigger value="partners" className="min-h-11 gap-2 px-5"><Handshake className="h-4 w-4" /> Parceiros</TabsTrigger>
             <TabsTrigger value="community" className="min-h-11 gap-2 px-5"><Users className="h-4 w-4" /> Comunidade</TabsTrigger>
+            <TabsTrigger value="comments" className="min-h-11 gap-2 px-5"><FileText className="h-4 w-4" /> Depoimentos</TabsTrigger>
           </TabsList>
 
           <TabsContent value="campaigns" className="space-y-6">
@@ -1871,6 +1883,76 @@ export default function AdminDashboard() {
                 <p className="mt-3 font-semibold text-[#2d2d2d]">Nenhum doador cadastrado ainda</p>
                 <p className="mt-1 text-sm text-[#66736a]">Quando alguém fizer uma doação ou se cadastrar, aparece aqui.</p>
               </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="comments" className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-[#243128]">Depoimentos das campanhas</h2>
+              <p className="mt-1 text-[#66736a]">Comentários enviados pelo público em cada campanha. Aprove pra publicar, ou rejeite/remova.</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {(["pending", "approved", "rejected", "all"] as const).map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setCommentStatusFilter(status)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${commentStatusFilter === status ? "bg-[#228B22] text-white" : "bg-[#eaf1e8] text-[#4f6550] hover:bg-[#dce8da]"}`}
+                >
+                  {status === "pending" ? "Pendentes" : status === "approved" ? "Aprovados" : status === "rejected" ? "Rejeitados" : "Todos"}
+                  {status === "pending" && commentsQuery.data ? ` (${commentsQuery.data.filter((c) => c.status === "pending").length})` : ""}
+                </button>
+              ))}
+            </div>
+
+            {commentsQuery.isLoading ? (
+              <p className="text-sm text-[#66736a]">Carregando depoimentos...</p>
+            ) : commentsQuery.isError ? (
+              <Card className="border-red-200 bg-red-50 p-4 text-sm text-red-700">Não foi possível carregar os depoimentos.</Card>
+            ) : filteredComments.length === 0 ? (
+              <Card className="p-8 text-center">
+                <FileText className="mx-auto h-10 w-10 text-[#b0bfb0]" />
+                <p className="mt-3 font-semibold text-[#2d2d2d]">Nenhum depoimento aqui</p>
+                <p className="mt-1 text-sm text-[#66736a]">Quando alguém comentar numa campanha, aparece nesta lista.</p>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {filteredComments.map((comment) => (
+                  <Card key={comment.id} className="p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-[#243128]">{comment.authorName || "Anônimo"}</p>
+                          <Badge variant="secondary">{comment.status === "pending" ? "Pendente" : comment.status === "approved" ? "Aprovado" : "Rejeitado"}</Badge>
+                          <span className="text-xs text-[#889284]">· {comment.campaignTitle}</span>
+                        </div>
+                        <p className="mt-2 whitespace-pre-wrap text-sm text-[#4f6550]">{comment.content}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {comment.status !== "approved" && (
+                          <Button size="sm" className="gap-2 bg-[#228B22] hover:bg-[#1b711b]" onClick={() => reviewComment.mutate({ id: comment.id, status: "approved" })}>
+                            <CheckCircle2 className="h-4 w-4" /> Aprovar
+                          </Button>
+                        )}
+                        {comment.status !== "rejected" && (
+                          <Button size="sm" variant="outline" className="gap-2" onClick={() => reviewComment.mutate({ id: comment.id, status: "rejected" })}>
+                            <XCircle className="h-4 w-4" /> Rejeitar
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-2 text-red-700 hover:text-red-800"
+                          onClick={() => { if (confirm("Remover este depoimento definitivamente?")) deleteComment.mutate({ id: comment.id }); }}
+                        >
+                          <Trash2 className="h-4 w-4" /> Remover
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
             )}
           </TabsContent>
         </Tabs>
