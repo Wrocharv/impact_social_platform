@@ -11,6 +11,7 @@ import {
 import { adminProcedure, publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import { storagePut } from "./storage";
+import { saveLocalCampaignUpload } from "./campaigns";
 
 const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
@@ -78,6 +79,25 @@ export function summarizeExpenses(expenses: Pick<CampaignExpense, "category" | "
 
 function cleanFileName(name: string) {
   return name.replace(/[^A-Za-z0-9._ -]/g, "_").replace(/\s+/g, " ").trim().slice(0, 255);
+}
+
+/** Junta a mensagem do erro com a de suas causas encadeadas (error.cause), pra não perder o motivo real atrás de um wrapper genérico do Drizzle. */
+function describeErrorWithCause(error: unknown): string {
+  const parts: string[] = [];
+  let current: unknown = error;
+  const seen = new Set<unknown>();
+
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    const candidate = current as { message?: unknown; sqlMessage?: unknown; cause?: unknown };
+    const message = typeof candidate.sqlMessage === "string" ? candidate.sqlMessage : typeof candidate.message === "string" ? candidate.message : null;
+    if (message && !parts.includes(message)) {
+      parts.push(message);
+    }
+    current = candidate.cause;
+  }
+
+  return parts.length > 0 ? parts.join(" — causa: ") : "Erro desconhecido ao salvar no banco de dados.";
 }
 
 function storageExtension(mimeType: TransparencyUpload["mimeType"]) {
@@ -189,11 +209,20 @@ export const accountabilityRouter = router({
       await requireCampaign(db, input.campaignId);
 
       const extension = storageExtension(input.file.mimeType);
-      const uploaded = await storagePut(
-        `campaigns/${input.campaignId}/transparency/${Date.now()}-${crypto.randomUUID()}.${extension}`,
-        bytes,
-        input.file.mimeType,
-      );
+      let uploaded: { url: string; key: string };
+      try {
+        uploaded = await storagePut(
+          `campaigns/${input.campaignId}/transparency/${Date.now()}-${crypto.randomUUID()}.${extension}`,
+          bytes,
+          input.file.mimeType,
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (!/Storage config missing|BUILT_IN_FORGE_API_(URL|KEY)/i.test(message)) {
+          throw new TRPCError({ code: "BAD_GATEWAY", message: describeErrorWithCause(error) });
+        }
+        uploaded = saveLocalCampaignUpload(cleanFileName(input.file.name), extension, bytes);
+      }
       const fileName = cleanFileName(input.file.name);
 
       await db.insert(transparencyDocuments).values({
@@ -246,16 +275,21 @@ export const accountabilityRouter = router({
         }
       }
 
-      await db.insert(campaignExpenses).values({
-        campaignId: input.campaignId,
-        category: input.category,
-        title: input.title.trim(),
-        description: input.description?.trim() || undefined,
-        amount: input.amount,
-        expenseDate,
-        documentId: input.documentId,
-        createdBy: ctx.user?.id ?? 0,
-      });
+      try {
+        await db.insert(campaignExpenses).values({
+          campaignId: input.campaignId,
+          category: input.category,
+          title: input.title.trim(),
+          description: input.description?.trim() || undefined,
+          amount: input.amount,
+          expenseDate,
+          documentId: input.documentId,
+          createdBy: ctx.user?.id ?? 0,
+        });
+      } catch (error) {
+        console.error("[accountability.createExpense] Falha ao gravar despesa:", error);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: describeErrorWithCause(error) });
+      }
 
       return { success: true as const };
     }),

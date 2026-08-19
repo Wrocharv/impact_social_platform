@@ -944,8 +944,8 @@ function extensionForCampaignVideoMimeType(mimeType: z.infer<typeof uploadCampai
   return "mp4";
 }
 
-function saveLocalCampaignUpload(fileNameBase: string, extension: string, bytes: Buffer) {
-  const uploadsDir = path.resolve(process.cwd(), "client", "public", "uploads", "campaigns");
+export function saveLocalCampaignUpload(fileNameBase: string, extension: string, bytes: Buffer, subfolder = "campaigns") {
+  const uploadsDir = path.resolve(process.cwd(), "client", "public", "uploads", subfolder);
   mkdirSync(uploadsDir, { recursive: true });
 
   const safeBase = cleanFileName(fileNameBase).replace(/\.[^.]+$/, "") || "campaign-media";
@@ -954,7 +954,7 @@ function saveLocalCampaignUpload(fileNameBase: string, extension: string, bytes:
   writeFileSync(absolutePath, bytes);
 
   return {
-    url: `/uploads/campaigns/${finalFileName}`,
+    url: `/uploads/${subfolder}/${finalFileName}`,
     key: `local-file-${finalFileName}`,
   };
 }

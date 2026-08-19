@@ -7,6 +7,7 @@ import { partners } from "../drizzle/schema";
 import { adminProcedure, publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import { storagePut } from "./storage";
+import { saveLocalCampaignUpload } from "./campaigns";
 
 type PartnerRecord = {
   id: number;
@@ -507,10 +508,19 @@ export const partnersRouter = router({
           key: uploaded.key,
         };
       } catch (error) {
-        throw new TRPCError({
-          code: "BAD_GATEWAY",
-          message: error instanceof Error ? error.message : "Falha ao enviar imagem do parceiro.",
-        });
+        const message = error instanceof Error ? error.message : "Falha ao enviar imagem do parceiro.";
+        const storageNotConfigured = /Storage config missing|BUILT_IN_FORGE_API_(URL|KEY)/i.test(message);
+
+        if (storageNotConfigured) {
+          const localUpload = saveLocalCampaignUpload(safeName, extension, bytes, "partners");
+          return {
+            success: true as const,
+            url: localUpload.url,
+            key: localUpload.key,
+          };
+        }
+
+        throw new TRPCError({ code: "BAD_GATEWAY", message });
       }
     }),
 
