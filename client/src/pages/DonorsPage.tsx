@@ -83,6 +83,9 @@ export default function DonorsPage() {
                     </div>
 
                     <div className="mt-auto pt-4 border-t border-[#e1e6df]">
+                      {donor.campaignTitle && (
+                        <p className="mb-1 text-xs text-[#8a8a8a]">{donor.campaignTitle}</p>
+                      )}
                       <p className="text-sm text-[#656565]">
                         {donor.type === "financial" && donor.amount && (
                           <>
@@ -94,7 +97,10 @@ export default function DonorsPage() {
                         )}
                         {donor.type === "material" && (
                           <>
-                            Ofereceu <span className="font-semibold text-[#228B22]">material</span>
+                            Ofereceu{" "}
+                            <span className="font-semibold text-[#228B22]">
+                              {donor.description?.trim() || "material"}
+                            </span>
                           </>
                         )}
                         {donor.type === "volunteer" && (

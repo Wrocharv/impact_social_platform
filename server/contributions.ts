@@ -968,10 +968,18 @@ export const contributionsRouter = router({
         donorCity: contributions.donorCity,
         type: contributions.type,
         amount: contributions.amount,
+        description: contributions.description,
+        campaignTitle: campaigns.title,
         createdAt: contributions.createdAt,
       })
       .from(contributions)
-      .where(eq(contributions.allowPublicDisplay, true))
+      .leftJoin(campaigns, eq(campaigns.id, contributions.campaignId))
+      .where(
+        and(
+          eq(contributions.allowPublicDisplay, true),
+          inArray(contributions.status, ["approved", "completed"]),
+        ),
+      )
       .orderBy(desc(contributions.createdAt))
       .limit(100);
   }),
