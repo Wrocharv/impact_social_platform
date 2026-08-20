@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { addLocalNeedProgress, readLocalNeedProgressForCampaign, readLocalNeedsForCampaign } from "@/lib/localNeeds";
 import { getMaterialContributionCopy, shouldShowMaterialContributionOption } from "@/lib/contributionFlow";
-import { AlertCircle, ChevronLeft, Heart, Package, Users, DollarSign, Zap } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronLeft, Copy, Heart, Loader2, Package, Users, DollarSign, Zap } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Link, useLocation, useRoute } from "wouter";
@@ -21,7 +21,15 @@ type DeliveryMethod = "pickup" | "deliver" | "mail" | "other";
 type DeliveryFrequency = "unique" | "weekly" | "biweekly" | "monthly";
 type MaterialSettlementMode = "in_kind" | "cash_equivalent";
 type MaterialDonationType = "detailed" | "avulsa" | "other";
-type Step = "type" | "donor-info" | "vip-showcase" | "details" | "payment" | "confirmation";
+type Step = "type" | "donor-info" | "vip-showcase" | "details" | "payment" | "confirmation" | "pix-qr";
+
+type PixPaymentData = {
+  qrCode: string;
+  qrCodeBase64: string;
+  paymentId: string;
+  externalReference: string;
+  amountCents: number;
+};
 
 type NeedItem = {
   id: number;
@@ -408,6 +416,50 @@ export default function ContributionWizardPage() {
   const createMaterial = trpc.contributions.createMaterialContribution.useMutation();
   const createVolunteer = trpc.contributions.createVolunteerContribution.useMutation();
   const createPayment = trpc.payments.createPaymentPreference.useMutation();
+  const createPixPayment = trpc.payments.createPixPayment.useMutation();
+  const syncPaymentStatus = trpc.payments.syncPaymentStatus.useMutation();
+
+  const [pixPaymentData, setPixPaymentData] = useState<PixPaymentData | null>(null);
+  const [pixStatus, setPixStatus] = useState<"pending" | "approved" | "rejected" | "timeout">("pending");
+  const [pixCopied, setPixCopied] = useState(false);
+
+  useEffect(() => {
+    if (step !== "pix-qr" || !pixPaymentData || pixStatus !== "pending") return;
+
+    let cancelled = false;
+    let attempt = 0;
+
+    const poll = async () => {
+      attempt += 1;
+      try {
+        const result = await syncPaymentStatus.mutateAsync({ paymentId: pixPaymentData.paymentId });
+        if (cancelled) return;
+        if (result.status === "approved") {
+          setPixStatus("approved");
+          return;
+        }
+        if (result.status === "rejected" || result.status === "cancelled") {
+          setPixStatus("rejected");
+          return;
+        }
+      } catch {
+        // Segue tentando — instabilidade momentânea não deve interromper o polling.
+      }
+      if (attempt >= 150) {
+        if (!cancelled) setPixStatus("timeout");
+        return;
+      }
+      if (!cancelled) {
+        timer = window.setTimeout(poll, 4000);
+      }
+    };
+
+    let timer = window.setTimeout(poll, 4000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [step, pixPaymentData, pixStatus, syncPaymentStatus]);
 
   const campaign = campaignQuery.data;
   const campaignTitle = typeof campaign?.title === "string" ? campaign.title.toLowerCase() : "";
@@ -692,6 +744,34 @@ export default function ContributionWizardPage() {
         });
         toast.success("Oferta de voluntariado recebida! Entraremos em contato.");
         setLocation(`/contribute/help/${campaignId}`);
+      } else if (
+        state.type === "financial"
+        && state.amount
+        && state.paymentMethod === "pix"
+        && state.recurrence !== "installments"
+      ) {
+        const amountCents = Math.round(state.amount * 100);
+        const result = await createPixPayment.mutateAsync({
+          campaignId,
+          campaignTitle: campaign?.title,
+          amount: amountCents,
+          donorName: state.donorName,
+          donorCpf: state.donorCpf,
+          donorWhatsapp: state.donorWhatsapp,
+          donorEmail: state.donorEmail.trim(),
+          donorCity: state.donorCity,
+          donorChurch: state.donorChurch,
+          allowPublicDisplay: state.allowPublicDisplay ?? false,
+        });
+        setPixPaymentData({
+          qrCode: result.qrCode,
+          qrCodeBase64: result.qrCodeBase64,
+          paymentId: result.paymentId,
+          externalReference: result.externalReference,
+          amountCents,
+        });
+        setPixStatus("pending");
+        setStep("pix-qr");
       } else if (state.type === "financial" && state.amount && state.paymentMethod) {
         const result = await createPayment.mutateAsync({
           campaignId,
@@ -720,7 +800,18 @@ export default function ContributionWizardPage() {
     }
   };
 
-  const loading = createMaterial.isPending || createVolunteer.isPending || createPayment.isPending;
+  const loading = createMaterial.isPending || createVolunteer.isPending || createPayment.isPending || createPixPayment.isPending;
+
+  async function handleCopyPixCode() {
+    if (!pixPaymentData) return;
+    try {
+      await navigator.clipboard.writeText(pixPaymentData.qrCode);
+      setPixCopied(true);
+      window.setTimeout(() => setPixCopied(false), 3000);
+    } catch {
+      toast.error("Não foi possível copiar o código. Copie manualmente.");
+    }
+  }
 
   return (
     <>
@@ -1707,6 +1798,78 @@ export default function ContributionWizardPage() {
                       {loading ? "Processando..." : "Confirmar Doação →"}
                     </Button>
                   </div>
+                </div>
+              )}
+
+              {/* STEP 5: QR code do Pix embutido — o doador paga sem sair do site */}
+              {step === "pix-qr" && pixPaymentData && (
+                <div className="space-y-5 text-center">
+                  {pixStatus === "approved" ? (
+                    <div className="space-y-4 py-6">
+                      <CheckCircle2 className="mx-auto h-16 w-16 text-green-600" aria-hidden="true" />
+                      <h3 className="text-2xl font-bold text-gray-900">Pagamento aprovado!</h3>
+                      <p className="text-gray-600">
+                        Sua contribuição de {formatCurrency(pixPaymentData.amountCents)} foi confirmada. Muito obrigado por ajudar!
+                      </p>
+                      <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+                        <Button asChild className="flex-1 bg-blue-600 hover:bg-blue-700">
+                          <Link href={`/campaign/${campaignId}`}>Voltar à campanha</Link>
+                        </Button>
+                      </div>
+                    </div>
+                  ) : pixStatus === "rejected" ? (
+                    <div className="space-y-4 py-6">
+                      <AlertCircle className="mx-auto h-16 w-16 text-red-600" aria-hidden="true" />
+                      <h3 className="text-2xl font-bold text-gray-900">Pagamento não aprovado</h3>
+                      <p className="text-gray-600">O Pix não foi confirmado. Você pode tentar novamente.</p>
+                      <Button
+                        className="bg-blue-600 hover:bg-blue-700"
+                        onClick={() => {
+                          setPixPaymentData(null);
+                          setStep("payment");
+                        }}
+                      >
+                        Tentar novamente
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-600">Escaneie o código com o app do seu banco ou copie o código Pix:</p>
+                      <div className="text-lg font-bold text-gray-900">{formatCurrency(pixPaymentData.amountCents)}</div>
+                      <img
+                        src={`data:image/png;base64,${pixPaymentData.qrCodeBase64}`}
+                        alt="QR code Pix"
+                        className="mx-auto h-56 w-56 rounded-lg border border-gray-200"
+                      />
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-left">
+                        <p className="break-all font-mono text-xs text-gray-500">{pixPaymentData.qrCode}</p>
+                      </div>
+                      <Button variant="outline" className="w-full" type="button" onClick={handleCopyPixCode}>
+                        <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
+                        {pixCopied ? "Código copiado!" : "Copiar código Pix"}
+                      </Button>
+                      <div className="flex items-center justify-center gap-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-800">
+                        {pixStatus === "timeout" ? (
+                          <span>Ainda não recebemos a confirmação. Se você já pagou, aguarde mais um pouco — o pagamento pode levar alguns minutos.</span>
+                        ) : (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                            <span>Aguardando pagamento... esta tela atualiza sozinha assim que confirmar.</span>
+                          </>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="text-sm text-gray-500 underline"
+                        onClick={() => {
+                          setPixPaymentData(null);
+                          setStep("payment");
+                        }}
+                      >
+                        ← Escolher outra forma de pagamento
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </CardContent>

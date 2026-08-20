@@ -111,6 +111,54 @@ export async function getMercadoPagoPayment(paymentId: string) {
   return paymentClient.get({ id: paymentId });
 }
 
+export type CreatePixPaymentInput = {
+  campaignTitle: string;
+  amountCents: number;
+  donorEmail: string;
+  donorName?: string;
+  externalReference: string;
+  baseUrl: string;
+};
+
+export async function createMercadoPagoPixPayment(input: CreatePixPaymentInput) {
+  const origin = normalizeBaseUrl(input.baseUrl);
+  const paymentClient = new Payment(getMercadoPagoConfig());
+  const [firstName, ...rest] = (input.donorName?.trim() || "Doador").split(/\s+/);
+  const response = await paymentClient.create({
+    body: {
+      transaction_amount: input.amountCents / 100,
+      description: `Contribuição para ${input.campaignTitle}`,
+      payment_method_id: "pix",
+      payer: {
+        email: input.donorEmail,
+        first_name: firstName,
+        last_name: rest.join(" ") || undefined,
+      },
+      external_reference: input.externalReference,
+      notification_url: `${origin}/api/webhooks/mercadopago`,
+      statement_descriptor: "PARCERIABEM",
+    },
+    requestOptions: {
+      idempotencyKey: input.externalReference,
+    },
+  });
+
+  const transactionData = response.point_of_interaction?.transaction_data;
+  if (!response.id || !transactionData?.qr_code || !transactionData?.qr_code_base64) {
+    throw new Error("O Mercado Pago não retornou os dados do QR code Pix");
+  }
+
+  const isTestCredential = ENV.mercadoPagoAccessToken.startsWith("TEST-");
+
+  return {
+    paymentId: String(response.id),
+    status: response.status ?? "pending",
+    qrCode: transactionData.qr_code,
+    qrCodeBase64: transactionData.qr_code_base64,
+    environment: isTestCredential ? "test" as const : "production" as const,
+  };
+}
+
 export function validateMercadoPagoWebhook(input: {
   xSignature: string | string[] | undefined | null;
   xRequestId: string | string[] | undefined | null;

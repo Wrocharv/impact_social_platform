@@ -7,7 +7,7 @@ import { ENV } from "./_core/env";
 import { publicProcedure, router } from "./_core/trpc";
 import { createFallbackCashContribution } from "./cashValidationFallback";
 import { getDb } from "./db";
-import { createMercadoPagoPreference, getMercadoPagoPayment } from "./mercadopago";
+import { createMercadoPagoPixPayment, createMercadoPagoPreference, getMercadoPagoPayment } from "./mercadopago";
 
 const createPaymentPreferenceSchema = z.object({
   campaignId: z.number().int().positive(),
@@ -30,6 +30,26 @@ const createPaymentPreferenceSchema = z.object({
   numberOfInstallments: z.number().int().min(2).max(24).optional(),
   installmentFrequency: z.enum(["weekly", "biweekly", "monthly"]).optional(),
   paymentMethod: z.enum(["pix", "card", "boleto", "cash"]).optional(),
+});
+
+const createPixPaymentSchema = z.object({
+  campaignId: z.number().int().positive(),
+  campaignTitle: z.string().trim().max(255).optional(),
+  amount: z.number().int().min(100, "Valor mínimo: R$ 1,00"),
+  donorEmail: z.preprocess(
+    (value) => {
+      if (typeof value !== "string") return value;
+      const normalized = value.trim();
+      return normalized.length === 0 ? undefined : normalized;
+    },
+    z.string().email().optional(),
+  ),
+  donorName: z.string().trim().max(255).optional().default(""),
+  donorCpf: z.string().trim().max(14).optional().default(""),
+  donorWhatsapp: z.string().trim().max(20).optional().default(""),
+  donorCity: z.string().trim().max(255).optional().default(""),
+  donorChurch: z.string().trim().max(255).optional().default(""),
+  allowPublicDisplay: z.boolean().optional().default(true),
 });
 
 const syncPaymentStatusSchema = z.object({
@@ -807,6 +827,83 @@ export const paymentsRouter = router({
           code: "BAD_GATEWAY",
           message,
         });
+      }
+    }),
+
+  // Gera o QR code do Pix diretamente (sem redirecionar pro checkout hospedado do Mercado
+  // Pago) — o doador paga sem sair do nosso site, e o front consulta syncPaymentStatus
+  // periodicamente até o pagamento ser aprovado.
+  createPixPayment: publicProcedure
+    .input(createPixPaymentSchema)
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "Não foi possível iniciar o pagamento Pix no momento. Tente novamente em instantes.",
+        });
+      }
+
+      const [campaign] = await db
+        .select({ id: campaigns.id, title: campaigns.title, status: campaigns.status })
+        .from(campaigns)
+        .where(and(eq(campaigns.id, input.campaignId), eq(campaigns.status, "active")))
+        .limit(1);
+
+      const campaignTitle = campaign?.title ?? input.campaignTitle?.trim() ?? `Campanha ${input.campaignId}`;
+      if (!campaign && input.campaignId < 100000) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Campanha não encontrada ou inativa." });
+      }
+
+      const donorEmail = input.donorEmail?.trim() || `doador+${randomUUID().slice(0, 8)}@parceriadobem.com`;
+      const donorName = input.donorName?.trim() || "Doador";
+      const donorCpf = normalizeCpf(input.donorCpf);
+      const externalReference = `pdb-${input.campaignId}-${randomUUID()}`;
+
+      try {
+        const pixPayment = await createMercadoPagoPixPayment({
+          campaignTitle,
+          amountCents: input.amount,
+          donorEmail,
+          donorName,
+          externalReference,
+          baseUrl: requestOrigin(ctx.req),
+        });
+
+        const insertResult = await db
+          .insert(contributions)
+          .values({
+            campaignId: input.campaignId,
+            userId: ctx.user?.id,
+            type: "financial",
+            amount: input.amount,
+            donorName,
+            donorCpf,
+            donorEmail,
+            donorWhatsapp: input.donorWhatsapp?.trim() ?? "",
+            donorCity: input.donorCity?.trim() ?? "",
+            donorChurch: input.donorChurch?.trim() ?? "",
+            allowPublicDisplay: input.allowPublicDisplay ?? true,
+            paymentMethod: "pix",
+            status: mapMercadoPagoStatus(pixPayment.status),
+            externalReference,
+            paymentId: pixPayment.paymentId,
+          });
+
+        const contributionId = Number((insertResult as { insertId?: number })?.insertId ?? 0) || undefined;
+
+        return {
+          contributionId,
+          externalReference,
+          paymentId: pixPayment.paymentId,
+          qrCode: pixPayment.qrCode,
+          qrCodeBase64: pixPayment.qrCodeBase64,
+          environment: pixPayment.environment,
+        };
+      } catch (error) {
+        const message = getReadableErrorMessage(error);
+        console.error("[MercadoPago] Falha ao criar pagamento Pix embutido", error);
+        throw new TRPCError({ code: "BAD_GATEWAY", message });
       }
     }),
 
