@@ -142,11 +142,11 @@ async function loadReport(campaignId: number, publicOnly: boolean) {
       .where(eq(transparencyDocuments.campaignId, campaignId))
       .orderBy(desc(transparencyDocuments.uploadedAt)),
     db
-      .select({ amount: contributions.amount })
+      .select({ type: contributions.type, amount: contributions.amount, estimatedAmount: contributions.estimatedAmount })
       .from(contributions)
       .where(and(
         eq(contributions.campaignId, campaignId),
-        eq(contributions.type, "financial"),
+        inArray(contributions.type, ["financial", "material"]),
         inArray(contributions.status, CONFIRMED_FINANCIAL_STATUSES),
       )),
   ]);
@@ -158,7 +158,7 @@ async function loadReport(campaignId: number, publicOnly: boolean) {
   // subestima quanto já entrou (e o saldo disponível fica errado).
   const initialRaisedEntry = Math.max(0, campaign.raised ?? 0);
   const contributionsTotal = confirmedEntries.reduce(
-    (sum, entry) => sum + Math.max(0, entry.amount ?? 0),
+    (sum, entry) => sum + Math.max(0, (entry.type === "material" ? entry.estimatedAmount : entry.amount) ?? 0),
     0,
   );
   const totalConfirmedEntries = initialRaisedEntry + contributionsTotal;
@@ -180,16 +180,6 @@ async function loadReport(campaignId: number, publicOnly: boolean) {
 }
 
 export const accountabilityRouter = router({
-  // TEMPORARIO: diagnostico read-only, sem filtro de campanha. Remover depois.
-  debugAllExpenses: publicProcedure.query(async () => {
-    const db = await requireDatabase();
-    const rows = await db
-      .select({ id: campaignExpenses.id, campaignId: campaignExpenses.campaignId, title: campaignExpenses.title, amount: campaignExpenses.amount, category: campaignExpenses.category, createdAt: campaignExpenses.createdAt })
-      .from(campaignExpenses)
-      .orderBy(desc(campaignExpenses.createdAt));
-    return { count: rows.length, rows };
-  }),
-
   getPublicReport: publicProcedure
     .input(z.object({ campaignId: z.number().int().positive() }))
     .query(({ input }) => loadReport(input.campaignId, true)),

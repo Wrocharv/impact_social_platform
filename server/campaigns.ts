@@ -655,7 +655,9 @@ export async function loadCampaignMetrics(
     .select({
       id: contributions.id,
       campaignId: contributions.campaignId,
+      type: contributions.type,
       amount: contributions.amount,
+      estimatedAmount: contributions.estimatedAmount,
       userId: contributions.userId,
       donorEmail: contributions.donorEmail,
     })
@@ -663,7 +665,7 @@ export async function loadCampaignMetrics(
     .where(
       and(
         inArray(contributions.campaignId, campaignIds),
-        eq(contributions.type, "financial"),
+        inArray(contributions.type, ["financial", "material"]),
         inArray(contributions.status, APPROVED_CONTRIBUTION_STATUSES),
       ),
     );
@@ -675,7 +677,7 @@ export async function loadCampaignMetrics(
   rows.forEach((row) => {
     const campaignRows = grouped.get(row.campaignId) ?? [];
     campaignRows.push({
-      amount: row.amount,
+      amount: row.type === "material" ? row.estimatedAmount : row.amount,
       contributorKey: row.userId
         ? `user:${row.userId}`
         : row.donorEmail
