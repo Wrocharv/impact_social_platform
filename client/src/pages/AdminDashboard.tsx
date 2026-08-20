@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { AlertCircle, Building2, CheckCircle2, Edit2, ExternalLink, FileText, Handshake, Megaphone, PackagePlus, Plus, Trash2, Users, XCircle } from "lucide-react";
+import { AlertCircle, Building2, CheckCircle2, Edit2, ExternalLink, FileText, Handshake, Layout, Megaphone, PackagePlus, Plus, Trash2, Users, XCircle } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { isAdminUser } from "@/_core/hooks/adminAccess";
 import CampaignAccountabilityDialog from "@/components/admin/CampaignAccountabilityDialog";
@@ -142,7 +142,7 @@ export default function AdminDashboard() {
   const utils = trpc.useUtils();
   const isAdmin = isAdminUser(user, ["gospeltv@gmail.com"]);
   const isLocalhost = window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1");
-  const [activeTab, setActiveTab] = useState<"campaigns" | "partners" | "community" | "comments">(() =>
+  const [activeTab, setActiveTab] = useState<"campaigns" | "content" | "validations" | "partners" | "community" | "comments">(() =>
     new URLSearchParams(window.location.search).get("tab") === "partners" ? "partners" : "campaigns",
   );
   const [isCreateCampaignOpen, setIsCreateCampaignOpen] = useState(false);
@@ -1121,9 +1121,11 @@ export default function AdminDashboard() {
           <p className="mt-2 text-[#66736a]">Gerencie campanhas e os parceiros exibidos publicamente.</p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "campaigns" | "partners" | "community" | "comments")} className="space-y-7">
-          <TabsList className="h-auto w-full justify-start gap-1 rounded-xl bg-[#eaf1e8] p-1 sm:w-auto">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "campaigns" | "content" | "validations" | "partners" | "community" | "comments")} className="space-y-7">
+          <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl bg-[#eaf1e8] p-1 sm:w-auto">
             <TabsTrigger value="campaigns" className="min-h-11 gap-2 px-5"><Building2 className="h-4 w-4" /> Campanhas</TabsTrigger>
+            <TabsTrigger value="content" className="min-h-11 gap-2 px-5"><Layout className="h-4 w-4" /> Conteúdo do site</TabsTrigger>
+            <TabsTrigger value="validations" className="min-h-11 gap-2 px-5"><CheckCircle2 className="h-4 w-4" /> Validações</TabsTrigger>
             <TabsTrigger value="partners" className="min-h-11 gap-2 px-5"><Handshake className="h-4 w-4" /> Parceiros</TabsTrigger>
             <TabsTrigger value="community" className="min-h-11 gap-2 px-5"><Users className="h-4 w-4" /> Comunidade</TabsTrigger>
             <TabsTrigger value="comments" className="min-h-11 gap-2 px-5"><FileText className="h-4 w-4" /> Depoimentos</TabsTrigger>
@@ -1367,6 +1369,121 @@ export default function AdminDashboard() {
               </div>
             </Card>
 
+            <div className="space-y-4">
+              {campaignsQuery.isLoading ? <LoadingCard label="Carregando campanhas..." /> : campaignsQuery.isError ? (
+                <Card className="border-[#f3d2ce] bg-[#fff7f6] p-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-sm text-[#b42318]">
+                      Não foi possível carregar as campanhas.
+                      {campaignsQuery.error?.message ? ` Motivo: ${campaignsQuery.error.message}` : ""}
+                    </p>
+                    <Button variant="outline" size="sm" onClick={() => campaignsQuery.refetch()}>Tentar novamente</Button>
+                  </div>
+                </Card>
+              ) : campaignsQuery.data?.length ? campaignsQuery.data.map((campaign) => (
+                <Card key={campaign.id} className="p-5 md:p-6">
+                  <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
+                    <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-3"><h3 className="text-lg font-bold text-[#243128]">{campaign.title}</h3><StatusBadge status={campaign.status} /></div><p className="mt-2 text-[#66736a]">{campaign.description}</p><div className="mt-5 grid gap-4 text-sm sm:grid-cols-3"><Metric label="Meta" value={formatCurrency(campaign.goal)} /><Metric label="Arrecadado" value={formatCurrency(campaign.raised)} accent /><Metric label="Progresso" value={`${campaign.progress}%`} /></div></div>
+                    <div className="flex flex-wrap gap-2 lg:max-w-xs lg:justify-end">
+                      <Button variant="outline" size="sm" className="gap-2" onClick={() => openEditCampaign(campaign)}><Edit2 className="h-4 w-4" /> Editar</Button>
+                      <Button variant="outline" size="sm" className="gap-2" onClick={() => openCampaignUpdate(campaign)}><Megaphone className="h-4 w-4" /> Publicar evolução</Button>
+                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => openCampaignNeed(campaign)}><PackagePlus className="h-4 w-4" /> Novo item</Button>
+                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => { setManagingNeedsCampaign({ id: campaign.id, title: campaign.title }); setIsManageNeedsOpen(true); }}><Edit2 className="h-3 w-3" /> Gerenciar itens para doar</Button>
+                      <Button variant="outline" size="sm" className="gap-2" onClick={() => setAccountabilityCampaign({ id: campaign.id, title: campaign.title })}><FileText className="h-4 w-4" /> Prestação de contas</Button>
+                      <Button variant="outline" size="sm" className="gap-2 text-red-700 hover:text-red-800" onClick={() => setCampaignToDelete({ id: campaign.id, title: campaign.title })}><Trash2 className="h-4 w-4" /> Excluir</Button>
+                      <Button asChild variant="ghost" size="sm" className="gap-2"><Link href={`/campaign/${campaign.id}`}><ExternalLink className="h-4 w-4" /> Ver no site</Link></Button>
+                    </div>
+                  </div>
+                  <form onSubmit={(event) => handleSaveCampaignContent(event, campaign.id)} className="mt-6 space-y-4 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-sm font-bold text-[#243128]">Conteúdo manual da campanha</h4>
+                        <p className="text-xs text-[#66736a]">Edite título, subtítulo, hero e galeria sem depender de código.</p>
+                        <p className="mt-1 text-xs font-semibold text-[#70571a]">Para salvar vídeo/foto VIP da campanha, use o botão "Editar" acima e clique em "Salvar alterações" no modal.</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" size="sm" variant="default" className="bg-[#228B22] hover:bg-[#1a6b1a]" onClick={() => openEditCampaign(campaign)}>Abrir editor da campanha</Button>
+                        <Button type="submit" size="sm" variant="outline">Descartar conteúdo manual</Button>
+                      </div>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field label="Título exibido na página">
+                        <Input value={(campaignContentForm[campaign.id]?.title ?? getCampaignContent(campaign.id).title) || campaign.title} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), title: event.target.value } }))} />
+                      </Field>
+                      <Field label="Subtítulo exibido no topo">
+                        <Input value={(campaignContentForm[campaign.id]?.subtitle ?? getCampaignContent(campaign.id).subtitle) || ""} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), subtitle: event.target.value } }))} />
+                      </Field>
+                    </div>
+                    <Field label="Descrição curta"><Textarea rows={3} value={(campaignContentForm[campaign.id]?.description ?? getCampaignContent(campaign.id).description) || ""} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), description: event.target.value } }))} /></Field>
+                    <Field label="Descrição longa"><Textarea rows={5} value={(campaignContentForm[campaign.id]?.longDescription ?? getCampaignContent(campaign.id).longDescription) || ""} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), longDescription: event.target.value } }))} /></Field>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field label="Imagem principal (URL, arquivo local ou YouTube)">
+                        <Input value={(campaignContentForm[campaign.id]?.heroImageUrl ?? getCampaignContent(campaign.id).heroImageUrl) || ""} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), heroImageUrl: event.target.value } }))} placeholder="https://... ou /arquivo.jpg" />
+                        <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
+                          <div className="mt-2 space-y-2">
+                            <div>
+                              <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
+                              <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; void handleCampaignImageUpload("edit", file); }} />
+                              <p className="mt-1 text-[11px] text-[#889284]">JPG, PNG ou WEBP. Ideal: 1920×1080px (paisagem). Fotos maiores são reduzidas automaticamente.</p>
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
+                              <div className="flex gap-2">
+                                <Input value={campaignContentMediaYouTubeUrls[campaign.id]?.gallery ?? ""} onChange={(event) => setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), gallery: event.target.value } }))} placeholder="https://www.youtube.com/watch?v=..." />
+                                <Button type="button" size="sm" variant="outline" onClick={() => { const value = (campaignContentMediaYouTubeUrls[campaign.id]?.gallery ?? "").trim(); if (!value) return; setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), heroImageUrl: value } })); setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), gallery: "" } })); toast.success("YouTube adicionado ao hero da campanha."); }}>Adicionar</Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </Field>
+                      <Field label="Galeria (uma URL por linha)">
+                        <Textarea rows={4} value={(campaignContentForm[campaign.id]?.galleryImageUrls ?? getCampaignContent(campaign.id).galleryImageUrls).join("\n")} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), galleryImageUrls: event.target.value.split(/\n|,/).map((item) => item.trim()).filter(Boolean) } }))} placeholder="https://.../foto1.jpg" />
+                        <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
+                          <div className="mt-2 space-y-2">
+                            <div>
+                              <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
+                              <Input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => void handleCampaignContentMediaUpload(campaign.id, "gallery", event.target.files)} />
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
+                              <div className="flex gap-2">
+                                <Input value={campaignContentMediaYouTubeUrls[campaign.id]?.gallery ?? ""} onChange={(event) => setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), gallery: event.target.value } }))} placeholder="https://www.youtube.com/watch?v=..." />
+                                <Button type="button" size="sm" variant="outline" onClick={() => { const value = (campaignContentMediaYouTubeUrls[campaign.id]?.gallery ?? "").trim(); if (!value) return; setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), galleryImageUrls: appendMediaValues((current[campaign.id] ?? getCampaignContent(campaign.id)).galleryImageUrls, [value]) } })); setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), gallery: "" } })); toast.success("YouTube adicionado à galeria."); }}>Adicionar</Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </Field>
+                    </div>
+                    <Field label="Vídeos (uma URL por linha ou YouTube)">
+                      <Textarea rows={4} value={(campaignContentForm[campaign.id]?.videoUrls ?? getCampaignContent(campaign.id).videoUrls).join("\n")} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), videoUrls: event.target.value.split(/\n|,/).map((item) => item.trim()).filter(Boolean) } }))} placeholder="https://www.youtube.com/watch?v=..." />
+                      <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
+                        <div className="mt-2 space-y-2">
+                          <div>
+                            <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
+                            <Input type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" multiple onChange={(event) => void handleCampaignContentMediaUpload(campaign.id, "videos", event.target.files)} />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
+                            <div className="flex gap-2">
+                              <Input value={campaignContentMediaYouTubeUrls[campaign.id]?.videos ?? ""} onChange={(event) => setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), videos: event.target.value } }))} placeholder="https://www.youtube.com/watch?v=..." />
+                              <Button type="button" size="sm" variant="outline" onClick={() => { const value = (campaignContentMediaYouTubeUrls[campaign.id]?.videos ?? "").trim(); if (!value) return; setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), videoUrls: appendMediaValues((current[campaign.id] ?? getCampaignContent(campaign.id)).videoUrls, [value]) } })); setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), videos: "" } })); toast.success("YouTube adicionado aos vídeos da campanha."); }}>Adicionar</Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Field>
+                  </form>
+                </Card>
+              )) : <EmptyCard icon={Building2} title="Nenhuma campanha cadastrada" description="Crie a primeira campanha para iniciar a operação." action={<Button onClick={() => setIsCreateCampaignOpen(true)}>Criar campanha</Button>} />}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="content" className="space-y-6">
+            <div><h2 className="text-2xl font-bold text-[#243128]">Conteúdo do site</h2><p className="mt-1 text-[#66736a]">Textos, imagem e vídeo editáveis da página inicial — título, seção "Como funciona" e botões.</p></div>
             <Card className="p-5 md:p-6">
               <div className="mb-4 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4">
                 <h3 className="text-lg font-bold text-[#243128]">Conteúdo manual do site</h3>
@@ -1418,7 +1535,12 @@ export default function AdminDashboard() {
                   <div className="flex justify-end"><Button type="submit" disabled={updateSiteSettings.isPending}>{updateSiteSettings.isPending ? "Salvando..." : "Salvar conteúdo"}</Button></div>
                 </form>
               </div>
+            </Card>
+          </TabsContent>
 
+          <TabsContent value="validations" className="space-y-6">
+            <div><h2 className="text-2xl font-bold text-[#243128]">Validações</h2><p className="mt-1 text-[#66736a]">Confirme doações em dinheiro e ofertas de material antes de entrarem no total arrecadado.</p></div>
+            <Card className="p-5 md:p-6">
               <div className="mb-4 flex flex-col gap-3 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-[#243128]">Filtro de validação</h3>
@@ -1698,118 +1820,6 @@ export default function AdminDashboard() {
                 )}
               </div>
             </Card>
-
-            <div className="space-y-4">
-              {campaignsQuery.isLoading ? <LoadingCard label="Carregando campanhas..." /> : campaignsQuery.isError ? (
-                <Card className="border-[#f3d2ce] bg-[#fff7f6] p-4">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <p className="text-sm text-[#b42318]">
-                      Não foi possível carregar as campanhas.
-                      {campaignsQuery.error?.message ? ` Motivo: ${campaignsQuery.error.message}` : ""}
-                    </p>
-                    <Button variant="outline" size="sm" onClick={() => campaignsQuery.refetch()}>Tentar novamente</Button>
-                  </div>
-                </Card>
-              ) : campaignsQuery.data?.length ? campaignsQuery.data.map((campaign) => (
-                <Card key={campaign.id} className="p-5 md:p-6">
-                  <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
-                    <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-3"><h3 className="text-lg font-bold text-[#243128]">{campaign.title}</h3><StatusBadge status={campaign.status} /></div><p className="mt-2 text-[#66736a]">{campaign.description}</p><div className="mt-5 grid gap-4 text-sm sm:grid-cols-3"><Metric label="Meta" value={formatCurrency(campaign.goal)} /><Metric label="Arrecadado" value={formatCurrency(campaign.raised)} accent /><Metric label="Progresso" value={`${campaign.progress}%`} /></div></div>
-                    <div className="flex flex-wrap gap-2 lg:max-w-xs lg:justify-end">
-                      <Button variant="outline" size="sm" className="gap-2" onClick={() => openEditCampaign(campaign)}><Edit2 className="h-4 w-4" /> Editar</Button>
-                      <Button variant="outline" size="sm" className="gap-2" onClick={() => openCampaignUpdate(campaign)}><Megaphone className="h-4 w-4" /> Publicar evolução</Button>
-                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => openCampaignNeed(campaign)}><PackagePlus className="h-4 w-4" /> Novo item</Button>
-                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => { setManagingNeedsCampaign({ id: campaign.id, title: campaign.title }); setIsManageNeedsOpen(true); }}><Edit2 className="h-3 w-3" /> Gerenciar itens para doar</Button>
-                      <Button variant="outline" size="sm" className="gap-2" onClick={() => setAccountabilityCampaign({ id: campaign.id, title: campaign.title })}><FileText className="h-4 w-4" /> Prestação de contas</Button>
-                      <Button variant="outline" size="sm" className="gap-2 text-red-700 hover:text-red-800" onClick={() => setCampaignToDelete({ id: campaign.id, title: campaign.title })}><Trash2 className="h-4 w-4" /> Excluir</Button>
-                      <Button asChild variant="ghost" size="sm" className="gap-2"><Link href={`/campaign/${campaign.id}`}><ExternalLink className="h-4 w-4" /> Ver no site</Link></Button>
-                    </div>
-                  </div>
-                  <form onSubmit={(event) => handleSaveCampaignContent(event, campaign.id)} className="mt-6 space-y-4 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <h4 className="text-sm font-bold text-[#243128]">Conteúdo manual da campanha</h4>
-                        <p className="text-xs text-[#66736a]">Edite título, subtítulo, hero e galeria sem depender de código.</p>
-                        <p className="mt-1 text-xs font-semibold text-[#70571a]">Para salvar vídeo/foto VIP da campanha, use o botão "Editar" acima e clique em "Salvar alterações" no modal.</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button type="button" size="sm" variant="default" className="bg-[#228B22] hover:bg-[#1a6b1a]" onClick={() => openEditCampaign(campaign)}>Abrir editor da campanha</Button>
-                        <Button type="submit" size="sm" variant="outline">Descartar conteúdo manual</Button>
-                      </div>
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <Field label="Título exibido na página">
-                        <Input value={(campaignContentForm[campaign.id]?.title ?? getCampaignContent(campaign.id).title) || campaign.title} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), title: event.target.value } }))} />
-                      </Field>
-                      <Field label="Subtítulo exibido no topo">
-                        <Input value={(campaignContentForm[campaign.id]?.subtitle ?? getCampaignContent(campaign.id).subtitle) || ""} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), subtitle: event.target.value } }))} />
-                      </Field>
-                    </div>
-                    <Field label="Descrição curta"><Textarea rows={3} value={(campaignContentForm[campaign.id]?.description ?? getCampaignContent(campaign.id).description) || ""} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), description: event.target.value } }))} /></Field>
-                    <Field label="Descrição longa"><Textarea rows={5} value={(campaignContentForm[campaign.id]?.longDescription ?? getCampaignContent(campaign.id).longDescription) || ""} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), longDescription: event.target.value } }))} /></Field>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <Field label="Imagem principal (URL, arquivo local ou YouTube)">
-                        <Input value={(campaignContentForm[campaign.id]?.heroImageUrl ?? getCampaignContent(campaign.id).heroImageUrl) || ""} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), heroImageUrl: event.target.value } }))} placeholder="https://... ou /arquivo.jpg" />
-                        <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
-                          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
-                          <div className="mt-2 space-y-2">
-                            <div>
-                              <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
-                              <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; void handleCampaignImageUpload("edit", file); }} />
-                              <p className="mt-1 text-[11px] text-[#889284]">JPG, PNG ou WEBP. Ideal: 1920×1080px (paisagem). Fotos maiores são reduzidas automaticamente.</p>
-                            </div>
-                            <div>
-                              <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
-                              <div className="flex gap-2">
-                                <Input value={campaignContentMediaYouTubeUrls[campaign.id]?.gallery ?? ""} onChange={(event) => setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), gallery: event.target.value } }))} placeholder="https://www.youtube.com/watch?v=..." />
-                                <Button type="button" size="sm" variant="outline" onClick={() => { const value = (campaignContentMediaYouTubeUrls[campaign.id]?.gallery ?? "").trim(); if (!value) return; setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), heroImageUrl: value } })); setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), gallery: "" } })); toast.success("YouTube adicionado ao hero da campanha."); }}>Adicionar</Button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </Field>
-                      <Field label="Galeria (uma URL por linha)">
-                        <Textarea rows={4} value={(campaignContentForm[campaign.id]?.galleryImageUrls ?? getCampaignContent(campaign.id).galleryImageUrls).join("\n")} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), galleryImageUrls: event.target.value.split(/\n|,/).map((item) => item.trim()).filter(Boolean) } }))} placeholder="https://.../foto1.jpg" />
-                        <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
-                          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
-                          <div className="mt-2 space-y-2">
-                            <div>
-                              <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
-                              <Input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => void handleCampaignContentMediaUpload(campaign.id, "gallery", event.target.files)} />
-                            </div>
-                            <div>
-                              <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
-                              <div className="flex gap-2">
-                                <Input value={campaignContentMediaYouTubeUrls[campaign.id]?.gallery ?? ""} onChange={(event) => setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), gallery: event.target.value } }))} placeholder="https://www.youtube.com/watch?v=..." />
-                                <Button type="button" size="sm" variant="outline" onClick={() => { const value = (campaignContentMediaYouTubeUrls[campaign.id]?.gallery ?? "").trim(); if (!value) return; setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), galleryImageUrls: appendMediaValues((current[campaign.id] ?? getCampaignContent(campaign.id)).galleryImageUrls, [value]) } })); setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), gallery: "" } })); toast.success("YouTube adicionado à galeria."); }}>Adicionar</Button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </Field>
-                    </div>
-                    <Field label="Vídeos (uma URL por linha ou YouTube)">
-                      <Textarea rows={4} value={(campaignContentForm[campaign.id]?.videoUrls ?? getCampaignContent(campaign.id).videoUrls).join("\n")} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), videoUrls: event.target.value.split(/\n|,/).map((item) => item.trim()).filter(Boolean) } }))} placeholder="https://www.youtube.com/watch?v=..." />
-                      <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
-                        <div className="mt-2 space-y-2">
-                          <div>
-                            <label className="text-xs font-medium text-[#334139]">1. Arquivo local</label>
-                            <Input type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" multiple onChange={(event) => void handleCampaignContentMediaUpload(campaign.id, "videos", event.target.files)} />
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium text-[#334139]">2. YouTube</label>
-                            <div className="flex gap-2">
-                              <Input value={campaignContentMediaYouTubeUrls[campaign.id]?.videos ?? ""} onChange={(event) => setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), videos: event.target.value } }))} placeholder="https://www.youtube.com/watch?v=..." />
-                              <Button type="button" size="sm" variant="outline" onClick={() => { const value = (campaignContentMediaYouTubeUrls[campaign.id]?.videos ?? "").trim(); if (!value) return; setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), videoUrls: appendMediaValues((current[campaign.id] ?? getCampaignContent(campaign.id)).videoUrls, [value]) } })); setCampaignContentMediaYouTubeUrls((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? { gallery: "", videos: "" }), videos: "" } })); toast.success("YouTube adicionado aos vídeos da campanha."); }}>Adicionar</Button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </Field>
-                  </form>
-                </Card>
-              )) : <EmptyCard icon={Building2} title="Nenhuma campanha cadastrada" description="Crie a primeira campanha para iniciar a operação." action={<Button onClick={() => setIsCreateCampaignOpen(true)}>Criar campanha</Button>} />}
-            </div>
           </TabsContent>
 
           <TabsContent value="partners" className="space-y-6">
