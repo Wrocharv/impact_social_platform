@@ -1582,8 +1582,8 @@ export default function AdminDashboard() {
                       <div key={item.id} className="rounded-lg border border-[#e1e6df] p-4">
                         <div className="grid gap-2 text-sm text-[#4e5c53] sm:grid-cols-2 lg:grid-cols-4">
                           <p><span className="font-semibold text-[#243128]">Oferta:</span> #{item.id}</p>
-                          <p><span className="font-semibold text-[#243128]">Campanha:</span> #{item.campaignId}</p>
-                          <p><span className="font-semibold text-[#243128]">Necessidade:</span> {item.campaignNeedId ? `#${item.campaignNeedId}` : "Não vinculada"}</p>
+                          <p><span className="font-semibold text-[#243128]">Campanha:</span> {item.campaignTitle || `#${item.campaignId}`}</p>
+                          <p><span className="font-semibold text-[#243128]">Necessidade:</span> {item.needName || (item.campaignNeedId ? `#${item.campaignNeedId}` : "Não vinculada")}</p>
                           <p><span className="font-semibold text-[#243128]">Doador:</span> {item.donorName || "Não informado"}</p>
                         </div>
                         <div className="mt-1 grid gap-2 text-sm text-[#4e5c53] sm:grid-cols-2 lg:grid-cols-3">
@@ -1669,7 +1669,7 @@ export default function AdminDashboard() {
                       return (
                         <div key={`material-validation-${item.id}`} className="rounded-lg bg-[#f5f8f3] p-3 text-sm">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="font-semibold text-[#243128]">Oferta #{item.id} · Campanha #{item.campaignId}</p>
+                            <p className="font-semibold text-[#243128]">Oferta #{item.id} · {item.campaignTitle || `Campanha #${item.campaignId}`}</p>
                             <Badge variant={isApproved ? "default" : "secondary"} className={isApproved ? "bg-[#228B22]" : "bg-red-100 text-red-700"}>
                               {isApproved ? "Aprovada" : "Rejeitada"}
                             </Badge>

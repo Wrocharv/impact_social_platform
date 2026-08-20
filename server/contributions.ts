@@ -1113,7 +1113,7 @@ export const contributionsRouter = router({
       const fallbackPending = listFallbackPendingMaterialValidations(input?.campaignId);
       const db = await getDb();
       if (!db) {
-        return fallbackPending;
+        return fallbackPending.map((row) => ({ ...row, campaignTitle: null, needName: null }));
       }
 
       const conditions = [
@@ -1134,7 +1134,9 @@ export const contributionsRouter = router({
           .select({
             id: contributions.id,
             campaignId: contributions.campaignId,
+            campaignTitle: campaigns.title,
             campaignNeedId: contributions.campaignNeedId,
+            needName: campaignNeeds.name,
             donorName: contributions.donorName,
             donorWhatsapp: contributions.donorWhatsapp,
             donorCity: contributions.donorCity,
@@ -1146,6 +1148,8 @@ export const contributionsRouter = router({
             paymentStatusDetail: contributions.paymentStatusDetail,
           })
           .from(contributions)
+          .leftJoin(campaigns, eq(campaigns.id, contributions.campaignId))
+          .leftJoin(campaignNeeds, eq(campaignNeeds.id, contributions.campaignNeedId))
           .where(and(...conditions))
           .orderBy(desc(contributions.createdAt));
 
@@ -1157,7 +1161,7 @@ export const contributionsRouter = router({
         const merged = [...rows];
         for (const fallbackRow of fallbackPending) {
           if (!existingIds.has(fallbackRow.id)) {
-            merged.push(fallbackRow);
+            merged.push({ ...fallbackRow, campaignTitle: null, needName: null });
           }
         }
 
@@ -1188,7 +1192,9 @@ export const contributionsRouter = router({
         const mappedLegacyRows: Array<{
           id: number;
           campaignId: number;
+          campaignTitle: string | null;
           campaignNeedId: number | null;
+          needName: string | null;
           donorName: string;
           donorWhatsapp: string;
           donorCity: string;
@@ -1200,7 +1206,9 @@ export const contributionsRouter = router({
           paymentStatusDetail: string | null;
         }> = legacyRows.map((row) => ({
           ...row,
+          campaignTitle: null,
           campaignNeedId: null,
+          needName: null,
           donorName: "",
           donorWhatsapp: "",
           donorCity: "",
@@ -1223,7 +1231,9 @@ export const contributionsRouter = router({
             merged.push({
               id: fallbackRow.id,
               campaignId: fallbackRow.campaignId,
+              campaignTitle: null,
               campaignNeedId: fallbackRow.campaignNeedId ?? null,
+              needName: null,
               donorName: fallbackRow.donorName ?? "",
               donorWhatsapp: fallbackRow.donorWhatsapp ?? "",
               donorCity: fallbackRow.donorCity ?? "",
@@ -1252,7 +1262,7 @@ export const contributionsRouter = router({
         return listFallbackRecentMaterialValidations({
           campaignId: input?.campaignId,
           limit: input?.limit ?? 20,
-        });
+        }).map((row) => ({ ...row, campaignTitle: null, needName: null }));
       }
 
       const conditions = [
@@ -1269,7 +1279,9 @@ export const contributionsRouter = router({
           .select({
             id: contributions.id,
             campaignId: contributions.campaignId,
+            campaignTitle: campaigns.title,
             campaignNeedId: contributions.campaignNeedId,
+            needName: campaignNeeds.name,
             donorName: contributions.donorName,
             description: contributions.description,
             quantityExact: contributions.quantityExact,
@@ -1284,6 +1296,8 @@ export const contributionsRouter = router({
           })
           .from(contributions)
           .leftJoin(users, eq(users.id, contributions.validatedBy))
+          .leftJoin(campaigns, eq(campaigns.id, contributions.campaignId))
+          .leftJoin(campaignNeeds, eq(campaignNeeds.id, contributions.campaignNeedId))
           .where(and(...conditions))
           .orderBy(desc(contributions.validatedAt), desc(contributions.updatedAt))
           .limit(input?.limit ?? 20);
@@ -1318,7 +1332,9 @@ export const contributionsRouter = router({
         return legacyRows.map((row) => ({
           id: row.id,
           campaignId: row.campaignId,
+          campaignTitle: null,
           campaignNeedId: null,
+          needName: null,
           donorName: row.donorName,
           description: row.description,
           quantityExact: null,

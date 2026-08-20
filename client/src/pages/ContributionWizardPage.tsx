@@ -1489,6 +1489,7 @@ export default function ContributionWizardPage() {
                           type="number"
                           min={1}
                           step={1}
+                          value={state.materialQuantity}
                           onChange={(e) => setState({ ...state, materialQuantity: e.target.value })}
                           disabled={loading}
                         />
