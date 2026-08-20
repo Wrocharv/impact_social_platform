@@ -216,6 +216,17 @@ export default function AdminDashboard() {
     : Number.parseInt(validationCampaignFilter, 10);
 
   const registeredDonorsQuery = trpc.contributions.getRegisteredDonors.useQuery(undefined, { enabled: isAdmin });
+  const recentContributionsQuery = trpc.contributions.getRecentContributions.useQuery(undefined, { enabled: isAdmin });
+  const deleteContribution = trpc.contributions.deleteContribution.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.contributions.getRecentContributions.invalidate(),
+        utils.contributions.getRegisteredDonors.invalidate(),
+      ]);
+      toast.success("Contribuição removida.");
+    },
+    onError: (error) => toast.error(error.message || "Erro ao remover contribuição."),
+  });
   const commentsQuery = trpc.campaigns.getAllComments.useQuery(undefined, { enabled: isAdmin });
   const [commentStatusFilter, setCommentStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const reviewComment = trpc.campaigns.reviewComment.useMutation({
@@ -1880,6 +1891,63 @@ export default function AdminDashboard() {
                 <FileText className="h-4 w-4" /> Exportar CSV
               </Button>
             </div>
+
+            <Card className="p-5">
+              <p className="text-sm font-semibold text-[#2d2d2d]">Contribuições recentes</p>
+              <p className="mt-1 text-xs text-[#66736a]">
+                Todas as contribuições (qualquer status), pra auditar e remover lançamentos de teste ou errados.
+              </p>
+              {recentContributionsQuery.isLoading ? (
+                <p className="mt-3 text-sm text-[#66736a]">Carregando...</p>
+              ) : recentContributionsQuery.isError ? (
+                <p className="mt-3 text-sm text-red-700">Não foi possível carregar.</p>
+              ) : (recentContributionsQuery.data?.length ?? 0) === 0 ? (
+                <p className="mt-3 text-sm text-[#66736a]">Nenhuma contribuição registrada ainda.</p>
+              ) : (
+                <div className="mt-3 max-h-96 overflow-y-auto rounded-lg border border-[#e1e6df]">
+                  <table className="w-full text-left text-sm">
+                    <thead className="sticky top-0 border-b border-[#e1e6df] bg-[#f5f8f3] text-xs uppercase tracking-wide text-[#66736a]">
+                      <tr>
+                        <th className="px-3 py-2">Doador</th>
+                        <th className="px-3 py-2">Campanha</th>
+                        <th className="px-3 py-2">Tipo</th>
+                        <th className="px-3 py-2">Valor</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2">Data</th>
+                        <th className="px-3 py-2">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(recentContributionsQuery.data ?? []).map((c) => (
+                        <tr key={c.id} className="border-b border-[#e1e6df] last:border-0">
+                          <td className="px-3 py-2">{c.donorName || "—"}</td>
+                          <td className="px-3 py-2">{c.campaignTitle || "—"}</td>
+                          <td className="px-3 py-2 capitalize">{c.type}</td>
+                          <td className="px-3 py-2">{c.amount != null ? `R$ ${(c.amount / 100).toFixed(2).replace(".", ",")}` : "—"}</td>
+                          <td className="px-3 py-2 capitalize">{c.status}</td>
+                          <td className="px-3 py-2">{new Date(c.createdAt).toLocaleString("pt-BR")}</td>
+                          <td className="px-3 py-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-red-300 text-red-700 hover:text-red-800"
+                              disabled={deleteContribution.isPending}
+                              onClick={() => {
+                                if (!confirm(`Excluir a contribuição de "${c.donorName || "doador"}" (${c.type}, ${c.amount != null ? `R$ ${(c.amount / 100).toFixed(2)}` : "sem valor"})? Essa ação não pode ser desfeita.`)) return;
+                                deleteContribution.mutate({ id: c.id });
+                              }}
+                            >
+                              Excluir
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+
             {registeredDonorsQuery.isLoading ? (
               <p className="text-sm text-[#66736a]">Carregando comunidade...</p>
             ) : registeredDonorsQuery.isError ? (

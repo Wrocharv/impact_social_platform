@@ -984,6 +984,40 @@ export const contributionsRouter = router({
       .limit(100);
   }),
 
+  // Lista completa (qualquer status) pra o admin conseguir auditar e remover
+  // contribuições de teste/erradas — getPublicDonors só mostra as aprovadas.
+  getRecentContributions: adminProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+
+    return db
+      .select({
+        id: contributions.id,
+        donorName: contributions.donorName,
+        donorEmail: contributions.donorEmail,
+        type: contributions.type,
+        status: contributions.status,
+        amount: contributions.amount,
+        description: contributions.description,
+        campaignTitle: campaigns.title,
+        createdAt: contributions.createdAt,
+      })
+      .from(contributions)
+      .leftJoin(campaigns, eq(campaigns.id, contributions.campaignId))
+      .orderBy(desc(contributions.createdAt))
+      .limit(100);
+  }),
+
+  deleteContribution: adminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Banco indisponível" });
+
+      await db.delete(contributions).where(eq(contributions.id, input.id));
+      return { success: true };
+    }),
+
   getPendingCashValidations: adminProcedure
     .input(z.object({ campaignId: z.number().int().positive().optional() }).optional())
     .query(async ({ input }) => {
