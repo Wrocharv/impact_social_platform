@@ -137,7 +137,7 @@ const EMPTY_NEED_FORM = {
   priority: "medium" as "high" | "medium" | "low",
 };
 
-type AdminTab = "campaigns" | "content" | "validations" | "partners" | "community" | "comments" | "administrators";
+type AdminTab = "overview" | "campaigns" | "content" | "validations" | "partners" | "community" | "comments" | "administrators";
 
 export default function AdminDashboard() {
   const adminMeQuery = trpc.adminAuth.me.useQuery();
@@ -146,19 +146,19 @@ export default function AdminDashboard() {
   const adminSession = adminMeQuery.data;
   const isOwner = adminSession?.role === "owner";
   const canSeeSection = (section: Exclude<AdminTab, "administrators">) =>
-    !adminSession || adminSession.role === "owner" || adminSession.role === "full" || adminSession.allowedSections.includes(section);
+    section === "overview" || !adminSession || adminSession.role === "owner" || adminSession.role === "full" || adminSession.allowedSections.includes(section);
   const isLocalhost = window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1");
   const search = useSearch();
   const [, setLocation] = useLocation();
-  const requestedTab = (new URLSearchParams(search).get("tab") as AdminTab | null) ?? "campaigns";
+  const requestedTab = (new URLSearchParams(search).get("tab") as AdminTab | null) ?? "overview";
   const setActiveTab = (tab: AdminTab) => setLocation(`/admin?tab=${tab}`);
 
   const activeTab: AdminTab = (() => {
     if (!adminSession) return requestedTab;
-    if (requestedTab === "administrators") return isOwner ? "administrators" : "campaigns";
+    if (requestedTab === "administrators") return isOwner ? "administrators" : "overview";
     if (canSeeSection(requestedTab)) return requestedTab;
     const firstAllowed = (["campaigns", "content", "validations", "partners", "community", "comments"] as const).find(canSeeSection);
-    return firstAllowed ?? "campaigns";
+    return firstAllowed ?? "overview";
   })();
   const [isCreateCampaignOpen, setIsCreateCampaignOpen] = useState(false);
   const [isEditCampaignOpen, setIsEditCampaignOpen] = useState(false);
@@ -192,7 +192,7 @@ export default function AdminDashboard() {
   const [cashValidationNotes, setCashValidationNotes] = useState<Record<number, string>>({});
   const [materialValidationNotes, setMaterialValidationNotes] = useState<Record<number, string>>({});
   const [validationCampaignFilter, setValidationCampaignFilter] = useState<string>("all");
-  const siteSettingsQuery = trpc.siteSettings.get.useQuery(undefined, { enabled: isAdmin });
+  const siteSettingsQuery = trpc.siteSettings.get.useQuery(undefined, { enabled: isAdmin && canSeeSection("content") });
   const [siteContentForm, setSiteContentForm] = useState(DEFAULT_SITE_SETTINGS_FORM);
   const [siteContentLoaded, setSiteContentLoaded] = useState(false);
   useEffect(() => {
@@ -230,8 +230,8 @@ export default function AdminDashboard() {
     ? undefined
     : Number.parseInt(validationCampaignFilter, 10);
 
-  const registeredDonorsQuery = trpc.contributions.getRegisteredDonors.useQuery(undefined, { enabled: isAdmin });
-  const recentContributionsQuery = trpc.contributions.getRecentContributions.useQuery(undefined, { enabled: isAdmin });
+  const registeredDonorsQuery = trpc.contributions.getRegisteredDonors.useQuery(undefined, { enabled: isAdmin && canSeeSection("community") });
+  const recentContributionsQuery = trpc.contributions.getRecentContributions.useQuery(undefined, { enabled: isAdmin && canSeeSection("community") });
   const deleteContribution = trpc.contributions.deleteContribution.useMutation({
     onSuccess: async () => {
       await Promise.all([
@@ -242,7 +242,7 @@ export default function AdminDashboard() {
     },
     onError: (error) => toast.error(error.message || "Erro ao remover contribuição."),
   });
-  const commentsQuery = trpc.campaigns.getAllComments.useQuery(undefined, { enabled: isAdmin });
+  const commentsQuery = trpc.campaigns.getAllComments.useQuery(undefined, { enabled: isAdmin && canSeeSection("comments") });
   const [commentStatusFilter, setCommentStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const reviewComment = trpc.campaigns.reviewComment.useMutation({
     onSuccess: async () => { await utils.campaigns.getAllComments.invalidate(); },
@@ -271,28 +271,28 @@ export default function AdminDashboard() {
     return true;
   });
 
-  const campaignsQuery = trpc.campaigns.getAll.useQuery(undefined, { enabled: isAdmin });
+  const campaignsQuery = trpc.campaigns.getAll.useQuery(undefined, { enabled: isAdmin && canSeeSection("campaigns") });
   useEffect(() => {
     if (campaignsQuery.error) {
       toast.error(campaignsQuery.error.message || "Erro ao carregar campanhas");
     }
   }, [campaignsQuery.error]);
-  const partnersQuery = trpc.partners.getAll.useQuery(undefined, { enabled: isAdmin });
+  const partnersQuery = trpc.partners.getAll.useQuery(undefined, { enabled: isAdmin && canSeeSection("partners") });
   const pendingCashQuery = trpc.contributions.getPendingCashValidations.useQuery(
     selectedValidationCampaignId ? { campaignId: selectedValidationCampaignId } : undefined,
-    { enabled: isAdmin },
+    { enabled: isAdmin && canSeeSection("validations") },
   );
   const recentCashQuery = trpc.contributions.getRecentCashValidations.useQuery(
     selectedValidationCampaignId ? { campaignId: selectedValidationCampaignId, limit: 20 } : { limit: 20 },
-    { enabled: isAdmin },
+    { enabled: isAdmin && canSeeSection("validations") },
   );
   const pendingMaterialQuery = trpc.contributions.getPendingMaterialValidations.useQuery(
     selectedValidationCampaignId ? { campaignId: selectedValidationCampaignId } : undefined,
-    { enabled: isAdmin },
+    { enabled: isAdmin && canSeeSection("validations") },
   );
   const recentMaterialQuery = trpc.contributions.getRecentMaterialValidations.useQuery(
     selectedValidationCampaignId ? { campaignId: selectedValidationCampaignId, limit: 20 } : { limit: 20 },
-    { enabled: isAdmin },
+    { enabled: isAdmin && canSeeSection("validations") },
   );
   const createCampaign = trpc.campaigns.create.useMutation({
     onSuccess: async () => {
@@ -1128,6 +1128,63 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as AdminTab)} className="space-y-7">
+
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid gap-4 sm:grid-cols-3">
+              {canSeeSection("campaigns") && (
+                <Card className="p-5">
+                  <p className="text-sm text-[#66736a]">Arrecadado no total</p>
+                  <p className="mt-1 text-2xl font-bold text-[#228B22]">{formatCurrency((campaignsQuery.data ?? []).reduce((sum, c) => sum + c.raised, 0))}</p>
+                </Card>
+              )}
+              {canSeeSection("campaigns") && (
+                <Card className="p-5">
+                  <p className="text-sm text-[#66736a]">Campanhas ativas</p>
+                  <p className="mt-1 text-2xl font-bold text-[#243128]">{(campaignsQuery.data ?? []).filter((c) => c.status === "active").length}</p>
+                </Card>
+              )}
+              {canSeeSection("partners") && (
+                <Card className="p-5">
+                  <p className="text-sm text-[#66736a]">Parceiros cadastrados</p>
+                  <p className="mt-1 text-2xl font-bold text-[#243128]">{(partnersQuery.data ?? []).length}</p>
+                </Card>
+              )}
+            </div>
+
+            <div>
+              <h2 className="mb-3 text-lg font-bold text-[#243128]">Precisa da sua atenção</h2>
+              <div className="divide-y divide-[#e1e6df] overflow-hidden rounded-xl border border-[#e1e6df]">
+                {canSeeSection("validations") && ((pendingCashQuery.data?.length ?? 0) + (pendingMaterialQuery.data?.length ?? 0)) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("validations")}
+                    className="flex w-full items-center justify-between gap-3 bg-white p-4 text-left transition hover:bg-[#f8fbf6]"
+                  >
+                    <span className="text-sm text-[#243128]">
+                      {(pendingCashQuery.data?.length ?? 0) + (pendingMaterialQuery.data?.length ?? 0)} contribuições aguardando validação
+                    </span>
+                    <ExternalLink className="h-4 w-4 text-[#66736a]" aria-hidden="true" />
+                  </button>
+                )}
+                {canSeeSection("comments") && (commentsQuery.data ?? []).filter((c) => c.status === "pending").length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("comments")}
+                    className="flex w-full items-center justify-between gap-3 bg-white p-4 text-left transition hover:bg-[#f8fbf6]"
+                  >
+                    <span className="text-sm text-[#243128]">
+                      {(commentsQuery.data ?? []).filter((c) => c.status === "pending").length} depoimentos aguardando aprovação
+                    </span>
+                    <ExternalLink className="h-4 w-4 text-[#66736a]" aria-hidden="true" />
+                  </button>
+                )}
+                {(!canSeeSection("validations") || (pendingCashQuery.data?.length ?? 0) + (pendingMaterialQuery.data?.length ?? 0) === 0) &&
+                  (!canSeeSection("comments") || (commentsQuery.data ?? []).filter((c) => c.status === "pending").length === 0) && (
+                    <p className="bg-white p-4 text-sm text-[#66736a]">Tudo em dia — nada pendente no momento.</p>
+                  )}
+              </div>
+            </div>
+          </TabsContent>
 
           <TabsContent value="campaigns" className="space-y-6">
             {isLocalhost && (

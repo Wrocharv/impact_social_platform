@@ -1,4 +1,5 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,7 +23,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
-import { Building2, CheckCircle2, FileText, Handshake, Home, Layout, LogOut, PanelLeft, ShieldCheck, Users } from "lucide-react";
+import { Building2, CheckCircle2, FileText, Handshake, Home, Layout, LayoutDashboard, LogOut, PanelLeft, ShieldCheck, Users } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import AdminLogin from "@/pages/AdminLogin";
@@ -30,13 +31,20 @@ import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 
 type AdminSectionKey = "campaigns" | "content" | "validations" | "partners" | "community" | "comments";
 
-const ADMIN_SECTIONS: { key: AdminSectionKey; label: string; icon: typeof Building2 }[] = [
-  { key: "campaigns", label: "Campanhas", icon: Building2 },
-  { key: "content", label: "Conteúdo do site", icon: Layout },
-  { key: "validations", label: "Validações", icon: CheckCircle2 },
-  { key: "partners", label: "Parceiros", icon: Handshake },
-  { key: "community", label: "Comunidade", icon: Users },
-  { key: "comments", label: "Depoimentos", icon: FileText },
+const SECTION_META: Record<AdminSectionKey, { label: string; icon: typeof Building2 }> = {
+  campaigns: { label: "Campanhas", icon: Building2 },
+  content: { label: "Conteúdo do site", icon: Layout },
+  validations: { label: "Validações", icon: CheckCircle2 },
+  partners: { label: "Parceiros", icon: Handshake },
+  community: { label: "Comunidade", icon: Users },
+  comments: { label: "Depoimentos", icon: FileText },
+};
+
+const NAV_GROUPS: { label: string; keys: AdminSectionKey[] }[] = [
+  { label: "Campanhas", keys: ["campaigns"] },
+  { label: "Financeiro", keys: ["validations"] },
+  { label: "Relacionamento", keys: ["partners", "community", "comments"] },
+  { label: "Site", keys: ["content"] },
 ];
 
 type AdminSessionLike = { role: "owner" | "full" | "partial"; allowedSections: string[] } | null | undefined;
@@ -110,19 +118,24 @@ function DashboardLayoutContent({
   const logout = () => logoutMutation.mutate();
   const [, setLocation] = useLocation();
   const search = useSearch();
-  const activeTab = (new URLSearchParams(search).get("tab") as AdminSectionKey | "administrators" | null) ?? "campaigns";
+  const activeTab = (new URLSearchParams(search).get("tab") as AdminSectionKey | "administrators" | "overview" | null) ?? "overview";
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
 
-  const visibleSections = ADMIN_SECTIONS.filter(section => canSeeSection(admin, section.key));
   const isOwner = admin?.role === "owner";
+  const canValidate = canSeeSection(admin, "validations");
+  const pendingCashQuery = trpc.contributions.getPendingCashValidations.useQuery(undefined, { enabled: Boolean(admin) && canValidate });
+  const pendingMaterialQuery = trpc.contributions.getPendingMaterialValidations.useQuery(undefined, { enabled: Boolean(admin) && canValidate });
+  const pendingValidationsCount = (pendingCashQuery.data?.length ?? 0) + (pendingMaterialQuery.data?.length ?? 0);
   const activeLabel =
-    activeTab === "administrators"
-      ? "Administradores"
-      : visibleSections.find(section => section.key === activeTab)?.label ?? "Gestão";
+    activeTab === "overview"
+      ? "Visão geral"
+      : activeTab === "administrators"
+        ? "Administradores"
+        : (activeTab in SECTION_META ? SECTION_META[activeTab as AdminSectionKey].label : "Gestão");
 
   useEffect(() => {
     if (isCollapsed) {
@@ -189,25 +202,59 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0">
             <SidebarGroup>
-              <SidebarGroupLabel>Administração</SidebarGroupLabel>
               <SidebarMenu className="px-2 py-1">
-                {visibleSections.map(section => {
-                  const isActive = activeTab === section.key;
-                  return (
-                    <SidebarMenuItem key={section.key}>
-                      <SidebarMenuButton
-                        isActive={isActive}
-                        onClick={() => setLocation(`/admin?tab=${section.key}`)}
-                        tooltip={section.label}
-                        className="h-10 transition-all font-normal"
-                      >
-                        <section.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
-                        <span>{section.label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-                {isOwner && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={activeTab === "overview"}
+                    onClick={() => setLocation("/admin?tab=overview")}
+                    tooltip="Visão geral"
+                    className="h-10 transition-all font-normal"
+                  >
+                    <LayoutDashboard className={`h-4 w-4 ${activeTab === "overview" ? "text-primary" : ""}`} />
+                    <span>Visão geral</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroup>
+
+            {NAV_GROUPS.map(group => {
+              const keys = group.keys.filter(key => canSeeSection(admin, key));
+              if (keys.length === 0) return null;
+              return (
+                <SidebarGroup key={group.label}>
+                  <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+                  <SidebarMenu className="px-2 py-1">
+                    {keys.map(key => {
+                      const meta = SECTION_META[key];
+                      const isActive = activeTab === key;
+                      return (
+                        <SidebarMenuItem key={key}>
+                          <SidebarMenuButton
+                            isActive={isActive}
+                            onClick={() => setLocation(`/admin?tab=${key}`)}
+                            tooltip={meta.label}
+                            className="h-10 transition-all font-normal"
+                          >
+                            <meta.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
+                            <span className="flex-1">{meta.label}</span>
+                            {key === "validations" && pendingValidationsCount > 0 && (
+                              <Badge variant="secondary" className="ml-auto h-5 min-w-5 justify-center px-1.5 group-data-[collapsible=icon]:hidden">
+                                {pendingValidationsCount}
+                              </Badge>
+                            )}
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroup>
+              );
+            })}
+
+            {isOwner && (
+              <SidebarGroup>
+                <SidebarGroupLabel>Configurações</SidebarGroupLabel>
+                <SidebarMenu className="px-2 py-1">
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       isActive={activeTab === "administrators"}
@@ -219,9 +266,9 @@ function DashboardLayoutContent({
                       <span>Administradores</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                )}
-              </SidebarMenu>
-            </SidebarGroup>
+                </SidebarMenu>
+              </SidebarGroup>
+            )}
 
             <SidebarGroup>
               <SidebarMenu className="px-2 py-1">
