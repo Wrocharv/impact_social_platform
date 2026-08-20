@@ -191,10 +191,19 @@ function DashboardLayoutContent({
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
               {!isCollapsed ? (
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                   <span className="font-semibold tracking-tight truncate">
                     Parceiros do Bem
                   </span>
+                  <a
+                    href="/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    title="Ver site público"
+                  >
+                    <Home className="h-3.5 w-3.5" />
+                  </a>
                 </div>
               ) : null}
             </div>
@@ -269,21 +278,6 @@ function DashboardLayoutContent({
                 </SidebarMenu>
               </SidebarGroup>
             )}
-
-            <SidebarGroup>
-              <SidebarMenu className="px-2 py-1">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => setLocation("/")}
-                    tooltip="Site público"
-                    className="h-10 transition-all font-normal"
-                  >
-                    <Home className="h-4 w-4" />
-                    <span>Site público</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroup>
           </SidebarContent>
 
           <SidebarFooter className="p-3">

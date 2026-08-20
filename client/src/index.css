@@ -57,7 +57,7 @@
   --accent-foreground: 255 255 255;
   
   /* Cores neutras - Elegância */
-  --background: 250 250 250; /* Branco quente */
+  --background: 243 245 241; /* Cinza-esverdeado claro — dá contraste real aos cartões brancos */
   --foreground: 45 45 45; /* Cinza muito escuro */
   --card: 255 255 255;
   --card-foreground: 45 45 45;
