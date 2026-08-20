@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { AlertCircle, Building2, CheckCircle2, Edit2, ExternalLink, FileText, Handshake, Layout, Megaphone, PackagePlus, Plus, Trash2, Users, XCircle } from "lucide-react";
+import { AlertCircle, Building2, CheckCircle2, Edit2, ExternalLink, FileText, Handshake, Layout, Megaphone, PackagePlus, Plus, ShieldCheck, Trash2, Users, XCircle } from "lucide-react";
+import AdminManagementSection from "@/components/admin/AdminManagementSection";
 import CampaignAccountabilityDialog from "@/components/admin/CampaignAccountabilityDialog";
 import DashboardLayout from "@/components/DashboardLayout";
 import AdminLogin from "@/pages/AdminLogin";
@@ -136,14 +137,33 @@ const EMPTY_NEED_FORM = {
   priority: "medium" as "high" | "medium" | "low",
 };
 
+type AdminTab = "campaigns" | "content" | "validations" | "partners" | "community" | "comments" | "administrators";
+
 export default function AdminDashboard() {
   const adminMeQuery = trpc.adminAuth.me.useQuery();
   const utils = trpc.useUtils();
   const isAdmin = Boolean(adminMeQuery.data);
+  const adminSession = adminMeQuery.data;
+  const isOwner = adminSession?.role === "owner";
+  const canSeeSection = (section: Exclude<AdminTab, "administrators">) =>
+    !adminSession || adminSession.role === "owner" || adminSession.role === "full" || adminSession.allowedSections.includes(section);
   const isLocalhost = window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1");
-  const [activeTab, setActiveTab] = useState<"campaigns" | "content" | "validations" | "partners" | "community" | "comments">(() =>
+  const [activeTab, setActiveTab] = useState<AdminTab>(() =>
     new URLSearchParams(window.location.search).get("tab") === "partners" ? "partners" : "campaigns",
   );
+
+  useEffect(() => {
+    if (!adminSession) return;
+    if (activeTab === "administrators") {
+      if (!isOwner) setActiveTab("campaigns");
+      return;
+    }
+    if (!canSeeSection(activeTab)) {
+      const firstAllowed = (["campaigns", "content", "validations", "partners", "community", "comments"] as const).find(canSeeSection);
+      setActiveTab(firstAllowed ?? "campaigns");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminSession]);
   const [isCreateCampaignOpen, setIsCreateCampaignOpen] = useState(false);
   const [isEditCampaignOpen, setIsEditCampaignOpen] = useState(false);
   const [isCampaignUpdateOpen, setIsCampaignUpdateOpen] = useState(false);
@@ -1111,14 +1131,15 @@ export default function AdminDashboard() {
           <p className="mt-2 text-[#66736a]">Gerencie campanhas e os parceiros exibidos publicamente.</p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "campaigns" | "content" | "validations" | "partners" | "community" | "comments")} className="space-y-7">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as AdminTab)} className="space-y-7">
           <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl bg-[#eaf1e8] p-1 sm:w-auto">
-            <TabsTrigger value="campaigns" className="min-h-11 gap-2 px-5"><Building2 className="h-4 w-4" /> Campanhas</TabsTrigger>
-            <TabsTrigger value="content" className="min-h-11 gap-2 px-5"><Layout className="h-4 w-4" /> Conteúdo do site</TabsTrigger>
-            <TabsTrigger value="validations" className="min-h-11 gap-2 px-5"><CheckCircle2 className="h-4 w-4" /> Validações</TabsTrigger>
-            <TabsTrigger value="partners" className="min-h-11 gap-2 px-5"><Handshake className="h-4 w-4" /> Parceiros</TabsTrigger>
-            <TabsTrigger value="community" className="min-h-11 gap-2 px-5"><Users className="h-4 w-4" /> Comunidade</TabsTrigger>
-            <TabsTrigger value="comments" className="min-h-11 gap-2 px-5"><FileText className="h-4 w-4" /> Depoimentos</TabsTrigger>
+            {canSeeSection("campaigns") && <TabsTrigger value="campaigns" className="min-h-11 gap-2 px-5"><Building2 className="h-4 w-4" /> Campanhas</TabsTrigger>}
+            {canSeeSection("content") && <TabsTrigger value="content" className="min-h-11 gap-2 px-5"><Layout className="h-4 w-4" /> Conteúdo do site</TabsTrigger>}
+            {canSeeSection("validations") && <TabsTrigger value="validations" className="min-h-11 gap-2 px-5"><CheckCircle2 className="h-4 w-4" /> Validações</TabsTrigger>}
+            {canSeeSection("partners") && <TabsTrigger value="partners" className="min-h-11 gap-2 px-5"><Handshake className="h-4 w-4" /> Parceiros</TabsTrigger>}
+            {canSeeSection("community") && <TabsTrigger value="community" className="min-h-11 gap-2 px-5"><Users className="h-4 w-4" /> Comunidade</TabsTrigger>}
+            {canSeeSection("comments") && <TabsTrigger value="comments" className="min-h-11 gap-2 px-5"><FileText className="h-4 w-4" /> Depoimentos</TabsTrigger>}
+            {isOwner && <TabsTrigger value="administrators" className="min-h-11 gap-2 px-5"><ShieldCheck className="h-4 w-4" /> Administradores</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="campaigns" className="space-y-6">
@@ -2097,6 +2118,12 @@ export default function AdminDashboard() {
               </div>
             )}
           </TabsContent>
+
+          {isOwner && adminSession && (
+            <TabsContent value="administrators" className="space-y-6">
+              <AdminManagementSection currentAdminId={adminSession.id} />
+            </TabsContent>
+          )}
         </Tabs>
 
         <Dialog open={isEditCampaignOpen} onOpenChange={(open) => open ? setIsEditCampaignOpen(true) : closeEditCampaignDialog()}>

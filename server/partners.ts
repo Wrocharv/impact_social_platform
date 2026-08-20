@@ -4,7 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { partners } from "../drizzle/schema";
-import { adminProcedure, publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, router, sectionProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { storagePut } from "./storage";
 import { saveLocalCampaignUpload } from "./campaigns";
@@ -488,7 +488,7 @@ function buildLegacyPartnerInsert(input: z.infer<typeof createPartnerSchema>) {
 }
 
 export const partnersRouter = router({
-  uploadImage: adminProcedure
+  uploadImage: sectionProcedure("partners")
     .input(uploadPartnerImageSchema)
     .mutation(async ({ input }) => {
       const bytes = decodePartnerImage(input);
@@ -605,7 +605,7 @@ export const partnersRouter = router({
       }
     }),
 
-  getAll: adminProcedure.query(async () => {
+  getAll: sectionProcedure("partners").query(async () => {
     const db = await getDb();
     if (!db) {
       return getFallbackPartners().sort((a, b) => a.name.localeCompare(b.name));
@@ -630,7 +630,7 @@ export const partnersRouter = router({
     }
   }),
 
-  create: adminProcedure
+  create: sectionProcedure("partners")
     .input(createPartnerSchema)
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -656,7 +656,7 @@ export const partnersRouter = router({
       }
     }),
 
-  update: adminProcedure
+  update: sectionProcedure("partners")
     .input(updatePartnerSchema)
     .mutation(async ({ input }) => {
       const localId = fromDisplayLocalPartnerId(input.id);
@@ -684,7 +684,7 @@ export const partnersRouter = router({
       return { success: true, message: "Parceiro atualizado com sucesso!" };
     }),
 
-  delete: adminProcedure
+  delete: sectionProcedure("partners")
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       const localId = fromDisplayLocalPartnerId(input.id);

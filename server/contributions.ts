@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { campaignNeeds, campaigns, contributions, users } from "../drizzle/schema";
-import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, router, sectionProcedure } from "./_core/trpc";
 import {
   createFallbackCashContribution,
   listFallbackCashContributions,
@@ -509,7 +509,7 @@ export const contributionsRouter = router({
       };
     }),
 
-  deleteTestContributions: adminProcedure
+  deleteTestContributions: sectionProcedure("community")
     .input(z.object({
       contributionIds: z.array(z.number().int().positive()).min(1).max(100),
       confirmation: z.literal("EXCLUIR DADOS DE TESTE"),
@@ -753,7 +753,7 @@ export const contributionsRouter = router({
       };
     }),
 
-  getRegisteredDonors: adminProcedure.query(async () => {
+  getRegisteredDonors: sectionProcedure("community").query(async () => {
     const db = await getDb();
     if (!db) {
       const rows = [
@@ -986,7 +986,7 @@ export const contributionsRouter = router({
 
   // Lista completa (qualquer status) pra o admin conseguir auditar e remover
   // contribuições de teste/erradas — getPublicDonors só mostra as aprovadas.
-  getRecentContributions: adminProcedure.query(async () => {
+  getRecentContributions: sectionProcedure("community").query(async () => {
     const db = await getDb();
     if (!db) return [];
 
@@ -1008,7 +1008,7 @@ export const contributionsRouter = router({
       .limit(100);
   }),
 
-  deleteContribution: adminProcedure
+  deleteContribution: sectionProcedure("community")
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -1018,7 +1018,7 @@ export const contributionsRouter = router({
       return { success: true };
     }),
 
-  getPendingCashValidations: adminProcedure
+  getPendingCashValidations: sectionProcedure("validations")
     .input(z.object({ campaignId: z.number().int().positive().optional() }).optional())
     .query(async ({ input }) => {
       const fallbackPending = listFallbackPendingCashValidations(input?.campaignId);
@@ -1149,7 +1149,7 @@ export const contributionsRouter = router({
       }
     }),
 
-  getPendingMaterialValidations: adminProcedure
+  getPendingMaterialValidations: sectionProcedure("validations")
     .input(z.object({ campaignId: z.number().int().positive().optional() }).optional())
     .query(async ({ input }) => {
       const fallbackPending = listFallbackPendingMaterialValidations(input?.campaignId);
@@ -1293,7 +1293,7 @@ export const contributionsRouter = router({
       }
     }),
 
-  getRecentMaterialValidations: adminProcedure
+  getRecentMaterialValidations: sectionProcedure("validations")
     .input(z.object({
       campaignId: z.number().int().positive().optional(),
       limit: z.number().int().positive().max(100).optional().default(20),
@@ -1392,7 +1392,7 @@ export const contributionsRouter = router({
       }
     }),
 
-  getRecentCashValidations: adminProcedure
+  getRecentCashValidations: sectionProcedure("validations")
     .input(z.object({
       campaignId: z.number().int().positive().optional(),
       limit: z.number().int().positive().max(100).optional().default(20),
@@ -1481,7 +1481,7 @@ export const contributionsRouter = router({
       }
     }),
 
-  reviewCashContribution: adminProcedure
+  reviewCashContribution: sectionProcedure("validations")
     .input(z.object({
       contributionId: z.number().int().positive(),
       decision: z.enum(["approve", "reject"]),
@@ -1664,7 +1664,7 @@ export const contributionsRouter = router({
       return { success: true as const, status: "rejected" as const, contributionId: input.contributionId };
     }),
 
-  reviewMaterialContribution: adminProcedure
+  reviewMaterialContribution: sectionProcedure("validations")
     .input(z.object({
       contributionId: z.number().int().positive(),
       decision: z.enum(["approve", "reject"]),

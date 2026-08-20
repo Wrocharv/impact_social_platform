@@ -183,6 +183,13 @@
       "when": 1786240000000,
       "tag": "0024_add_admin_users",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1786250000000,
+      "tag": "0025_add_admin_roles",
+      "breakpoints": true
     }
   ]
 }

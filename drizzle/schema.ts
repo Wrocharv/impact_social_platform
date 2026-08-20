@@ -330,6 +330,10 @@ export const adminUsers = mysqlTable("adminUsers", {
   email: varchar("email", { length: 320 }).notNull().unique(),
   passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
   name: varchar("name", { length: 255 }),
+  /** owner: acesso total + gerencia outros administradores. full: acesso total, sem gerenciar administradores. partial: só as seções em allowedSections. */
+  role: mysqlEnum("role", ["owner", "full", "partial"]).default("full").notNull(),
+  /** Lista separada por vírgula de seções liberadas (campaigns,content,validations,partners,community,comments). Só usado quando role = "partial". */
+  allowedSections: varchar("allowedSections", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn"),
 });

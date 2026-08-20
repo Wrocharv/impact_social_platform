@@ -11,7 +11,7 @@ import {
   contributions,
   transparencyDocuments,
 } from "../drizzle/schema";
-import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, router, sectionProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { listFallbackApprovedCashContributions } from "./cashValidationFallback";
 import { listFallbackTrackedMaterialContributions } from "./materialValidationFallback";
@@ -1253,7 +1253,7 @@ async function loadPublicCampaignByRawIdLegacy(
 }
 
 export const campaignsRouter = router({
-  uploadImage: adminProcedure
+  uploadImage: sectionProcedure("campaigns")
     .input(uploadCampaignImageSchema)
     .mutation(async ({ input }) => {
       const bytes = decodeCampaignImage(input);
@@ -1293,7 +1293,7 @@ export const campaignsRouter = router({
       }
     }),
 
-  uploadVideo: adminProcedure
+  uploadVideo: sectionProcedure("campaigns")
     .input(uploadCampaignVideoSchema)
     .mutation(async ({ input }) => {
       const bytes = decodeCampaignVideo(input);
@@ -1332,7 +1332,7 @@ export const campaignsRouter = router({
       }
     }),
 
-  getAll: protectedProcedure.query(async () => {
+  getAll: sectionProcedure("campaigns").query(async () => {
     const db = await getDb();
     if (!db) {
       // Admin sem DB deve mostrar apenas campanhas realmente editaveis no fallback local.
@@ -1880,7 +1880,7 @@ export const campaignsRouter = router({
       return normalizedDetail;
     }),
 
-  create: adminProcedure
+  create: sectionProcedure("campaigns")
     .input(createCampaignSchema)
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
@@ -2023,7 +2023,7 @@ export const campaignsRouter = router({
       return { success: true, message: "Campanha criada com sucesso!" };
     }),
 
-  update: adminProcedure
+  update: sectionProcedure("campaigns")
     .input(updateCampaignSchema)
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -2109,7 +2109,7 @@ export const campaignsRouter = router({
       return { success: true, message: "Campanha atualizada com sucesso!" };
     }),
 
-  delete: adminProcedure
+  delete: sectionProcedure("campaigns")
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -2130,7 +2130,7 @@ export const campaignsRouter = router({
       return { success: true, message: "Campanha deletada com sucesso!" };
     }),
 
-  createUpdate: adminProcedure
+  createUpdate: sectionProcedure("campaigns")
     .input(createCampaignUpdateSchema)
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -2168,7 +2168,7 @@ export const campaignsRouter = router({
         .orderBy(desc(campaignUpdates.createdAt));
     }),
 
-  createNeed: adminProcedure
+  createNeed: sectionProcedure("campaigns")
     .input(createCampaignNeedSchema)
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -2240,7 +2240,7 @@ export const campaignsRouter = router({
       return { success: true, message: "Necessidade criada com sucesso!" };
     }),
 
-  deleteNeed: adminProcedure
+  deleteNeed: sectionProcedure("campaigns")
     .input(z.object({ needId: z.number().int().positive(), campaignId: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -2257,7 +2257,7 @@ export const campaignsRouter = router({
       return { success: true };
     }),
 
-  updateNeed: adminProcedure
+  updateNeed: sectionProcedure("campaigns")
     .input(z.object({
       needId: z.number().int().positive(),
       campaignId: z.number().int().positive(),
@@ -2367,7 +2367,7 @@ export const campaignsRouter = router({
       }));
     }),
 
-  getAllComments: adminProcedure.query(async () => {
+  getAllComments: sectionProcedure("comments").query(async () => {
     const db = await getDb();
     if (!db) return [];
 
@@ -2386,7 +2386,7 @@ export const campaignsRouter = router({
       .orderBy(desc(campaignComments.createdAt));
   }),
 
-  deleteComment: adminProcedure
+  deleteComment: sectionProcedure("comments")
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -2432,7 +2432,7 @@ export const campaignsRouter = router({
       };
     }),
 
-  reviewComment: adminProcedure
+  reviewComment: sectionProcedure("comments")
     .input(reviewCommentSchema)
     .mutation(async ({ input }) => {
       const db = await getDb();

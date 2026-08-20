@@ -1,6 +1,7 @@
 import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
+import { type AdminSection, hasSection } from "./adminAuth";
 import type { TrpcContext } from "./context";
 import { ENV } from "./env";
 
@@ -69,3 +70,29 @@ export const adminProcedure = t.procedure.use(
     });
   }),
 );
+
+export const ownerProcedure = adminProcedure.use(
+  t.middleware(async opts => {
+    const { ctx, next } = opts;
+
+    if (ctx.adminSession?.role !== "owner") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Só o administrador geral pode gerenciar outros administradores." });
+    }
+
+    return next({ ctx });
+  }),
+);
+
+export function sectionProcedure(section: AdminSection) {
+  return adminProcedure.use(
+    t.middleware(async opts => {
+      const { ctx, next } = opts;
+
+      if (!hasSection(ctx.adminSession, section)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Você não tem permissão para esta área do painel." });
+      }
+
+      return next({ ctx });
+    }),
+  );
+}

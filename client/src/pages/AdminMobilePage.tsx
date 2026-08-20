@@ -15,7 +15,10 @@ import { toast } from "sonner";
 export default function AdminMobilePage() {
   const utils = trpc.useUtils();
   const adminMeQuery = trpc.adminAuth.me.useQuery();
-  const isAdmin = Boolean(adminMeQuery.data);
+  const adminSession = adminMeQuery.data;
+  const isAdmin = Boolean(
+    adminSession && (adminSession.role === "owner" || adminSession.role === "full" || adminSession.allowedSections.includes("campaigns"))
+  );
 
   const [activeTab, setActiveTab] = useState<"campaigns" | "create">(() => "campaigns");
   const [expandedCampaignId, setExpandedCampaignId] = useState<number | null>(null);

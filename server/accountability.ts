@@ -8,7 +8,7 @@ import {
   transparencyDocuments,
   type CampaignExpense,
 } from "../drizzle/schema";
-import { adminProcedure, publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, router, sectionProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { storagePut } from "./storage";
 import { saveLocalCampaignUpload } from "./campaigns";
@@ -184,11 +184,11 @@ export const accountabilityRouter = router({
     .input(z.object({ campaignId: z.number().int().positive() }))
     .query(({ input }) => loadReport(input.campaignId, true)),
 
-  getAdminReport: adminProcedure
+  getAdminReport: sectionProcedure("campaigns")
     .input(z.object({ campaignId: z.number().int().positive() }))
     .query(({ input }) => loadReport(input.campaignId, false)),
 
-  uploadDocument: adminProcedure
+  uploadDocument: sectionProcedure("campaigns")
     .input(z.object({
       campaignId: z.number().int().positive(),
       type: documentTypeSchema,
@@ -239,7 +239,7 @@ export const accountabilityRouter = router({
       return { success: true as const, url: uploaded.url, key: uploaded.key };
     }),
 
-  createExpense: adminProcedure
+  createExpense: sectionProcedure("campaigns")
     .input(z.object({
       campaignId: z.number().int().positive(),
       category: expenseCategorySchema,

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { siteSettings } from "../drizzle/schema";
-import { adminProcedure, publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, router, sectionProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 
 const DEFAULTS = {
@@ -53,7 +53,7 @@ export const siteSettingsRouter = router({
     }
   }),
 
-  update: adminProcedure.input(updateSchema).mutation(async ({ input }) => {
+  update: sectionProcedure("content").input(updateSchema).mutation(async ({ input }) => {
     const db = await getDb();
     if (!db) return { success: true as const };
 
