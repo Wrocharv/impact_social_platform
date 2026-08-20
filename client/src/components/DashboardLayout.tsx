@@ -9,6 +9,8 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -20,16 +22,29 @@ import {
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
-import { Home, LayoutDashboard, LogOut, PanelLeft } from "lucide-react";
+import { Building2, CheckCircle2, FileText, Handshake, Home, Layout, LogOut, PanelLeft, ShieldCheck, Users } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import AdminLogin from "@/pages/AdminLogin";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "Gestão", path: "/admin" },
-  { icon: Home, label: "Site público", path: "/" },
+type AdminSectionKey = "campaigns" | "content" | "validations" | "partners" | "community" | "comments";
+
+const ADMIN_SECTIONS: { key: AdminSectionKey; label: string; icon: typeof Building2 }[] = [
+  { key: "campaigns", label: "Campanhas", icon: Building2 },
+  { key: "content", label: "Conteúdo do site", icon: Layout },
+  { key: "validations", label: "Validações", icon: CheckCircle2 },
+  { key: "partners", label: "Parceiros", icon: Handshake },
+  { key: "community", label: "Comunidade", icon: Users },
+  { key: "comments", label: "Depoimentos", icon: FileText },
 ];
+
+type AdminSessionLike = { role: "owner" | "full" | "partial"; allowedSections: string[] } | null | undefined;
+
+function canSeeSection(admin: AdminSessionLike, section: AdminSectionKey) {
+  if (!admin) return false;
+  return admin.role === "owner" || admin.role === "full" || admin.allowedSections.includes(section);
+}
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
@@ -93,13 +108,21 @@ function DashboardLayoutContent({
     },
   });
   const logout = () => logoutMutation.mutate();
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
+  const search = useSearch();
+  const activeTab = (new URLSearchParams(search).get("tab") as AdminSectionKey | "administrators" | null) ?? "campaigns";
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
+
+  const visibleSections = ADMIN_SECTIONS.filter(section => canSeeSection(admin, section.key));
+  const isOwner = admin?.role === "owner";
+  const activeLabel =
+    activeTab === "administrators"
+      ? "Administradores"
+      : visibleSections.find(section => section.key === activeTab)?.label ?? "Gestão";
 
   useEffect(() => {
     if (isCollapsed) {
@@ -165,26 +188,55 @@ function DashboardLayoutContent({
           </SidebarHeader>
 
           <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1">
-              {menuItems.map(item => {
-                const isActive = location === item.path;
-                return (
-                  <SidebarMenuItem key={item.path}>
+            <SidebarGroup>
+              <SidebarGroupLabel>Administração</SidebarGroupLabel>
+              <SidebarMenu className="px-2 py-1">
+                {visibleSections.map(section => {
+                  const isActive = activeTab === section.key;
+                  return (
+                    <SidebarMenuItem key={section.key}>
+                      <SidebarMenuButton
+                        isActive={isActive}
+                        onClick={() => setLocation(`/admin?tab=${section.key}`)}
+                        tooltip={section.label}
+                        className="h-10 transition-all font-normal"
+                      >
+                        <section.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
+                        <span>{section.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+                {isOwner && (
+                  <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={isActive}
-                      onClick={() => setLocation(item.path)}
-                      tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
+                      isActive={activeTab === "administrators"}
+                      onClick={() => setLocation("/admin?tab=administrators")}
+                      tooltip="Administradores"
+                      className="h-10 transition-all font-normal"
                     >
-                      <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
-                      />
-                      <span>{item.label}</span>
+                      <ShieldCheck className={`h-4 w-4 ${activeTab === "administrators" ? "text-primary" : ""}`} />
+                      <span>Administradores</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
+                )}
+              </SidebarMenu>
+            </SidebarGroup>
+
+            <SidebarGroup>
+              <SidebarMenu className="px-2 py-1">
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setLocation("/")}
+                    tooltip="Site público"
+                    className="h-10 transition-all font-normal"
+                  >
+                    <Home className="h-4 w-4" />
+                    <span>Site público</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroup>
           </SidebarContent>
 
           <SidebarFooter className="p-3">
@@ -236,7 +288,7 @@ function DashboardLayoutContent({
               <div className="flex items-center gap-3">
                 <div className="flex flex-col gap-1">
                   <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "Menu"}
+                    {activeLabel}
                   </span>
                 </div>
               </div>

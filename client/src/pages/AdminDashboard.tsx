@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { AlertCircle, Building2, CheckCircle2, Edit2, ExternalLink, FileText, Handshake, Layout, Megaphone, PackagePlus, Plus, ShieldCheck, Trash2, Users, XCircle } from "lucide-react";
 import AdminManagementSection from "@/components/admin/AdminManagementSection";
 import CampaignAccountabilityDialog from "@/components/admin/CampaignAccountabilityDialog";
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { clearLocalNeedsForCampaign, mergeNeedsForManagement, readLocalNeedsForCampaign, removeLocalNeed, saveLocalNeed, updateLocalNeed } from "@/lib/localNeeds";
 import { resolveCampaignImageUrl } from "@/lib/campaignMedia";
@@ -148,22 +148,18 @@ export default function AdminDashboard() {
   const canSeeSection = (section: Exclude<AdminTab, "administrators">) =>
     !adminSession || adminSession.role === "owner" || adminSession.role === "full" || adminSession.allowedSections.includes(section);
   const isLocalhost = window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1");
-  const [activeTab, setActiveTab] = useState<AdminTab>(() =>
-    new URLSearchParams(window.location.search).get("tab") === "partners" ? "partners" : "campaigns",
-  );
+  const search = useSearch();
+  const [, setLocation] = useLocation();
+  const requestedTab = (new URLSearchParams(search).get("tab") as AdminTab | null) ?? "campaigns";
+  const setActiveTab = (tab: AdminTab) => setLocation(`/admin?tab=${tab}`);
 
-  useEffect(() => {
-    if (!adminSession) return;
-    if (activeTab === "administrators") {
-      if (!isOwner) setActiveTab("campaigns");
-      return;
-    }
-    if (!canSeeSection(activeTab)) {
-      const firstAllowed = (["campaigns", "content", "validations", "partners", "community", "comments"] as const).find(canSeeSection);
-      setActiveTab(firstAllowed ?? "campaigns");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adminSession]);
+  const activeTab: AdminTab = (() => {
+    if (!adminSession) return requestedTab;
+    if (requestedTab === "administrators") return isOwner ? "administrators" : "campaigns";
+    if (canSeeSection(requestedTab)) return requestedTab;
+    const firstAllowed = (["campaigns", "content", "validations", "partners", "community", "comments"] as const).find(canSeeSection);
+    return firstAllowed ?? "campaigns";
+  })();
   const [isCreateCampaignOpen, setIsCreateCampaignOpen] = useState(false);
   const [isEditCampaignOpen, setIsEditCampaignOpen] = useState(false);
   const [isCampaignUpdateOpen, setIsCampaignUpdateOpen] = useState(false);
@@ -1132,15 +1128,6 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as AdminTab)} className="space-y-7">
-          <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl bg-[#eaf1e8] p-1 sm:w-auto">
-            {canSeeSection("campaigns") && <TabsTrigger value="campaigns" className="min-h-11 gap-2 px-5"><Building2 className="h-4 w-4" /> Campanhas</TabsTrigger>}
-            {canSeeSection("content") && <TabsTrigger value="content" className="min-h-11 gap-2 px-5"><Layout className="h-4 w-4" /> Conteúdo do site</TabsTrigger>}
-            {canSeeSection("validations") && <TabsTrigger value="validations" className="min-h-11 gap-2 px-5"><CheckCircle2 className="h-4 w-4" /> Validações</TabsTrigger>}
-            {canSeeSection("partners") && <TabsTrigger value="partners" className="min-h-11 gap-2 px-5"><Handshake className="h-4 w-4" /> Parceiros</TabsTrigger>}
-            {canSeeSection("community") && <TabsTrigger value="community" className="min-h-11 gap-2 px-5"><Users className="h-4 w-4" /> Comunidade</TabsTrigger>}
-            {canSeeSection("comments") && <TabsTrigger value="comments" className="min-h-11 gap-2 px-5"><FileText className="h-4 w-4" /> Depoimentos</TabsTrigger>}
-            {isOwner && <TabsTrigger value="administrators" className="min-h-11 gap-2 px-5"><ShieldCheck className="h-4 w-4" /> Administradores</TabsTrigger>}
-          </TabsList>
 
           <TabsContent value="campaigns" className="space-y-6">
             {isLocalhost && (
@@ -1450,6 +1437,10 @@ export default function AdminDashboard() {
                       </Field>
                       <Field label="Galeria (uma URL por linha)">
                         <Textarea rows={4} value={(campaignContentForm[campaign.id]?.galleryImageUrls ?? getCampaignContent(campaign.id).galleryImageUrls).join("\n")} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), galleryImageUrls: event.target.value.split(/\n|,/).map((item) => item.trim()).filter(Boolean) } }))} placeholder="https://.../foto1.jpg" />
+                        <MediaUrlPreviewGrid
+                          urls={campaignContentForm[campaign.id]?.galleryImageUrls ?? getCampaignContent(campaign.id).galleryImageUrls}
+                          onRemove={(index) => setCampaignContentForm((current) => { const list = current[campaign.id]?.galleryImageUrls ?? getCampaignContent(campaign.id).galleryImageUrls; return { ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), galleryImageUrls: list.filter((_, i) => i !== index) } }; })}
+                        />
                         <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
                           <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
                           <div className="mt-2 space-y-2">
@@ -1470,6 +1461,10 @@ export default function AdminDashboard() {
                     </div>
                     <Field label="Vídeos (uma URL por linha ou YouTube)">
                       <Textarea rows={4} value={(campaignContentForm[campaign.id]?.videoUrls ?? getCampaignContent(campaign.id).videoUrls).join("\n")} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), videoUrls: event.target.value.split(/\n|,/).map((item) => item.trim()).filter(Boolean) } }))} placeholder="https://www.youtube.com/watch?v=..." />
+                      <MediaUrlPreviewGrid
+                        urls={campaignContentForm[campaign.id]?.videoUrls ?? getCampaignContent(campaign.id).videoUrls}
+                        onRemove={(index) => setCampaignContentForm((current) => { const list = current[campaign.id]?.videoUrls ?? getCampaignContent(campaign.id).videoUrls; return { ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), videoUrls: list.filter((_, i) => i !== index) } }; })}
+                      />
                       <div className="mt-2 rounded-lg border border-[#dce5d8] bg-[#f8fbf6] p-3">
                         <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
                         <div className="mt-2 space-y-2">
@@ -2170,6 +2165,10 @@ export default function AdminDashboard() {
                       rows={5}
                       placeholder="https://site.com/foto-1.jpg"
                     />
+                    <MediaUrlPreviewGrid
+                      urls={parseMediaUrlsInput(campaignEditForm.vipImageUrls)}
+                      onRemove={(index) => setCampaignEditForm((current) => ({ ...current, vipImageUrls: parseMediaUrlsInput(current.vipImageUrls).filter((_, i) => i !== index).join("\n") }))}
+                    />
                     <div className="mt-2 rounded-lg border border-[#dce5d8] bg-white p-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
                       <div className="mt-2 space-y-2">
@@ -2193,6 +2192,10 @@ export default function AdminDashboard() {
                       onChange={(event) => setCampaignEditForm({ ...campaignEditForm, vipVideoUrls: event.target.value })}
                       rows={5}
                       placeholder="https://site.com/video-1.mp4"
+                    />
+                    <MediaUrlPreviewGrid
+                      urls={parseMediaUrlsInput(campaignEditForm.vipVideoUrls)}
+                      onRemove={(index) => setCampaignEditForm((current) => ({ ...current, vipVideoUrls: parseMediaUrlsInput(current.vipVideoUrls).filter((_, i) => i !== index).join("\n") }))}
                     />
                     <div className="mt-2 rounded-lg border border-[#dce5d8] bg-white p-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#55645a]">Opções para mídia</p>
@@ -2905,6 +2908,36 @@ function ManageNeedsDialog({ campaign, open, onOpenChange, onCreate, onDelete, o
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block space-y-2"><span className="text-sm font-semibold text-[#334139]">{label}</span>{children}</label>; }
+
+function isVideoMediaUrl(url: string) {
+  return /\.(mp4|webm|ogg|mov)(\?|$)/i.test(url) || url.includes("youtube.com") || url.includes("youtu.be");
+}
+
+function MediaUrlPreviewGrid({ urls, onRemove }: { urls: string[]; onRemove: (index: number) => void }) {
+  if (urls.length === 0) return null;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      {urls.map((url, index) => (
+        <div key={`${url}-${index}`} className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-[#dce5d8] bg-[#f1f4ef]">
+          {isVideoMediaUrl(url) ? (
+            <div className="flex h-full w-full items-center justify-center text-[#66736a]"><Megaphone className="h-5 w-5" aria-hidden="true" /></div>
+          ) : (
+            <img src={resolveMediaUrl(url)} alt="" className="h-full w-full object-cover" />
+          )}
+          <button
+            type="button"
+            onClick={() => onRemove(index)}
+            className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100"
+            aria-label="Remover item"
+          >
+            <XCircle className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ))}
+      <span className="text-xs text-[#66736a]">{urls.length} {urls.length === 1 ? "item" : "itens"}</span>
+    </div>
+  );
+}
 function LoadingCard({ label }: { label: string }) { return <Card className="p-8 text-center text-[#66736a]">{label}</Card>; }
 function ErrorCard({ label, onRetry }: { label: string; onRetry: () => void }) { return <Card className="p-8 text-center"><p className="text-[#66736a]">{label}</p><Button variant="outline" className="mt-4" onClick={onRetry}>Tentar novamente</Button></Card>; }
 function EmptyCard({ icon: Icon, title, description, action }: { icon: typeof Building2; title: string; description: string; action: React.ReactNode }) { return <Card className="border-dashed p-10 text-center"><Icon className="mx-auto h-10 w-10 text-[#228B22]" /><h3 className="mt-4 text-xl font-bold text-[#243128]">{title}</h3><p className="mx-auto mt-2 max-w-xl text-[#66736a]">{description}</p><div className="mt-5">{action}</div></Card>; }

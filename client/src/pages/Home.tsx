@@ -162,7 +162,7 @@ export default function Home() {
   }, [siteContent.presentationVideoUrl]);
   const campaigns = (campaignsQuery.data ?? []) as PublishedCampaign[];
   const completedCampaigns = (completedQuery.data ?? []) as PublishedCampaign[];
-  const visiblePartners = getPredimaisShowcasePartners();
+  const visiblePartners = (partnersQuery.data ?? []) as PartnerItem[];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white pb-22 md:pb-24">
@@ -519,106 +519,6 @@ type PartnerItem = {
   testimonialText: string | null;
   website: string | null;
 };
-
-function getDemoPartners(): PartnerItem[] {
-  return [
-    {
-      id: -1,
-      name: "Predimais",
-      type: "company",
-      ownerName: "Saulo Goulart",
-      description: "Parceria de impacto social com mobilizacao comunitaria e apoio continuo as campanhas.",
-      logoUrl: "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?auto=format&fit=crop&w=900&q=80",
-      storePhotoUrl: "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=900&q=80",
-      ownerPhotoUrl: "https://images.unsplash.com/photo-1542204625-de293a2f0f9b?auto=format&fit=crop&w=900&q=80",
-      address: "Rua Central, 120 - Centro",
-      contactInfo: "(11) 99999-0101",
-      testimonialVideoUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
-      testimonialText: "A parceria abriu novas portas para apoiar quem realmente precisa.",
-      website: "https://www.parceriadobem.com.br",
-    },
-    {
-      id: -2,
-      name: "Voz da Esperanca",
-      type: "individual",
-      ownerName: "Luciana Alves",
-      description: "Locutora parceira que fortalece campanhas com comunicacao de alcance local.",
-      logoUrl: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?auto=format&fit=crop&w=900&q=80",
-      storePhotoUrl: null,
-      ownerPhotoUrl: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80",
-      address: "Sao Paulo - SP",
-      contactInfo: "@vozesperanca",
-      testimonialVideoUrl: null,
-      testimonialText: "Quando contamos historias reais, mais pessoas decidem contribuir.",
-      website: "https://www.instagram.com",
-    },
-    {
-      id: -3,
-      name: "Arte em Movimento",
-      type: "individual",
-      ownerName: "Rafael Nunes",
-      description: "Artista parceiro que mobiliza publico para campanhas de solidariedade.",
-      logoUrl: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=900&q=80",
-      storePhotoUrl: null,
-      ownerPhotoUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80",
-      address: "Rio de Janeiro - RJ",
-      contactInfo: "(21) 98888-0202",
-      testimonialVideoUrl: null,
-      testimonialText: "A arte aproxima pessoas e transforma causa em acao concreta.",
-      website: "https://www.youtube.com",
-    },
-  ];
-}
-
-function getPredimaisShowcasePartners(): PartnerItem[] {
-  return [
-    {
-      id: 1,
-      name: "Predimais",
-      type: "company",
-      ownerName: "Saulo Goulart",
-      description: "Parceria que conecta clientes, amigos e colaboradores para apoiar campanhas sociais recorrentes.",
-      logoUrl: "/partners/predimais.jpeg",
-      storePhotoUrl: "/partners/predimais-fachada.jpeg",
-      ownerPhotoUrl: "/partners/predimais-interior.jpeg",
-      address: "Rua Central, 120 - Centro",
-      contactInfo: "(11) 99999-0101",
-      testimonialVideoUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
-      testimonialText: "Nossa empresa cresceu quando decidiu crescer junto com a comunidade. Vale a pena participar.",
-      website: "https://www.parceriadobem.com.br",
-    },
-    {
-      id: 2,
-      name: "Predimais",
-      type: "company",
-      ownerName: "Saulo Goulart",
-      description: "Imagem da fachada da unidade parceira.",
-      logoUrl: "/partners/predimais-fachada.jpeg",
-      storePhotoUrl: "/partners/predimais-fachada.jpeg",
-      ownerPhotoUrl: "/partners/predimais-interior.jpeg",
-      address: "Rua Central, 120 - Centro",
-      contactInfo: "(11) 99999-0101",
-      testimonialVideoUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
-      testimonialText: "A parceria abriu novas portas para apoiar quem realmente precisa.",
-      website: "https://www.parceriadobem.com.br",
-    },
-    {
-      id: 4,
-      name: "Múltipla Escolha",
-      type: "company",
-      ownerName: "Lucas Daniel Sardinha",
-      description: "Parceiro que mobiliza apoio para campanhas com presença local e comunicação direta.",
-      logoUrl: "/partners/multipla-escolha.png",
-      storePhotoUrl: "/partners/multipla-escolha.png",
-      ownerPhotoUrl: "/partners/multipla-escolha.png",
-      address: "Rua Central, 120 - Centro",
-      contactInfo: "(11) 99999-0101",
-      testimonialVideoUrl: null,
-      testimonialText: "A rede de parceiros ajuda a causa a chegar mais longe com credibilidade.",
-      website: "https://www.parceriadobem.com.br",
-    },
-  ];
-}
 
 function PartnerShowcaseBanner({ partner }: { partner: PartnerItem }) {
   const linkHref = partner.id > 0 ? `/partner/${partner.id}` : "#parceiros";
