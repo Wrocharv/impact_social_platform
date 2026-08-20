@@ -321,3 +321,18 @@ export const siteSettings = mysqlTable("siteSettings", {
 
 export type SiteSettings = typeof siteSettings.$inferSelect;
 export type InsertSiteSettings = typeof siteSettings.$inferInsert;
+
+/**
+ * Credenciais de administrador (login com e-mail e senha, independente do fluxo OAuth).
+ */
+export const adminUsers = mysqlTable("adminUsers", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull().unique(),
+  passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+  name: varchar("name", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  lastSignedIn: timestamp("lastSignedIn"),
+});
+
+export type AdminUser = typeof adminUsers.$inferSelect;
+export type InsertAdminUser = typeof adminUsers.$inferInsert;

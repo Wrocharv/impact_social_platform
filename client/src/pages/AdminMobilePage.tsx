@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { AlertCircle, Camera, ChevronDown, ChevronLeft, Edit2, Plus, Save, Trash2, X } from "lucide-react";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { isAdminUser } from "@/_core/hooks/adminAccess";
+import { Camera, ChevronDown, ChevronLeft, Edit2, Plus, Save, Trash2, X } from "lucide-react";
+import AdminLogin from "@/pages/AdminLogin";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,8 +13,9 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
 export default function AdminMobilePage() {
-  const { user } = useAuth();
-  const isAdmin = isAdminUser(user, ["gospeltv@gmail.com"]);
+  const utils = trpc.useUtils();
+  const adminMeQuery = trpc.adminAuth.me.useQuery();
+  const isAdmin = Boolean(adminMeQuery.data);
 
   const [activeTab, setActiveTab] = useState<"campaigns" | "create">(() => "campaigns");
   const [expandedCampaignId, setExpandedCampaignId] = useState<number | null>(null);
@@ -84,19 +84,12 @@ export default function AdminMobilePage() {
     onError: (err) => toast.error(`❌ ${err.message}`),
   });
 
+  if (adminMeQuery.isLoading) {
+    return <div className="min-h-screen bg-[#f8faf7]" />;
+  }
+
   if (!isAdmin) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f8faf7] p-4">
-        <Card className="w-full max-w-md p-8 text-center">
-          <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
-          <h1 className="mb-2 text-xl font-bold">Acesso negado</h1>
-          <p className="mb-6 text-[#666]">Você precisa ser administrador</p>
-          <Link href="/" className="inline-block text-[#228B22] font-semibold hover:underline">
-            ← Voltar ao início
-          </Link>
-        </Card>
-      </div>
-    );
+    return <AdminLogin onSuccess={() => utils.adminAuth.me.invalidate()} />;
   }
 
   return (

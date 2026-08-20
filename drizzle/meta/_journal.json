@@ -176,6 +176,13 @@
       "when": 1786230000000,
       "tag": "0023_add_site_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1786240000000,
+      "tag": "0024_add_admin_users",
+      "breakpoints": true
     }
   ]
 }

@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { AlertCircle, Building2, CheckCircle2, Edit2, ExternalLink, FileText, Handshake, Layout, Megaphone, PackagePlus, Plus, Trash2, Users, XCircle } from "lucide-react";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { isAdminUser } from "@/_core/hooks/adminAccess";
 import CampaignAccountabilityDialog from "@/components/admin/CampaignAccountabilityDialog";
 import DashboardLayout from "@/components/DashboardLayout";
+import AdminLogin from "@/pages/AdminLogin";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -138,9 +137,9 @@ const EMPTY_NEED_FORM = {
 };
 
 export default function AdminDashboard() {
-  const { user } = useAuth();
+  const adminMeQuery = trpc.adminAuth.me.useQuery();
   const utils = trpc.useUtils();
-  const isAdmin = isAdminUser(user, ["gospeltv@gmail.com"]);
+  const isAdmin = Boolean(adminMeQuery.data);
   const isLocalhost = window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1");
   const [activeTab, setActiveTab] = useState<"campaigns" | "content" | "validations" | "partners" | "community" | "comments">(() =>
     new URLSearchParams(window.location.search).get("tab") === "partners" ? "partners" : "campaigns",
@@ -412,19 +411,10 @@ export default function AdminDashboard() {
   const [campaignUpdateMediaYouTubeUrls, setCampaignUpdateMediaYouTubeUrls] = useState({ image: "", video: "" });
   const [vipMediaYouTubeUrls, setVipMediaYouTubeUrls] = useState({ image: "", video: "" });
 
-  if (!user) return <DashboardLayout><div /></DashboardLayout>;
+  if (adminMeQuery.isLoading) return <DashboardLayout><div /></DashboardLayout>;
 
   if (!isAdmin) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f5f7f3] px-4">
-        <Card className="max-w-md p-8 text-center">
-          <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-600" aria-hidden="true" />
-          <h1 className="mb-2 text-2xl font-bold text-[#2d2d2d]">Acesso negado</h1>
-          <p className="mb-6 text-[#66736a]">Você não tem permissão para acessar esta área.</p>
-          <Button asChild className="w-full"><Link href="/">Voltar para o site</Link></Button>
-        </Card>
-      </div>
-    );
+    return <AdminLogin onSuccess={() => utils.adminAuth.me.invalidate()} />;
   }
 
   function closePartnerDialog() {

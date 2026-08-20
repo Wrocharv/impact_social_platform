@@ -3,6 +3,7 @@ import { parse as parseCookieHeader } from "cookie";
 import type { Express, Request, Response } from "express";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
+import { ENV } from "./env";
 import { sdk } from "./sdk";
 
 function getQueryParam(req: Request, key: string): string | undefined {
@@ -22,6 +23,15 @@ export function registerOAuthRoutes(app: Express) {
 
     const { nonce } = decodeOAuthState(state);
     const expectedNonce = parseCookieHeader(req.headers.cookie ?? "")[OAUTH_STATE_COOKIE];
+
+    // O atalho "dev-local" pula a verificação de OAuth real e loga como um
+    // usuário fixo — só pode existir fora de produção. Sem essa trava,
+    // qualquer visitante que acessasse esta rota entraria autenticado sem
+    // senha nenhuma.
+    if (code === "dev-local" && ENV.isProduction) {
+      res.status(403).json({ error: "dev-local login is disabled in production" });
+      return;
+    }
 
     if (code !== "dev-local" && (!nonce || nonce !== expectedNonce)) {
       res.status(403).json({ error: "invalid oauth state" });

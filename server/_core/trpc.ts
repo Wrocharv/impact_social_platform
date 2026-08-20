@@ -28,15 +28,6 @@ const requireUser = t.middleware(async opts => {
 
 export const protectedProcedure = t.procedure.use(requireUser);
 
-const isAdminUser = (user: TrpcContext["user"]) => {
-  if (!user) return false;
-
-  const normalizedEmail = user.email?.trim().toLowerCase();
-  const isAdminByEmail = Boolean(normalizedEmail && ENV.adminEmails.includes(normalizedEmail));
-
-  return user.role === "admin" || user.openId === ENV.ownerOpenId || isAdminByEmail;
-};
-
 const readSingleHeader = (value: string | string[] | undefined) => {
   if (Array.isArray(value)) return value[0]?.trim() ?? "";
   return value?.trim() ?? "";
@@ -46,7 +37,7 @@ export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
 
-    if (!isAdminUser(ctx.user)) {
+    if (!ctx.adminSession) {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
 
