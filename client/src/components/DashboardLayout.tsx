@@ -342,6 +342,11 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
+        {!isMobile && (
+          <div className="flex h-12 items-center border-b border-[#e5e7eb] bg-white px-6 text-sm text-[#8a9089]">
+            Administração <span className="mx-1.5">/</span> <span className="font-medium text-[#243128]">{activeLabel}</span>
+          </div>
+        )}
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
     </>

@@ -225,6 +225,14 @@ export default function AdminDashboard() {
     onError: (error) => toast.error(error.message || "Erro ao salvar conteúdo do site."),
   });
   const [campaignContentForm, setCampaignContentForm] = useState<{ [campaignId: number]: ReturnType<typeof getCampaignContent> }>({});
+  const [expandedCampaignContentIds, setExpandedCampaignContentIds] = useState<Set<number>>(new Set());
+  const toggleCampaignContentExpanded = (campaignId: number) =>
+    setExpandedCampaignContentIds((current) => {
+      const next = new Set(current);
+      if (next.has(campaignId)) next.delete(campaignId);
+      else next.add(campaignId);
+      return next;
+    });
 
   const selectedValidationCampaignId = validationCampaignFilter === "all"
     ? undefined
@@ -1121,15 +1129,13 @@ export default function AdminDashboard() {
   return (
     <DashboardLayout>
       <div className="mx-auto w-full max-w-6xl py-4 md:py-8">
-        <div className="mb-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#228B22]">Administração</p>
-          <h1 className="mt-2 text-3xl font-bold text-[#243128] md:text-4xl">Gestão da plataforma</h1>
-          <p className="mt-2 text-[#66736a]">Gerencie campanhas e os parceiros exibidos publicamente.</p>
-        </div>
-
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as AdminTab)} className="space-y-7">
 
           <TabsContent value="overview" className="space-y-6">
+            <div>
+              <h1 className="text-2xl font-bold text-[#243128]">{greeting()}{adminSession?.name ? `, ${adminSession.name.split(" ")[0]}` : ""}</h1>
+              <p className="mt-1 text-[#66736a]">Aqui está o resumo da plataforma hoje.</p>
+            </div>
             <div className="grid gap-4 sm:grid-cols-3">
               {canSeeSection("campaigns") && (
                 <Card className="p-5">
@@ -1458,9 +1464,16 @@ export default function AdminDashboard() {
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Button type="button" size="sm" variant="default" className="bg-[#228B22] hover:bg-[#1a6b1a]" onClick={() => openEditCampaign(campaign)}>Abrir editor da campanha</Button>
-                        <Button type="submit" size="sm" variant="outline">Descartar conteúdo manual</Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => toggleCampaignContentExpanded(campaign.id)}>
+                          {expandedCampaignContentIds.has(campaign.id) ? "Ocultar campos" : "Editar campos"}
+                        </Button>
+                        {expandedCampaignContentIds.has(campaign.id) && (
+                          <Button type="submit" size="sm" variant="outline">Descartar conteúdo manual</Button>
+                        )}
                       </div>
                     </div>
+                    {expandedCampaignContentIds.has(campaign.id) && (
+                    <>
                     <div className="grid gap-4 md:grid-cols-2">
                       <Field label="Título exibido na página">
                         <Input value={(campaignContentForm[campaign.id]?.title ?? getCampaignContent(campaign.id).title) || campaign.title} onChange={(event) => setCampaignContentForm((current) => ({ ...current, [campaign.id]: { ...(current[campaign.id] ?? getCampaignContent(campaign.id)), title: event.target.value } }))} />
@@ -1539,6 +1552,8 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                     </Field>
+                    </>
+                    )}
                   </form>
                 </Card>
               )) : <EmptyCard icon={Building2} title="Nenhuma campanha cadastrada" description="Crie a primeira campanha para iniciar a operação." action={<Button onClick={() => setIsCreateCampaignOpen(true)}>Criar campanha</Button>} />}
@@ -3000,6 +3015,7 @@ function ErrorCard({ label, onRetry }: { label: string; onRetry: () => void }) {
 function EmptyCard({ icon: Icon, title, description, action }: { icon: typeof Building2; title: string; description: string; action: React.ReactNode }) { return <Card className="border-dashed p-10 text-center"><Icon className="mx-auto h-10 w-10 text-[#228B22]" /><h3 className="mt-4 text-xl font-bold text-[#243128]">{title}</h3><p className="mx-auto mt-2 max-w-xl text-[#66736a]">{description}</p><div className="mt-5">{action}</div></Card>; }
 function Metric({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) { return <div><p className="text-[#7a877e]">{label}</p><p className={`mt-1 font-semibold ${accent ? "text-[#228B22]" : "text-[#243128]"}`}>{value}</p></div>; }
 function formatCurrency(value: number) { return (value / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
+function greeting() { const hour = new Date().getHours(); return hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite"; }
 function StatusBadge({ status }: { status: string }) { const labels: Record<string, string> = { active: "Ativa", completed: "Concluída", paused: "Pausada", archived: "Arquivada" }; return <Badge variant="secondary">{labels[status] ?? status}</Badge>; }
 function parseMediaUrlsInput(value: string) { return value.split(/[\n,]/).map((url) => url.trim()).filter(Boolean); }
 
