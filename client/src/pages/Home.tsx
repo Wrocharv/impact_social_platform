@@ -353,13 +353,15 @@ export default function Home() {
               { icon: Zap, title: siteContent.step2Title, description: siteContent.step2Description },
               { icon: ShieldCheck, title: siteContent.step3Title, description: siteContent.step3Description },
             ].map((item) => (
-              <Card key={item.title} className="border-0 bg-white p-8 shadow-sm">
-                <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#228B22]/10">
-                  <item.icon className="h-7 w-7 text-[#228B22]" aria-hidden="true" />
-                </div>
-                <h3 className="mb-3 text-xl font-bold text-[#2d2d2d]">{item.title}</h3>
-                <p className="leading-relaxed text-[#6d6d6d]">{item.description}</p>
-              </Card>
+              <Link key={item.title} href="/campaigns">
+                <Card className="h-full border-0 bg-white p-8 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                  <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#228B22]/10">
+                    <item.icon className="h-7 w-7 text-[#228B22]" aria-hidden="true" />
+                  </div>
+                  <h3 className="mb-3 text-xl font-bold text-[#2d2d2d]">{item.title}</h3>
+                  <p className="leading-relaxed text-[#6d6d6d]">{item.description}</p>
+                </Card>
+              </Link>
             ))}
           </div>
           <div className="mt-12 flex flex-col gap-3 sm:flex-row sm:justify-center">
