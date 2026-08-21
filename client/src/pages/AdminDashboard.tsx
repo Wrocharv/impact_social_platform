@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
-import { AlertCircle, Building2, CheckCircle2, Edit2, ExternalLink, FileText, Handshake, Layout, Megaphone, PackagePlus, Plus, ShieldCheck, Trash2, Users, XCircle } from "lucide-react";
+import { AlertCircle, Building2, CheckCircle2, ChevronDown, Edit2, ExternalLink, FileText, Handshake, Layout, Megaphone, PackagePlus, Plus, ShieldCheck, Trash2, Users, XCircle } from "lucide-react";
 import AdminManagementSection from "@/components/admin/AdminManagementSection";
 import CampaignAccountabilityDialog from "@/components/admin/CampaignAccountabilityDialog";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1445,14 +1446,22 @@ export default function AdminDashboard() {
                 <Card key={campaign.id} className="p-5 md:p-6">
                   <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
                     <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-3"><h3 className="text-lg font-bold text-[#243128]">{campaign.title}</h3><StatusBadge status={campaign.status} /></div><p className="mt-2 text-[#66736a]">{campaign.description}</p><div className="mt-5 grid gap-4 text-sm sm:grid-cols-3"><Metric label="Meta" value={formatCurrency(campaign.goal)} /><Metric label="Arrecadado" value={formatCurrency(campaign.raised)} accent /><Metric label="Progresso" value={`${campaign.progress}%`} /></div></div>
-                    <div className="flex flex-wrap gap-2 lg:max-w-xs lg:justify-end">
-                      <Button variant="outline" size="sm" className="gap-2" onClick={() => openEditCampaign(campaign)}><Edit2 className="h-4 w-4" /> Editar</Button>
-                      <Button variant="outline" size="sm" className="gap-2" onClick={() => openCampaignUpdate(campaign)}><Megaphone className="h-4 w-4" /> Publicar evolução</Button>
-                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => openCampaignNeed(campaign)}><PackagePlus className="h-4 w-4" /> Novo item</Button>
-                      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => { setManagingNeedsCampaign({ id: campaign.id, title: campaign.title }); setIsManageNeedsOpen(true); }}><Edit2 className="h-3 w-3" /> Gerenciar itens para doar</Button>
-                      <Button variant="outline" size="sm" className="gap-2" onClick={() => setAccountabilityCampaign({ id: campaign.id, title: campaign.title })}><FileText className="h-4 w-4" /> Prestação de contas</Button>
-                      <Button variant="outline" size="sm" className="gap-2 text-red-700 hover:text-red-800" onClick={() => setCampaignToDelete({ id: campaign.id, title: campaign.title })}><Trash2 className="h-4 w-4" /> Excluir</Button>
+                    <div className="flex flex-wrap items-center gap-2 lg:max-w-xs lg:justify-end">
+                      <Button size="sm" className="gap-2 bg-[#228B22] hover:bg-[#1a6b1a]" onClick={() => openEditCampaign(campaign)}><Edit2 className="h-4 w-4" /> Editar</Button>
                       <Button asChild variant="ghost" size="sm" className="gap-2"><Link href={`/campaign/${campaign.id}`}><ExternalLink className="h-4 w-4" /> Ver no site</Link></Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" className="gap-1.5">Mais ações <ChevronDown className="h-3.5 w-3.5" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuItem onClick={() => openCampaignUpdate(campaign)}><Megaphone className="mr-2 h-4 w-4" /> Publicar evolução</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openCampaignNeed(campaign)}><PackagePlus className="mr-2 h-4 w-4" /> Novo item</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => { setManagingNeedsCampaign({ id: campaign.id, title: campaign.title }); setIsManageNeedsOpen(true); }}><Edit2 className="mr-2 h-4 w-4" /> Gerenciar itens para doar</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setAccountabilityCampaign({ id: campaign.id, title: campaign.title })}><FileText className="mr-2 h-4 w-4" /> Prestação de contas</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-red-700 focus:text-red-800" onClick={() => setCampaignToDelete({ id: campaign.id, title: campaign.title })}><Trash2 className="mr-2 h-4 w-4" /> Excluir</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                   <form onSubmit={(event) => handleSaveCampaignContent(event, campaign.id)} className="mt-6 space-y-4 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4">
@@ -3021,7 +3030,14 @@ function MediaUrlPreviewGrid({ urls, onRemove }: { urls: string[]; onRemove: (in
 function LoadingCard({ label }: { label: string }) { return <Card className="p-8 text-center text-[#66736a]">{label}</Card>; }
 function ErrorCard({ label, onRetry }: { label: string; onRetry: () => void }) { return <Card className="p-8 text-center"><p className="text-[#66736a]">{label}</p><Button variant="outline" className="mt-4" onClick={onRetry}>Tentar novamente</Button></Card>; }
 function EmptyCard({ icon: Icon, title, description, action }: { icon: typeof Building2; title: string; description: string; action: React.ReactNode }) { return <Card className="border-dashed p-10 text-center"><Icon className="mx-auto h-10 w-10 text-[#228B22]" /><h3 className="mt-4 text-xl font-bold text-[#243128]">{title}</h3><p className="mx-auto mt-2 max-w-xl text-[#66736a]">{description}</p><div className="mt-5">{action}</div></Card>; }
-function Metric({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) { return <div><p className="text-[#7a877e]">{label}</p><p className={`mt-1 font-semibold ${accent ? "text-[#228B22]" : "text-[#243128]"}`}>{value}</p></div>; }
+function Metric({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="rounded-lg bg-[#f6f8f4] px-3.5 py-2.5">
+      <p className="text-xs font-medium uppercase tracking-wide text-[#8a9488]">{label}</p>
+      <p className={`mt-1 text-base font-semibold ${accent ? "text-[#228B22]" : "text-[#243128]"}`}>{value}</p>
+    </div>
+  );
+}
 function formatCurrency(value: number) { return (value / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 function greeting() { const hour = new Date().getHours(); return hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite"; }
 function StatusBadge({ status }: { status: string }) { const labels: Record<string, string> = { active: "Ativa", completed: "Concluída", paused: "Pausada", archived: "Arquivada" }; return <Badge variant="secondary">{labels[status] ?? status}</Badge>; }
