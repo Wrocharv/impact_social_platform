@@ -2232,6 +2232,20 @@ export const campaignsRouter = router({
         .orderBy(desc(campaignUpdates.createdAt));
     }),
 
+  deleteUpdate: sectionProcedure("campaigns")
+    .input(z.object({ updateId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      try {
+        await db.delete(campaignUpdates).where(eq(campaignUpdates.id, input.updateId));
+      } catch (error) {
+        console.error("[campaigns.deleteUpdate] Falha ao remover atualização:", error);
+        throw new Error(describeErrorWithCause(error));
+      }
+      return { success: true };
+    }),
+
   createNeed: sectionProcedure("campaigns")
     .input(createCampaignNeedSchema)
     .mutation(async ({ input }) => {
