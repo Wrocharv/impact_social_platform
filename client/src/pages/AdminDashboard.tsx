@@ -1125,7 +1125,6 @@ export default function AdminDashboard() {
   }
 
   const partnerMutationPending = createPartner.isPending || updatePartner.isPending;
-  const primaryCampaign = campaignsQuery.data?.[0] ?? null;
 
   return (
     <DashboardLayout>
@@ -1395,41 +1394,6 @@ export default function AdminDashboard() {
                 </DialogContent>
               </Dialog>
             </div>
-
-            <Card className="border-[#d7dfd4] bg-[#f8fbf6] p-5 md:p-6">
-              <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-                <div>
-                  <h3 className="text-lg font-bold text-[#243128]">Edição rápida da campanha</h3>
-                  {campaignsQuery.isLoading ? (
-                    <p className="mt-1 text-sm text-[#66736a]">Carregando campanha para edição...</p>
-                  ) : primaryCampaign ? (
-                    <p className="mt-1 text-sm text-[#66736a]">
-                      Campanha atual: <span className="font-semibold text-[#243128]">{primaryCampaign.title}</span>. Use o atalho para editar meta e arrecadação inicial agora.
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-sm text-[#66736a]">Nenhuma campanha disponível. Clique em Nova campanha para iniciar.</p>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="gap-2"
-                    onClick={() => primaryCampaign && openEditCampaign(primaryCampaign)}
-                    disabled={!primaryCampaign || campaignsQuery.isLoading}
-                  >
-                    <Edit2 className="h-4 w-4" /> Editar meta e arrecadação
-                  </Button>
-                  <Button
-                    type="button"
-                    className="gap-2 bg-[#228B22] hover:bg-[#1a6b1a]"
-                    onClick={() => setIsCreateCampaignOpen(true)}
-                  >
-                    <Plus className="h-4 w-4" /> Nova campanha
-                  </Button>
-                </div>
-              </div>
-            </Card>
 
             <div className="space-y-4">
               {campaignsQuery.isLoading ? <LoadingCard label="Carregando campanhas..." /> : campaignsQuery.isError ? (
@@ -2984,13 +2948,13 @@ function ManageNeedsDialog({ campaign, open, onOpenChange, onCreate, onDelete, o
 
 function SectionHeader({ icon: Icon, title, description }: { icon: typeof Building2; title: string; description: string }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl bg-[#eaf1e6] px-4 py-3.5">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#228B22]">
+    <div className="flex items-center gap-3">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#228B22]/10 text-[#228B22]">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
       <div>
         <h2 className="text-xl font-bold text-[#243128]">{title}</h2>
-        <p className="mt-0.5 text-sm text-[#5d6b60]">{description}</p>
+        <p className="text-sm text-[#66736a]">{description}</p>
       </div>
     </div>
   );

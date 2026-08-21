@@ -146,13 +146,13 @@ export default function AdminManagementSection({ currentAdminId }: { currentAdmi
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-start gap-3 rounded-xl bg-[#eaf1e6] px-4 py-3.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#228B22]">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#228B22]/10 text-[#228B22]">
             <ShieldCheck className="h-5 w-5" aria-hidden="true" />
           </div>
           <div>
             <h2 className="text-xl font-bold text-[#243128]">Administradores</h2>
-            <p className="mt-0.5 text-sm text-[#5d6b60]">Adicione ou remova pessoas com acesso ao painel — total ou só de algumas áreas.</p>
+            <p className="text-sm text-[#66736a]">Adicione ou remova pessoas com acesso ao painel — total ou só de algumas áreas.</p>
           </div>
         </div>
         <Button className="gap-2 bg-[#228B22] hover:bg-[#1a6b1a]" onClick={openCreate}>
