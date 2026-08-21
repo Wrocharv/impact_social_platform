@@ -185,21 +185,21 @@ function DashboardLayoutContent({
             <div className="flex items-center gap-3 px-2 transition-all w-full">
               <button
                 onClick={toggleSidebar}
-                className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
+                className="h-8 w-8 flex items-center justify-center hover:bg-white/10 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
                 aria-label="Toggle navigation"
               >
-                <PanelLeft className="h-4 w-4 text-muted-foreground" />
+                <PanelLeft className="h-4 w-4 text-white/70" />
               </button>
               {!isCollapsed ? (
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                  <span className="font-semibold tracking-tight truncate">
+                  <span className="font-semibold tracking-tight truncate text-white">
                     Parceiros do Bem
                   </span>
                   <a
                     href="/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"
                     title="Ver site público"
                   >
                     <Home className="h-3.5 w-3.5" />
@@ -247,7 +247,7 @@ function DashboardLayoutContent({
                             <meta.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
                             <span className="flex-1">{meta.label}</span>
                             {key === "validations" && pendingValidationsCount > 0 && (
-                              <Badge variant="secondary" className="ml-auto h-5 min-w-5 justify-center px-1.5 group-data-[collapsible=icon]:hidden">
+                              <Badge className="ml-auto h-5 min-w-5 justify-center border-transparent bg-[#3a8f3a] px-1.5 text-white group-data-[collapsible=icon]:hidden">
                                 {pendingValidationsCount}
                               </Badge>
                             )}
@@ -283,17 +283,17 @@ function DashboardLayoutContent({
           <SidebarFooter className="p-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-9 w-9 border shrink-0">
-                    <AvatarFallback className="text-xs font-medium">
+                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-white/10 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <Avatar className="h-9 w-9 border border-white/15 shrink-0">
+                    <AvatarFallback className="bg-white/10 text-xs font-medium text-white">
                       {(admin?.name || admin?.email)?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate leading-none">
+                    <p className="text-sm font-medium truncate leading-none text-white">
                       {admin?.name || "-"}
                     </p>
-                    <p className="text-xs text-muted-foreground truncate mt-1.5">
+                    <p className="text-xs text-white/60 truncate mt-1.5">
                       {admin?.email || "-"}
                     </p>
                   </div>
