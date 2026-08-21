@@ -13,7 +13,7 @@ const DEFAULT_SITE_SETTINGS = {
   heroImageUrl: "https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?auto=format&fit=crop&w=1600&q=80",
   presentationTitle: "Veja o propósito e o objetivo deste projeto",
   presentationDescription: "Conheça algumas de nossas ações e seja um doador, seja um parceiro do bem.",
-  presentationVideoUrl: "/uploads/campaigns/1786167100165-parceriadobem01.mov",
+  presentationVideoUrl: "",
   step1Title: "Escolha uma campanha",
   step1Description: "Conheça a etapa atual, as necessidades e as atualizações antes de contribuir para a obra.",
   step2Title: "Contribua do seu jeito",
@@ -242,6 +242,7 @@ export default function Home() {
                 {presentationVideoSource.kind === "file" ? (
                   <div className="aspect-video w-full">
                     <video
+                      key={presentationVideoSource.src}
                       className="h-full w-full bg-black"
                       controls
                       preload="metadata"
