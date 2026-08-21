@@ -524,10 +524,9 @@ type PartnerItem = {
 function PartnerShowcaseBanner({ partner }: { partner: PartnerItem }) {
   const linkHref = partner.id > 0 ? `/partner/${partner.id}` : "#parceiros";
   const bannerImage = partner.logoUrl || partner.storePhotoUrl || partner.ownerPhotoUrl;
-  const shouldContainBanner =
-    bannerImage?.includes("multipla-escolha.png")
-    || bannerImage?.endsWith("/predimais.jpeg")
-    || false;
+  // Logos não devem ser cortadas (geralmente têm fundo transparente e proporção
+  // diferente do banner) — só fotos reais (fachada/dono) preenchem o quadro todo.
+  const shouldContainBanner = Boolean(partner.logoUrl);
 
   return (
     <Link

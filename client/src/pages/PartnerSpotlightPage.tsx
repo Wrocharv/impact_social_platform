@@ -307,6 +307,7 @@ export default function PartnerSpotlightPage() {
                     ) : (
                       <div className="flex h-28 items-center justify-center text-xs text-[#6f8176]"><Store className="mr-1 h-4 w-4" /> Loja</div>
                     )}
+                    <p className="border-t border-[#eef4ec] px-2 py-1 text-center text-[11px] font-medium text-[#4f6550]">Fachada</p>
                   </div>
                   <div className="overflow-hidden rounded-lg bg-white">
                     {partner.ownerPhotoUrl ? (
@@ -314,6 +315,7 @@ export default function PartnerSpotlightPage() {
                     ) : (
                       <div className="flex h-28 items-center justify-center text-xs text-[#6f8176]">Responsável</div>
                     )}
+                    <p className="border-t border-[#eef4ec] px-2 py-1 text-center text-[11px] font-medium text-[#4f6550]">{partner.ownerName || "Responsável"}</p>
                   </div>
                 </div>
               </>
