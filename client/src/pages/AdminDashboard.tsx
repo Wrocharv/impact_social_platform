@@ -1450,7 +1450,7 @@ export default function AdminDashboard() {
                           {expandedCampaignContentIds.has(campaign.id) ? "Ocultar campos" : "Editar campos"}
                         </Button>
                         {expandedCampaignContentIds.has(campaign.id) && (
-                          <Button type="submit" size="sm" variant="outline">Descartar conteúdo manual</Button>
+                          <Button type="submit" size="sm" className="bg-[#228B22] hover:bg-[#1a6b1a]">Salvar conteúdo manual</Button>
                         )}
                       </div>
                     </div>
