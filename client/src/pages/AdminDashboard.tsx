@@ -1202,7 +1202,7 @@ export default function AdminDashboard() {
               </Card>
             )}
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-              <div><h2 className="text-2xl font-bold text-[#243128]">Campanhas</h2><p className="mt-1 text-[#66736a]">Acompanhe os projetos cadastrados.</p></div>
+              <SectionHeader icon={Building2} title="Campanhas" description="Acompanhe os projetos cadastrados." />
               <Dialog open={isCreateCampaignOpen} onOpenChange={(open) => {
                 setIsCreateCampaignOpen(open);
                 resetCreateCampaignForm();
@@ -1561,7 +1561,7 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="content" className="space-y-6">
-            <div><h2 className="text-2xl font-bold text-[#243128]">Conteúdo do site</h2><p className="mt-1 text-[#66736a]">Textos, imagem e vídeo editáveis da página inicial — título, seção "Como funciona" e botões.</p></div>
+            <SectionHeader icon={Layout} title="Conteúdo do site" description={'Textos, imagem e vídeo editáveis da página inicial — título, seção "Como funciona" e botões.'} />
             <Card className="p-5 md:p-6">
               <div className="mb-4 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4">
                 <h3 className="text-lg font-bold text-[#243128]">Conteúdo manual do site</h3>
@@ -1617,7 +1617,7 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="validations" className="space-y-6">
-            <div><h2 className="text-2xl font-bold text-[#243128]">Validações</h2><p className="mt-1 text-[#66736a]">Confirme doações em dinheiro e ofertas de material antes de entrarem no total arrecadado.</p></div>
+            <SectionHeader icon={CheckCircle2} title="Validações" description="Confirme doações em dinheiro e ofertas de material antes de entrarem no total arrecadado." />
             <Card className="p-5 md:p-6">
               <div className="mb-4 flex flex-col gap-3 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -1910,7 +1910,7 @@ export default function AdminDashboard() {
               </Card>
             )}
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-              <div><h2 className="text-2xl font-bold text-[#243128]">Parceiros</h2><p className="mt-1 text-[#66736a]">Somente estes registros aparecem na vitrine pública.</p></div>
+              <SectionHeader icon={Handshake} title="Parceiros" description="Somente estes registros aparecem na vitrine pública." />
               <Button onClick={openNewPartner} className="gap-2 bg-[#228B22] hover:bg-[#1a6b1a]"><Plus className="h-4 w-4" /> Novo parceiro</Button>
             </div>
             {partnersQuery.isLoading ? <LoadingCard label="Carregando parceiros..." /> : partnersQuery.isError ? <ErrorCard label="Não foi possível carregar os parceiros." onRetry={() => partnersQuery.refetch()} /> : partnersQuery.data?.length ? (
@@ -1945,10 +1945,7 @@ export default function AdminDashboard() {
 
           <TabsContent value="community" className="space-y-6">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-              <div>
-                <h2 className="text-2xl font-bold text-[#243128]">Comunidade de doadores</h2>
-                <p className="mt-1 text-[#66736a]">Pessoas cadastradas via doação ou registro, disponíveis para contato sobre novas campanhas.</p>
-              </div>
+              <SectionHeader icon={Users} title="Comunidade de doadores" description="Pessoas cadastradas via doação ou registro, disponíveis para contato sobre novas campanhas." />
               <Button
                 variant="outline"
                 className="gap-2"
@@ -2117,10 +2114,7 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="comments" className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-[#243128]">Depoimentos das campanhas</h2>
-              <p className="mt-1 text-[#66736a]">Comentários enviados pelo público em cada campanha. Aprove pra publicar, ou rejeite/remova.</p>
-            </div>
+            <SectionHeader icon={FileText} title="Depoimentos das campanhas" description="Comentários enviados pelo público em cada campanha. Aprove pra publicar, ou rejeite/remova." />
 
             <div className="flex flex-wrap gap-2">
               {(["pending", "approved", "rejected", "all"] as const).map((status) => (
@@ -2974,6 +2968,20 @@ function ManageNeedsDialog({ campaign, open, onOpenChange, onCreate, onDelete, o
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionHeader({ icon: Icon, title, description }: { icon: typeof Building2; title: string; description: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl bg-[#eaf1e6] px-4 py-3.5">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#228B22]">
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </div>
+      <div>
+        <h2 className="text-xl font-bold text-[#243128]">{title}</h2>
+        <p className="mt-0.5 text-sm text-[#5d6b60]">{description}</p>
       </div>
     </div>
   );

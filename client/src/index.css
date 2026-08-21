@@ -44,45 +44,48 @@
 
 :root {
   /* Parceiros do Bem - Design System */
+  /* Valores envolvidos em rgb(...) — sem isso, o navegador ignora a variável
+     silenciosamente (vira "transparent"), que era o bug por trás de bordas,
+     botões e caixas de texto meio "sem graça" no painel. */
   /* Cores principais - Confiança e Seriedade */
-  --primary: 34 139 34; /* Verde profundo - esperança e crescimento */
-  --primary-foreground: 255 255 255;
-  
+  --primary: rgb(34 139 34); /* Verde profundo - esperança e crescimento */
+  --primary-foreground: rgb(255 255 255);
+
   /* Cores secundárias - Acolhimento */
-  --secondary: 184 134 11; /* Ouro quente - reconhecimento e valor */
-  --secondary-foreground: 255 255 255;
-  
+  --secondary: rgb(184 134 11); /* Ouro quente - reconhecimento e valor */
+  --secondary-foreground: rgb(255 255 255);
+
   /* Cores de acento */
-  --accent: 220 53 69; /* Vermelho suave - urgência com compaixão */
-  --accent-foreground: 255 255 255;
-  
+  --accent: rgb(233 238 230); /* Verde bem claro — usado como fundo sutil (hover, títulos) */
+  --accent-foreground: rgb(35 60 40);
+
   /* Cores neutras - Elegância */
-  --background: 243 245 241; /* Cinza-esverdeado claro — dá contraste real aos cartões brancos */
-  --foreground: 45 45 45; /* Cinza muito escuro */
-  --card: 255 255 255;
-  --card-foreground: 45 45 45;
-  --popover: 255 255 255;
-  --popover-foreground: 45 45 45;
-  --muted: 120 120 120; /* Cinza médio */
-  --muted-foreground: 92 105 97; /* Texto secundário legível em fundo claro */
-  --border: 220 220 220; /* Cinza claro */
-  --input: 255 255 255;
-  --ring: 34 139 34; /* Verde profundo */
-  
+  --background: rgb(243 245 241); /* Cinza-esverdeado claro — dá contraste real aos cartões brancos */
+  --foreground: rgb(45 45 45); /* Cinza muito escuro */
+  --card: rgb(255 255 255);
+  --card-foreground: rgb(45 45 45);
+  --popover: rgb(255 255 255);
+  --popover-foreground: rgb(45 45 45);
+  --muted: rgb(238 240 235); /* Fundo neutro suave para caixas de texto e blocos secundários */
+  --muted-foreground: rgb(92 105 97); /* Texto secundário legível em fundo claro */
+  --border: rgb(214 219 210); /* Cinza-esverdeado claro */
+  --input: rgb(214 219 210);
+  --ring: rgb(34 139 34); /* Verde profundo */
+
   /* Cores de feedback */
-  --destructive: 220 53 69;
-  --destructive-foreground: 255 255 255;
-  --success: 34 139 34;
-  --success-foreground: 255 255 255;
-  --warning: 255 193 7;
-  --warning-foreground: 45 45 45;
-  
+  --destructive: rgb(220 53 69);
+  --destructive-foreground: rgb(255 255 255);
+  --success: rgb(34 139 34);
+  --success-foreground: rgb(255 255 255);
+  --warning: rgb(255 193 7);
+  --warning-foreground: rgb(45 45 45);
+
   /* Chart colors */
-  --chart-1: 34 139 34;
-  --chart-2: 184 134 11;
-  --chart-3: 220 53 69;
-  --chart-4: 70 130 180;
-  --chart-5: 100 149 237;
+  --chart-1: rgb(34 139 34);
+  --chart-2: rgb(184 134 11);
+  --chart-3: rgb(220 53 69);
+  --chart-4: rgb(70 130 180);
+  --chart-5: rgb(100 149 237);
   
   /* Sidebar — fundo verde bem escuro, separado visualmente do conteúdo claro */
   --sidebar: rgb(21 34 25);
