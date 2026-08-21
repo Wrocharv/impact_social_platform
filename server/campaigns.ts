@@ -1136,6 +1136,7 @@ type PublicCampaignRow = {
   updatedAt: Date;
   startDate: Date | null;
   endDate: Date | null;
+  manualContent: string | null;
 };
 
 function normalizePublicCampaignRow(
@@ -1158,6 +1159,7 @@ function normalizePublicCampaignRow(
     updatedAt: row.updatedAt,
     startDate: row.startDate ?? null,
     endDate: row.endDate ?? null,
+    manualContent: row.manualContent ?? null,
   };
 }
 
@@ -1184,6 +1186,7 @@ async function loadPublishedCampaignRowsWithLegacyFallback(
         updatedAt: campaigns.updatedAt,
         startDate: campaigns.startDate,
         endDate: campaigns.endDate,
+        manualContent: campaigns.manualContent,
       })
       .from(campaigns)
       .where(condition)
