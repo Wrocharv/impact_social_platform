@@ -18,7 +18,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { clearLocalNeedsForCampaign, mergeNeedsForManagement, readLocalNeedsForCampaign, removeLocalNeed, saveLocalNeed, updateLocalNeed } from "@/lib/localNeeds";
 import { resolveCampaignImageUrl } from "@/lib/campaignMedia";
-import { getCampaignContent, saveCampaignContent } from "@/lib/campaignContent";
+import { DEFAULT_CAMPAIGN_CONTENT, type CampaignContent } from "@/lib/campaignContent";
 import { resolveMediaUrl } from "@/lib/mediaInput";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -225,7 +225,19 @@ export default function AdminDashboard() {
     },
     onError: (error) => toast.error(error.message || "Erro ao salvar conteúdo do site."),
   });
-  const [campaignContentForm, setCampaignContentForm] = useState<{ [campaignId: number]: ReturnType<typeof getCampaignContent> }>({});
+  const [campaignContentForm, setCampaignContentForm] = useState<{ [campaignId: number]: CampaignContent }>({});
+  function getCampaignContent(campaignId: number): CampaignContent {
+    const campaign = campaignsQuery.data?.find((item) => item.id === campaignId);
+    return (campaign as { manualContent?: CampaignContent } | undefined)?.manualContent ?? DEFAULT_CAMPAIGN_CONTENT;
+  }
+  const updateCampaignManualContent = trpc.campaigns.updateManualContent.useMutation({
+    onSuccess: async () => {
+      toast.success("Conteúdo manual salvo e publicado no site.");
+      await utils.campaigns.getAll.invalidate();
+      await utils.campaigns.getById.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Erro ao salvar conteúdo manual da campanha."),
+  });
   const [expandedCampaignContentIds, setExpandedCampaignContentIds] = useState<Set<number>>(new Set());
   const toggleCampaignContentExpanded = (campaignId: number) =>
     setExpandedCampaignContentIds((current) => {
@@ -863,8 +875,7 @@ export default function AdminDashboard() {
   function handleSaveCampaignContent(event: React.FormEvent, campaignId: number) {
     event.preventDefault();
     const current = campaignContentForm[campaignId] ?? getCampaignContent(campaignId);
-    saveCampaignContent(campaignId, current);
-    toast.success("Ajustes do painel foram aplicados na campanha pública.");
+    updateCampaignManualContent.mutate({ campaignId, ...current });
   }
 
   function handleSavePartner(event: React.FormEvent) {

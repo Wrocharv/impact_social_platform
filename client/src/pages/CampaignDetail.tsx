@@ -5,7 +5,6 @@ import SocialShare from "@/components/SocialShare";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getCampaignContent } from "@/lib/campaignContent";
 import { trpc } from "@/lib/trpc";
 import { AlertCircle, CalendarDays, ChevronLeft, Download, Heart, MessageCircle, ShieldCheck, Users } from "lucide-react";
 import { Link, useRoute } from "wouter";
@@ -35,6 +34,15 @@ type CampaignDetailView = {
   contributorsCount: number;
   imageUrl: string;
   galleryImages: string[];
+  manualContent: {
+    title: string;
+    subtitle: string;
+    description: string;
+    longDescription: string;
+    heroImageUrl: string;
+    galleryImageUrls: string[];
+    videoUrls: string[];
+  };
   updates: Array<{
     id: number;
     title: string;
@@ -171,7 +179,7 @@ export default function CampaignDetail() {
     "/render-quarto.jpg",
   ];
 
-  const manualCampaignContent = getCampaignContent(campaign.id);
+  const manualCampaignContent = campaign.manualContent;
   const displayTitle = manualCampaignContent.title || campaign.title;
   const displaySubtitle = manualCampaignContent.subtitle || campaign.description;
   const displayDescription = manualCampaignContent.description || campaign.longDescription || "A obra já começou e a equipe está organizando as etapas iniciais para transformar a ideia em realidade. Acompanhe a evolução, as necessidades e as contribuições que já estão ajudando o projeto a avançar.";
@@ -376,6 +384,42 @@ export default function CampaignDetail() {
               </TabsContent>
 
               <TabsContent value="videos" className="mt-6 space-y-4">
+                {manualCampaignContent.videoUrls.length > 0 && (
+                  <Card className="p-6">
+                    <h3 className="text-xl font-bold text-[#2d2d2d]">Vídeos da campanha</h3>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {manualCampaignContent.videoUrls.map((videoUrl) => {
+                        const source = toCampaignVideoSource(videoUrl, `Vídeo da campanha: ${campaign.title}`);
+                        if (!source) return null;
+
+                        return (
+                          <div key={videoUrl} className="aspect-video overflow-hidden rounded-lg border border-[#dfe7dd] bg-[#f6faf5]">
+                            {source.kind === "embed" ? (
+                              <iframe
+                                className="h-full w-full"
+                                src={source.src}
+                                title={source.title}
+                                loading="lazy"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                referrerPolicy="strict-origin-when-cross-origin"
+                                allowFullScreen
+                              />
+                            ) : (
+                              <video
+                                className="h-full w-full bg-black"
+                                controls
+                                preload="metadata"
+                                playsInline
+                              >
+                                <source src={source.src} type={source.mimeType} />
+                              </video>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Card>
+                )}
                 {campaign.updates.some((update) => Array.isArray((update as { videos?: string[] }).videos) && (update as { videos?: string[] }).videos!.length > 0) ? (
                   campaign.updates.map((update) => {
                     const rawVideos = Array.isArray((update as { videos?: string[] }).videos)
@@ -430,9 +474,9 @@ export default function CampaignDetail() {
                       </Card>
                     );
                   })
-                ) : (
+                ) : manualCampaignContent.videoUrls.length === 0 ? (
                   <EmptySection title="Vídeos da campanha em breve" description="Os vídeos desta campanha serão publicados aqui conforme as próximas etapas forem registradas." />
-                )}
+                ) : null}
               </TabsContent>
 
               <TabsContent value="needs" className="mt-6 space-y-4">

@@ -22,6 +22,48 @@ const DEFAULT_VIP_APARTMENT_AMOUNT_CENTS = 120_000_00;
 const LEGENDARIO_PUBLIC_ID = 100002;
 const LEGENDARIO_PUBLIC_TITLE = "LEGENDARIO SOLIDARIO";
 
+export type ManualCampaignContent = {
+  title: string;
+  subtitle: string;
+  description: string;
+  longDescription: string;
+  heroImageUrl: string;
+  galleryImageUrls: string[];
+  videoUrls: string[];
+};
+
+const DEFAULT_MANUAL_CAMPAIGN_CONTENT: ManualCampaignContent = {
+  title: "",
+  subtitle: "",
+  description: "",
+  longDescription: "",
+  heroImageUrl: "",
+  galleryImageUrls: [],
+  videoUrls: [],
+};
+
+function parseManualCampaignContent(raw: unknown): ManualCampaignContent {
+  if (typeof raw !== "string" || !raw.trim()) return { ...DEFAULT_MANUAL_CAMPAIGN_CONTENT };
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return { ...DEFAULT_MANUAL_CAMPAIGN_CONTENT };
+    return { ...DEFAULT_MANUAL_CAMPAIGN_CONTENT, ...parsed };
+  } catch {
+    return { ...DEFAULT_MANUAL_CAMPAIGN_CONTENT };
+  }
+}
+
+const updateManualCampaignContentSchema = z.object({
+  campaignId: z.number().int().positive(),
+  title: z.string().default(""),
+  subtitle: z.string().default(""),
+  description: z.string().default(""),
+  longDescription: z.string().default(""),
+  heroImageUrl: z.string().default(""),
+  galleryImageUrls: z.array(z.string()).default([]),
+  videoUrls: z.array(z.string()).default([]),
+});
+
 type HelpTierOption = "material" | "financial" | "vip";
 const HELP_TIER_OPTIONS: HelpTierOption[] = ["material", "financial", "vip"];
 
@@ -1427,6 +1469,7 @@ export const campaignsRouter = router({
           vipContributionSubtitle: vipContributionConfig?.subtitle ?? "Contribuição especial com acesso ao fluxo completo de pagamento",
           vipContributionDescription: vipContributionConfig?.description ?? "Escolha este fluxo para apoiar a campanha com uma contribuição especial e os métodos de pagamento disponíveis.",
           ...(metrics.get(campaign.id) ?? deriveCampaignMetrics(campaign.goal, campaign.raised, [])),
+          manualContent: parseManualCampaignContent((campaign as { manualContent?: unknown }).manualContent),
         };
       });
     } catch (error) {
@@ -1873,11 +1916,29 @@ export const campaignsRouter = router({
           needs: needsWithProgress,
           documents,
           galleryImages,
+          manualContent: parseManualCampaignContent((campaign as { manualContent?: unknown }).manualContent),
         }),
         legendarioFallback,
       );
 
       return normalizedDetail;
+    }),
+
+  updateManualContent: sectionProcedure("campaigns")
+    .input(updateManualCampaignContentSchema)
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Banco de dados indisponível." });
+      }
+
+      const { campaignId, ...content } = input;
+      await db
+        .update(campaigns)
+        .set({ manualContent: JSON.stringify(content) })
+        .where(eq(campaigns.id, campaignId));
+
+      return { success: true as const, manualContent: content };
     }),
 
   create: sectionProcedure("campaigns")

@@ -190,6 +190,13 @@
       "when": 1786250000000,
       "tag": "0025_add_admin_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1786260000000,
+      "tag": "0026_add_campaign_manual_content",
+      "breakpoints": true
     }
   ]
 }

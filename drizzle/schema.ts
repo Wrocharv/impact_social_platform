@@ -45,6 +45,7 @@ export const campaigns = mysqlTable("campaigns", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   startDate: timestamp("startDate"),
   endDate: timestamp("endDate"),
+  manualContent: text("manualContent"), // JSON: overrides de título/descrição/galeria/vídeos editados no painel
 });
 
 export type Campaign = typeof campaigns.$inferSelect;
