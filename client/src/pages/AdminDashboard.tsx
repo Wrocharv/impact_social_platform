@@ -936,20 +936,24 @@ export default function AdminDashboard() {
       return;
     }
 
-    if (file.size > 100 * 1024 * 1024) {
-      toast.error("O vídeo deve ter no máximo 100MB.");
+    if (file.size > 200 * 1024 * 1024) {
+      toast.error("O vídeo deve ter no máximo 200MB.");
       return;
     }
 
     setUploadingPartnerField("testimonialVideoUrl");
     try {
-      const base64 = await fileToBase64(file);
-      const result = await uploadCampaignVideo.mutateAsync({
-        fileName: file.name,
-        mimeType,
-        size: file.size,
-        base64,
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/upload/video", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
       });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result?.error || "Não foi possível enviar o vídeo.");
+      }
       setPartnerForm((current) => ({ ...current, testimonialVideoUrl: result.url }));
       toast.success("Vídeo do parceiro enviado com sucesso.");
     } catch (error) {
@@ -1012,18 +1016,22 @@ export default function AdminDashboard() {
 
     const mimeType = inferSupportedVideoMimeType(file);
     if (mimeType) {
-      if (file.size > 100 * 1024 * 1024) {
-        throw new Error("O vídeo deve ter no máximo 100MB.");
+      if (file.size > 200 * 1024 * 1024) {
+        throw new Error("O vídeo deve ter no máximo 200MB.");
       }
 
-      const base64 = await fileToBase64(file);
-      const result = await uploadCampaignVideo.mutateAsync({
-        fileName: file.name,
-        mimeType,
-        size: file.size,
-        base64,
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/upload/video", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
       });
-      return result.url;
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result?.error || "Não foi possível enviar o vídeo.");
+      }
+      return result.url as string;
     }
 
     throw new Error("Selecione apenas arquivos de imagem ou vídeos (.mp4, .mov, .webm, .ogg).");
