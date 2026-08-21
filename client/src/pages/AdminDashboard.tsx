@@ -427,6 +427,7 @@ export default function AdminDashboard() {
   });
   const [uploadingPartnerField, setUploadingPartnerField] = useState<"logoUrl" | "storePhotoUrl" | "ownerPhotoUrl" | "testimonialVideoUrl" | null>(null);
   const [uploadingCampaignImage, setUploadingCampaignImage] = useState<"create" | "edit" | null>(null);
+  const [uploadingSiteVideo, setUploadingSiteVideo] = useState(false);
   const [uploadingUpdateMedia, setUploadingUpdateMedia] = useState(false);
   const [uploadingVipMedia, setUploadingVipMedia] = useState(false);
   const [campaignMediaYouTubeUrl, setCampaignMediaYouTubeUrl] = useState("");
@@ -1054,27 +1055,35 @@ export default function AdminDashboard() {
       return;
     }
 
-    if (file.size > 100 * 1024 * 1024) {
-      toast.error("O vídeo deve ter no máximo 100MB.");
+    if (file.size > 200 * 1024 * 1024) {
+      toast.error("O vídeo deve ter no máximo 200MB.");
       return;
     }
 
+    setUploadingSiteVideo(true);
     try {
-      const base64 = await fileToBase64(file);
-      const result = await uploadCampaignVideo.mutateAsync({
-        fileName: file.name,
-        mimeType,
-        size: file.size,
-        base64,
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/upload/video", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
       });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result?.error || "Não foi possível enviar o vídeo.");
+      }
 
       setSiteContentForm((current) => {
-        const next = { ...current, presentationVideoUrl: result.url };
+        const next = { ...current, presentationVideoUrl: result.url as string };
         updateSiteSettings.mutate(next);
         return next;
       });
+      toast.success("Vídeo enviado. Salvando...");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível enviar o vídeo.");
+    } finally {
+      setUploadingSiteVideo(false);
     }
   }
 
@@ -1579,8 +1588,11 @@ export default function AdminDashboard() {
                         className="mt-2"
                         type="file"
                         accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                        disabled={uploadingSiteVideo}
                         onChange={(event) => void handleSitePresentationVideoUpload(event.target.files?.[0])}
                       />
+                      {uploadingSiteVideo && <p className="mt-1 text-xs text-[#66736a]">Enviando vídeo, pode levar um tempo dependendo do tamanho...</p>}
+                      <p className="mt-1 text-[11px] text-[#889284]">Até 200MB.</p>
                     </div>
                   </Field>
                   <div className="flex justify-end"><Button type="submit" disabled={updateSiteSettings.isPending}>{updateSiteSettings.isPending ? "Salvando..." : "Salvar conteúdo"}</Button></div>
