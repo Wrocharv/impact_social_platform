@@ -41,10 +41,10 @@ const SECTION_META: Record<AdminSectionKey, { label: string; icon: typeof Buildi
 };
 
 const NAV_GROUPS: { label: string; keys: AdminSectionKey[] }[] = [
+  { label: "Site", keys: ["content"] },
   { label: "Campanhas", keys: ["campaigns"] },
   { label: "Financeiro", keys: ["validations"] },
   { label: "Relacionamento", keys: ["partners", "community", "comments"] },
-  { label: "Site", keys: ["content"] },
 ];
 
 type AdminSessionLike = { role: "owner" | "full" | "partial"; allowedSections: string[] } | null | undefined;
