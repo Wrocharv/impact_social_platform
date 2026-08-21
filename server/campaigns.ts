@@ -897,7 +897,7 @@ const updateCampaignSchema = z.object({
 });
 
 const mediaUrlsSchema = z
-  .array(z.string().trim().url("URL de mídia inválida"))
+  .array(mediaUrlSchema)
   .max(10, "Informe no máximo 10 URLs")
   .default([]);
 
