@@ -361,3 +361,29 @@ export const partnerApplications = mysqlTable("partnerApplications", {
 
 export type PartnerApplication = typeof partnerApplications.$inferSelect;
 export type InsertPartnerApplication = typeof partnerApplications.$inferInsert;
+
+/**
+ * Compromisso de contribuição mensal ("parceiro mensal") para uma campanha —
+ * a pessoa se compromete a doar um valor total, dividido em N parcelas
+ * mensais, e autoriza ser lembrada todo mês. Nenhuma cobrança automática:
+ * o lembrete leva a pessoa a pagar por conta própria a cada mês.
+ */
+export const monthlyPledges = mysqlTable("monthlyPledges", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: int("campaignId").notNull(),
+  fullName: varchar("fullName", { length: 255 }).notNull(),
+  cpf: varchar("cpf", { length: 14 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  whatsapp: varchar("whatsapp", { length: 20 }).notNull(),
+  city: varchar("city", { length: 255 }),
+  totalAmountCents: int("totalAmountCents").notNull(),
+  installments: int("installments").notNull(),
+  installmentAmountCents: int("installmentAmountCents").notNull(),
+  installmentsPaid: int("installmentsPaid").default(0).notNull(),
+  reminderDay: int("reminderDay").default(5).notNull(),
+  status: mysqlEnum("status", ["active", "paused", "completed", "cancelled"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type MonthlyPledge = typeof monthlyPledges.$inferSelect;
+export type InsertMonthlyPledge = typeof monthlyPledges.$inferInsert;

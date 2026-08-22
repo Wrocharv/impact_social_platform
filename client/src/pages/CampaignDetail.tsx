@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
-import { AlertCircle, CalendarDays, ChevronLeft, Download, Heart, MessageCircle, ShieldCheck, Users } from "lucide-react";
+import { AlertCircle, CalendarClock, CalendarDays, ChevronLeft, Download, Heart, MessageCircle, ShieldCheck, Users } from "lucide-react";
 import { Link, useRoute } from "wouter";
 
 const formatCurrency = (value: number) =>
@@ -265,6 +265,11 @@ export default function CampaignDetail() {
               Quero ser parceiro
             </Link>
           </div>
+          {campaign.status === "active" && (
+            <Link href={`/parceiro-mensal/${campaign.id}`} className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-dashed border-[#228B22]/50 px-5 font-semibold text-[#228B22] hover:bg-[#228B22]/5">
+              <CalendarClock className="h-5 w-5" aria-hidden="true" /> Quero contribuir todo mês
+            </Link>
+          )}
 
           {/* COMPARTILHAMENTO SOCIAL */}
           <Card className="p-6">

@@ -246,6 +246,29 @@ export default function AdminDashboard() {
       else next.add(campaignId);
       return next;
     });
+  const [expandedPledgesCampaignIds, setExpandedPledgesCampaignIds] = useState<Set<number>>(new Set());
+  const togglePledgesExpanded = (campaignId: number) =>
+    setExpandedPledgesCampaignIds((current) => {
+      const next = new Set(current);
+      if (next.has(campaignId)) next.delete(campaignId);
+      else next.add(campaignId);
+      return next;
+    });
+  const monthlyPledgesQuery = trpc.monthlyPledges.list.useQuery(undefined, { enabled: isAdmin && canSeeSection("campaigns") });
+  const markPledgeInstallmentPaid = trpc.monthlyPledges.markInstallmentPaid.useMutation({
+    onSuccess: async () => {
+      toast.success("Parcela marcada como paga.");
+      await utils.monthlyPledges.list.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Erro ao marcar parcela."),
+  });
+  const updatePledgeStatus = trpc.monthlyPledges.updateStatus.useMutation({
+    onSuccess: async () => {
+      toast.success("Status atualizado.");
+      await utils.monthlyPledges.list.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Erro ao atualizar status."),
+  });
 
   const selectedValidationCampaignId = validationCampaignFilter === "all"
     ? undefined
@@ -1575,6 +1598,82 @@ export default function AdminDashboard() {
                     </>
                     )}
                   </form>
+                  {(() => {
+                    const pledges = (monthlyPledgesQuery.data ?? []).filter((pledge) => pledge.campaignId === campaign.id);
+                    const isExpanded = expandedPledgesCampaignIds.has(campaign.id);
+                    return (
+                      <div className="mt-4 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <h4 className="text-sm font-bold text-[#243128]">Parceiros mensais</h4>
+                            <p className="text-xs text-[#66736a]">Compromissos de contribuição mensal enviados pelo formulário público.</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {pledges.length > 0 && <Badge variant="secondary">{pledges.length}</Badge>}
+                            <Button type="button" size="sm" variant="outline" onClick={() => togglePledgesExpanded(campaign.id)}>
+                              {isExpanded ? "Ocultar" : "Ver parceiros mensais"}
+                            </Button>
+                          </div>
+                        </div>
+                        {isExpanded && (
+                          pledges.length > 0 ? (
+                            <div className="mt-4 space-y-3">
+                              {pledges.map((pledge) => (
+                                <div key={pledge.id} className="rounded-lg border border-[#dce5d8] bg-white p-4">
+                                  <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <p className="font-bold text-[#243128]">{pledge.fullName}</p>
+                                        <Badge variant={pledge.status === "active" ? "secondary" : "outline"}>
+                                          {pledge.status === "active" ? "Ativo" : pledge.status === "paused" ? "Pausado" : pledge.status === "completed" ? "Concluído" : "Cancelado"}
+                                        </Badge>
+                                      </div>
+                                      <p className="mt-1 text-sm text-[#66736a]">CPF: {pledge.cpf} · WhatsApp: {pledge.whatsapp}{pledge.city ? ` · ${pledge.city}` : ""}</p>
+                                      <p className="mt-1 text-sm text-[#66736a]">
+                                        {formatCurrency(pledge.totalAmountCents)} em {pledge.installments}x de {formatCurrency(pledge.installmentAmountCents)} — {pledge.installmentsPaid}/{pledge.installments} parcelas pagas
+                                      </p>
+                                    </div>
+                                    <div className="flex shrink-0 flex-wrap gap-2">
+                                      <a
+                                        href={`https://wa.me/55${pledge.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${pledge.fullName}! Passando pra lembrar da parcela mensal de ${formatCurrency(pledge.installmentAmountCents)} do seu compromisso com a Parceria do Bem.`)}`}
+                                        target="_blank"
+                                        rel="noreferrer noopener"
+                                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-[#228B22] px-3 text-sm font-semibold text-[#228B22] hover:bg-[#228B22]/5"
+                                      >
+                                        Lembrar no WhatsApp
+                                      </a>
+                                      {pledge.status === "active" && pledge.installmentsPaid < pledge.installments && (
+                                        <Button type="button" size="sm" className="bg-[#228B22] hover:bg-[#1a6b1a]" disabled={markPledgeInstallmentPaid.isPending} onClick={() => markPledgeInstallmentPaid.mutate({ id: pledge.id })}>
+                                          Marcar parcela paga
+                                        </Button>
+                                      )}
+                                      {pledge.status === "active" && (
+                                        <Button type="button" size="sm" variant="outline" disabled={updatePledgeStatus.isPending} onClick={() => updatePledgeStatus.mutate({ id: pledge.id, status: "paused" })}>
+                                          Pausar
+                                        </Button>
+                                      )}
+                                      {pledge.status === "paused" && (
+                                        <Button type="button" size="sm" variant="outline" disabled={updatePledgeStatus.isPending} onClick={() => updatePledgeStatus.mutate({ id: pledge.id, status: "active" })}>
+                                          Reativar
+                                        </Button>
+                                      )}
+                                      {(pledge.status === "active" || pledge.status === "paused") && (
+                                        <Button type="button" size="sm" variant="outline" className="text-red-700 hover:text-red-800" disabled={updatePledgeStatus.isPending} onClick={() => updatePledgeStatus.mutate({ id: pledge.id, status: "cancelled" })}>
+                                          Cancelar
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-4 text-sm text-[#66736a]">Nenhum parceiro mensal cadastrado nesta campanha ainda.</p>
+                          )
+                        )}
+                      </div>
+                    );
+                  })()}
                 </Card>
               )) : <EmptyCard icon={Building2} title="Nenhuma campanha cadastrada" description="Crie a primeira campanha para iniciar a operação." action={<Button onClick={() => setIsCreateCampaignOpen(true)}>Criar campanha</Button>} />}
             </div>
