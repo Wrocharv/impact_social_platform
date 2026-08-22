@@ -394,6 +394,25 @@ export default function AdminDashboard() {
     },
     onError: (error) => toast.error(error.message || "Erro ao remover parceiro"),
   });
+  const partnerApplicationsQuery = trpc.partnerApplications.list.useQuery(undefined, { enabled: isAdmin && canSeeSection("partners") });
+  const approvePartnerApplication = trpc.partnerApplications.approve.useMutation({
+    onSuccess: async () => {
+      toast.success("Solicitação aprovada! O parceiro já está publicado.");
+      await Promise.all([
+        utils.partnerApplications.list.invalidate(),
+        utils.partners.getAll.invalidate(),
+        utils.partners.listPublished.invalidate(),
+      ]);
+    },
+    onError: (error) => toast.error(error.message || "Erro ao aprovar solicitação"),
+  });
+  const rejectPartnerApplication = trpc.partnerApplications.reject.useMutation({
+    onSuccess: async () => {
+      toast.success("Solicitação rejeitada.");
+      await utils.partnerApplications.list.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Erro ao rejeitar solicitação"),
+  });
   const reviewCashContribution = trpc.contributions.reviewCashContribution.useMutation({
     onSuccess: async (result) => {
       toast.success(result.status === "approved" ? "Contribuição em dinheiro validada." : "Contribuição em dinheiro rejeitada.");
@@ -1917,6 +1936,50 @@ export default function AdminDashboard() {
               <SectionHeader icon={Handshake} title="Parceiros" description="Somente estes registros aparecem na vitrine pública." />
               <Button onClick={openNewPartner} className="gap-2 bg-[#228B22] hover:bg-[#1a6b1a]"><Plus className="h-4 w-4" /> Novo parceiro</Button>
             </div>
+            {!!partnerApplicationsQuery.data?.length && (
+              <Card className="border-[#a87508]/25 bg-[#fffaf0] p-5">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-[#70571a]">Solicitações de parceria</h3>
+                  <Badge className="bg-[#a87508] text-white">{partnerApplicationsQuery.data.length}</Badge>
+                </div>
+                <p className="mt-1 text-sm text-[#70571a]">Pedidos enviados pelo formulário público "Quero ser parceiro".</p>
+                <div className="mt-4 space-y-3">
+                  {partnerApplicationsQuery.data.map((application) => (
+                    <div key={application.id} className="flex flex-col gap-3 rounded-lg border border-[#a87508]/20 bg-white p-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-bold text-[#243128]">{application.companyName}</p>
+                          <Badge variant="secondary">{application.type === "company" ? "Empresa" : "Pessoa física"}</Badge>
+                        </div>
+                        {application.segment && <p className="mt-1 text-sm text-[#66736a]">Ramo: {application.segment}</p>}
+                        {application.contactName && <p className="mt-1 text-sm text-[#66736a]">Responsável: {application.contactName}</p>}
+                        <p className="mt-1 text-sm text-[#66736a]">Telefone: {application.phone}{application.email ? ` · ${application.email}` : ""}</p>
+                        {application.offer && <p className="mt-2 text-sm text-[#66736a]">"{application.offer}"</p>}
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          size="sm"
+                          className="gap-2 bg-[#228B22] hover:bg-[#1a6b1a]"
+                          disabled={approvePartnerApplication.isPending}
+                          onClick={() => approvePartnerApplication.mutate({ id: application.id })}
+                        >
+                          <CheckCircle2 className="h-4 w-4" /> Aprovar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-2 text-red-700 hover:text-red-800"
+                          disabled={rejectPartnerApplication.isPending}
+                          onClick={() => rejectPartnerApplication.mutate({ id: application.id })}
+                        >
+                          <XCircle className="h-4 w-4" /> Rejeitar
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
             {partnersQuery.isLoading ? <LoadingCard label="Carregando parceiros..." /> : partnersQuery.isError ? <ErrorCard label="Não foi possível carregar os parceiros." onRetry={() => partnersQuery.refetch()} /> : partnersQuery.data?.length ? (
               <div className="grid gap-4 lg:grid-cols-2">
                 {partnersQuery.data.map((partner) => (

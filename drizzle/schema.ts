@@ -341,3 +341,23 @@ export const adminUsers = mysqlTable("adminUsers", {
 
 export type AdminUser = typeof adminUsers.$inferSelect;
 export type InsertAdminUser = typeof adminUsers.$inferInsert;
+
+/**
+ * Pedidos de quem preenche o formulário público "Quero ser parceiro" —
+ * ficam pendentes até um admin aprovar (vira parceiro de verdade) ou rejeitar.
+ */
+export const partnerApplications = mysqlTable("partnerApplications", {
+  id: int("id").autoincrement().primaryKey(),
+  type: mysqlEnum("type", ["company", "individual"]).default("company").notNull(),
+  companyName: varchar("companyName", { length: 255 }).notNull(),
+  segment: varchar("segment", { length: 255 }),
+  contactName: varchar("contactName", { length: 255 }),
+  phone: varchar("phone", { length: 30 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  offer: text("offer"),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PartnerApplication = typeof partnerApplications.$inferSelect;
+export type InsertPartnerApplication = typeof partnerApplications.$inferInsert;

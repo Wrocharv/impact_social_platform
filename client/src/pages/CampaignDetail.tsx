@@ -261,9 +261,9 @@ export default function CampaignDetail() {
             ) : (
               <div className="rounded-lg bg-[#228B22]/10 p-4 text-center font-semibold text-[#228B22]">Campanha concluída</div>
             )}
-            <a href="#parceiros" className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-5 font-semibold text-[#228B22] hover:bg-[#228B22]/5">
+            <Link href="/quero-ser-parceiro" className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-5 font-semibold text-[#228B22] hover:bg-[#228B22]/5">
               Quero ser parceiro
-            </a>
+            </Link>
           </div>
 
           {/* COMPARTILHAMENTO SOCIAL */}
@@ -539,9 +539,9 @@ export default function CampaignDetail() {
             ) : (
               <div className="rounded-lg bg-[#228B22]/10 p-4 text-center font-semibold text-[#228B22]">Campanha concluída</div>
             )}
-            <a href="#parceiros" className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-5 font-semibold text-[#228B22] hover:bg-[#228B22]/5">
+            <Link href="/quero-ser-parceiro" className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-5 font-semibold text-[#228B22] hover:bg-[#228B22]/5">
               Quero ser parceiro
-            </a>
+            </Link>
           </div>
         </div>
       </main>

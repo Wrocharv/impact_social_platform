@@ -196,12 +196,12 @@ export default function Home() {
               >
                 {siteContent.helpButtonLabel}
               </Link>
-              <a
-                href="#parceiros"
+              <Link
+                href="/quero-ser-parceiro"
                 className="inline-flex min-h-12 items-center justify-center rounded-md border border-white/70 px-7 font-semibold text-white transition hover:bg-white/10 active:scale-[0.97]"
               >
                 {siteContent.partnerButtonLabel}
-              </a>
+              </Link>
             </div>
           </div>
         </div>
@@ -371,12 +371,12 @@ export default function Home() {
             >
               <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> {siteContent.helpButtonLabel}
             </Link>
-            <a
-              href="#parceiros"
+            <Link
+              href="/quero-ser-parceiro"
               className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-7 font-semibold text-[#228B22] hover:bg-[#228B22]/5 active:scale-[0.97]"
             >
               <Handshake className="mr-2 h-5 w-5" aria-hidden="true" /> {siteContent.partnerButtonLabel}
-            </a>
+            </Link>
           </div>
         </div>
       </section>
@@ -409,12 +409,12 @@ export default function Home() {
             >
               <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> {siteContent.helpButtonLabel}
             </Link>
-            <a
-              href="#parceiros"
+            <Link
+              href="/quero-ser-parceiro"
               className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-7 font-semibold text-[#228B22] hover:bg-[#228B22]/5 active:scale-[0.97]"
             >
               <Handshake className="mr-2 h-5 w-5" aria-hidden="true" /> {siteContent.partnerButtonLabel}
-            </a>
+            </Link>
           </div>
         </div>
       </section>
@@ -471,12 +471,12 @@ export default function Home() {
             >
               <Heart className="mr-2 h-5 w-5" aria-hidden="true" /> {siteContent.helpButtonLabel}
             </Link>
-            <a
-              href="#parceiros"
+            <Link
+              href="/quero-ser-parceiro"
               className="inline-flex min-h-12 items-center justify-center rounded-md border border-white px-7 font-semibold text-white transition hover:bg-white/10 active:scale-[0.97]"
             >
               <Handshake className="mr-2 h-5 w-5" aria-hidden="true" /> {siteContent.partnerButtonLabel}
-            </a>
+            </Link>
           </div>
         </div>
       </section>
