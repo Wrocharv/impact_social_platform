@@ -70,6 +70,12 @@ type CampaignDetailView = {
   }>;
 };
 
+function pauseOtherVideos(playingVideo: HTMLVideoElement) {
+  document.querySelectorAll("video").forEach((video) => {
+    if (video !== playingVideo && !video.paused) video.pause();
+  });
+}
+
 function toCampaignVideoSource(rawValue: string, fallbackTitle: string): CampaignVideoSource | null {
   const value = rawValue.trim();
   if (!value) return null;
@@ -370,7 +376,7 @@ export default function CampaignDetail() {
                                   allowFullScreen
                                 />
                               ) : (
-                                <video className="h-full w-full bg-black" controls preload="auto" playsInline muted={false}>
+                                <video className="h-full w-full bg-black" controls preload="auto" playsInline muted={false} onPlay={(event) => pauseOtherVideos(event.currentTarget)}>
                                   <source src={source.src} type={source.mimeType} />
                                 </video>
                               )}
@@ -410,6 +416,7 @@ export default function CampaignDetail() {
                                 controls
                                 preload="metadata"
                                 playsInline
+                                onPlay={(event) => pauseOtherVideos(event.currentTarget)}
                               >
                                 <source src={source.src} type={source.mimeType} />
                               </video>
@@ -462,6 +469,7 @@ export default function CampaignDetail() {
                                     onPlay={(event) => {
                                       event.currentTarget.muted = false;
                                       event.currentTarget.volume = 1;
+                                      pauseOtherVideos(event.currentTarget);
                                     }}
                                   >
                                     <source src={source.src} type={source.mimeType} />
