@@ -27,7 +27,7 @@ export default function PartnerApplicationPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitted, setSubmitted] = useState(false);
 
-  const apply = trpc.partnerApplications.apply.useMutation({
+  const apply = trpc.partnerApplications.submit.useMutation({
     onSuccess: () => {
       const summaryLines = [
         `Olá! Quero ser parceiro da Parceria do Bem.`,

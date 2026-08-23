@@ -17,7 +17,7 @@ const applySchema = z.object({
 
 export const partnerApplicationsRouter = router({
   // Formulário público "Quero ser parceiro" — fica pendente até um admin aprovar.
-  apply: publicProcedure
+  submit: publicProcedure
     .input(applySchema)
     .mutation(async ({ input }) => {
       const db = await getDb();
