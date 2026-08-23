@@ -84,46 +84,6 @@ function toPartnerVideoSource(url?: string | null): PartnerVideoSource | null {
   return { kind: "embed", src: embedded };
 }
 
-function getCustomPartnerBanner(name?: string | null) {
-  if (!name) return null;
-
-  const normalizedName = name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-
-  if (normalizedName.includes("predimais")) {
-    return "/Parceiros/Banner_APredimais_Saulo_Goulart.png";
-  }
-
-  if (normalizedName.includes("multipla escolha")) {
-    return "/Parceiros/Banner_MultiplaEscolha_LucasSardinha.png";
-  }
-
-  return null;
-}
-
-function getCustomPartnerLogo(name?: string | null) {
-  if (!name) return null;
-
-  const normalizedName = name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-
-  if (normalizedName.includes("predimais")) {
-    return "/partners/predimais.jpeg";
-  }
-
-  if (normalizedName.includes("multipla escolha")) {
-    return "/partners/multipla-escolha.png";
-  }
-
-  return null;
-}
-
 function getCustomPartnerVideo(name?: string | null) {
   if (!name) return null;
 
@@ -208,10 +168,10 @@ export default function PartnerSpotlightPage() {
   const configuredVideoSource = toPartnerVideoSource(partner.testimonialVideoUrl);
   const fallbackVideoSource = toPartnerVideoSource(customVideoUrl);
   const videoSource = configuredVideoSource ?? fallbackVideoSource;
-  const customBannerUrl = getCustomPartnerBanner(partner.name);
-  const customLogoUrl = getCustomPartnerLogo(partner.name);
-  const showFullWidthBanner = Boolean(customBannerUrl);
-  const featuredImage = customBannerUrl || customLogoUrl || partner.logoUrl;
+  // Parceiros com foto de fachada cadastrada ganham o banner grande no topo —
+  // qualquer parceiro pode ter isso, não é mais fixo por nome no código.
+  const showFullWidthBanner = Boolean(partner.storePhotoUrl);
+  const featuredImage = partner.logoUrl;
 
   return (
     <div className="min-h-screen bg-[#f7faf6] text-[#233127]">
@@ -232,7 +192,7 @@ export default function PartnerSpotlightPage() {
       {showFullWidthBanner && (
         <section className="relative w-full overflow-hidden border-b border-[#dfe7dd] bg-[#0f2b1d]">
           <img
-            src={encodeURI(customBannerUrl ?? "")}
+            src={encodeURI(partner.storePhotoUrl ?? "")}
             alt={`Banner de ${partner.name}`}
             className="h-[280px] w-full object-cover object-center md:h-[440px]"
           />
@@ -248,13 +208,18 @@ export default function PartnerSpotlightPage() {
                   <MessageCircle className="h-4 w-4" /> WhatsApp
                 </a>
               )}
+              {instagramUrl && (
+                <a href={instagramUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[#1e4c34]/20 bg-white px-3 text-xs font-semibold text-[#1e4c34] shadow-sm transition hover:bg-[#eef8f0] md:min-h-10 md:px-4 md:text-sm">
+                  <Instagram className="h-4 w-4" /> Instagram
+                </a>
+              )}
             </div>
           </div>
         </section>
       )}
 
       <main className="container max-w-6xl space-y-8 px-4 py-10 md:py-14">
-        <Card className={`grid gap-6 border-[#dce6da] p-6 ${showFullWidthBanner ? "md:grid-cols-1" : "md:grid-cols-[1.1fr_1fr]"} md:p-8`}>
+        <Card className="grid gap-6 border-[#dce6da] p-6 md:grid-cols-[1.1fr_1fr] md:p-8">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#4f6656]">Apresentação</p>
             <h2 className="mt-2 text-2xl font-bold text-[#223126]">Conheça este parceiro</h2>
@@ -272,13 +237,12 @@ export default function PartnerSpotlightPage() {
             )}
           </div>
           <div className="rounded-xl bg-[#eef4ec] p-4">
-            {!showFullWidthBanner && (
-              <>
+            <>
                 {featuredImage ? (
                   <img
                     src={encodeURI(featuredImage)}
-                    alt={customBannerUrl ? `Banner de ${partner.name}` : `Logomarca de ${partner.name}`}
-                    className={`w-full rounded-lg ${customBannerUrl ? "h-40 object-cover" : "h-32 object-contain bg-white p-3"}`}
+                    alt={`Logomarca de ${partner.name}`}
+                    className="h-32 w-full rounded-lg bg-white object-contain p-3"
                   />
                 ) : (
                   <div className="flex h-32 items-center justify-center rounded-lg bg-white text-[#66806f]"><Handshake className="h-8 w-8" /></div>
@@ -318,8 +282,7 @@ export default function PartnerSpotlightPage() {
                     <p className="border-t border-[#eef4ec] px-2 py-1 text-center text-[11px] font-medium text-[#4f6550]">{partner.ownerName || "Responsável"}</p>
                   </div>
                 </div>
-              </>
-            )}
+            </>
           </div>
         </Card>
 
