@@ -162,7 +162,7 @@ export default function Home() {
   }, [siteContent.presentationVideoUrl]);
   const campaigns = (campaignsQuery.data ?? []) as PublishedCampaign[];
   const completedCampaigns = (completedQuery.data ?? []) as PublishedCampaign[];
-  const visiblePartners = getPredimaisShowcasePartners();
+  const visiblePartners = (partnersQuery.data ?? []) as PartnerItem[];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white pb-22 md:pb-24">
@@ -522,56 +522,6 @@ type PartnerItem = {
   testimonialText: string | null;
   website: string | null;
 };
-
-function getPredimaisShowcasePartners(): PartnerItem[] {
-  return [
-    {
-      id: 1,
-      name: "Predimais",
-      type: "company",
-      ownerName: "Saulo Goulart",
-      description: "Parceria que conecta clientes, amigos e colaboradores para apoiar campanhas sociais recorrentes.",
-      logoUrl: "/partners/predimais.jpeg",
-      storePhotoUrl: "/partners/predimais-fachada.jpeg",
-      ownerPhotoUrl: "/partners/predimais-interior.jpeg",
-      address: "Rua Central, 120 - Centro",
-      contactInfo: "(11) 99999-0101",
-      testimonialVideoUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
-      testimonialText: "Nossa empresa cresceu quando decidiu crescer junto com a comunidade. Vale a pena participar.",
-      website: "https://www.parceriadobem.com.br",
-    },
-    {
-      id: 2,
-      name: "Predimais",
-      type: "company",
-      ownerName: "Saulo Goulart",
-      description: "Imagem da fachada da unidade parceira.",
-      logoUrl: "/partners/predimais-fachada.jpeg",
-      storePhotoUrl: "/partners/predimais-fachada.jpeg",
-      ownerPhotoUrl: "/partners/predimais-interior.jpeg",
-      address: "Rua Central, 120 - Centro",
-      contactInfo: "(11) 99999-0101",
-      testimonialVideoUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
-      testimonialText: "A parceria abriu novas portas para apoiar quem realmente precisa.",
-      website: "https://www.parceriadobem.com.br",
-    },
-    {
-      id: 4,
-      name: "Múltipla Escolha",
-      type: "company",
-      ownerName: "Lucas Daniel Sardinha",
-      description: "Parceiro que mobiliza apoio para campanhas com presença local e comunicação direta.",
-      logoUrl: "/partners/multipla-escolha.png",
-      storePhotoUrl: "/partners/multipla-escolha.png",
-      ownerPhotoUrl: "/partners/multipla-escolha.png",
-      address: "Rua Central, 120 - Centro",
-      contactInfo: "(11) 99999-0101",
-      testimonialVideoUrl: null,
-      testimonialText: "A rede de parceiros ajuda a causa a chegar mais longe com credibilidade.",
-      website: "https://www.parceriadobem.com.br",
-    },
-  ];
-}
 
 function PartnerShowcaseBanner({ partner }: { partner: PartnerItem }) {
   const linkHref = partner.id > 0 ? `/partner/${partner.id}` : "#parceiros";
