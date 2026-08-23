@@ -1,5 +1,6 @@
 import AnimatedProgressBar from "@/components/AnimatedProgressBar";
 import CampaignComments from "@/components/CampaignComments";
+import MonthlyGivingBanner from "@/components/MonthlyGivingBanner";
 import MonthlyGivingPopup from "@/components/MonthlyGivingPopup";
 import PublicHeader from "@/components/PublicHeader";
 import SocialShare from "@/components/SocialShare";
@@ -151,6 +152,7 @@ export default function CampaignDetail() {
     { id: campaignId },
     { enabled: Number.isInteger(campaignId) && campaignId > 0 },
   );
+  const siteSettingsQuery = trpc.siteSettings.get.useQuery();
 
   if (!Number.isInteger(campaignId) || campaignId <= 0) {
     return <CampaignState title="Campanha inválida" description="O endereço informado não corresponde a uma campanha." />;
@@ -195,6 +197,10 @@ export default function CampaignDetail() {
   const galleryImages = manualCampaignContent.galleryImageUrls.length > 0 ? manualCampaignContent.galleryImageUrls : (isRecantoCampaign ? canonicalRecantoGalleryImages : campaign.galleryImages);
   const displayGalleryImages = galleryImages;
   const hasHeroImage = Boolean(displayHeroImage);
+  const monthlyGivingSettings = siteSettingsQuery.data;
+  const showMonthlyGivingBanner = Boolean(
+    monthlyGivingSettings?.monthlyGivingPopupEnabled && monthlyGivingSettings?.monthlyGivingPopupCampaignId === campaign.id,
+  );
 
   return (
     <div className="min-h-screen bg-[#f8faf7]">
@@ -268,9 +274,18 @@ export default function CampaignDetail() {
             </Link>
           </div>
           {campaign.status === "active" && (
-            <Link href={`/parceiro-mensal/${campaign.id}`} className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-dashed border-[#228B22]/50 px-5 font-semibold text-[#228B22] hover:bg-[#228B22]/5">
-              <CalendarClock className="h-5 w-5" aria-hidden="true" /> Quero contribuir todo mês
-            </Link>
+            showMonthlyGivingBanner && monthlyGivingSettings ? (
+              <MonthlyGivingBanner
+                campaignId={campaign.id}
+                title={monthlyGivingSettings.monthlyGivingPopupTitle}
+                description={monthlyGivingSettings.monthlyGivingPopupDescription}
+                buttonLabel={monthlyGivingSettings.monthlyGivingPopupButtonLabel}
+              />
+            ) : (
+              <Link href={`/parceiro-mensal/${campaign.id}`} className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-dashed border-[#228B22]/50 px-5 font-semibold text-[#228B22] hover:bg-[#228B22]/5">
+                <CalendarClock className="h-5 w-5" aria-hidden="true" /> Quero contribuir todo mês
+              </Link>
+            )
           )}
 
           {/* COMPARTILHAMENTO SOCIAL */}

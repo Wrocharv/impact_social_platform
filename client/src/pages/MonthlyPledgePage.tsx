@@ -62,7 +62,7 @@ export default function MonthlyPledgePage() {
     onSuccess: (result) => {
       const totalAmountCents = parseCurrencyToCents(form.totalAmount) ?? 0;
       const summaryLines = [
-        `Olá! Quero ser parceiro mensal da campanha "${campaignQuery.data?.title ?? ""}".`,
+        `Olá! Quero ser sócio doador da campanha "${campaignQuery.data?.title ?? ""}".`,
         `Nome: ${form.fullName}`,
         `CPF: ${form.cpf}`,
         `WhatsApp: ${form.whatsapp}`,
@@ -119,7 +119,7 @@ export default function MonthlyPledgePage() {
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#228B22]/10">
             <CalendarClock className="h-8 w-8 text-[#228B22]" aria-hidden="true" />
           </div>
-          <p className="mt-6 text-sm font-semibold uppercase tracking-[0.16em] text-[#228B22]">Parceiro mensal</p>
+          <p className="mt-6 text-sm font-semibold uppercase tracking-[0.16em] text-[#228B22]">Sócio doador</p>
           <h1 className="mt-3 text-3xl font-bold text-[#2d2d2d] md:text-4xl">
             {campaignQuery.data ? `Contribua todo mês com ${campaignQuery.data.title}` : "Contribua todo mês com essa campanha"}
           </h1>

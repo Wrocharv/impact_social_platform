@@ -40,7 +40,7 @@ const DEFAULT_SITE_SETTINGS_FORM = {
   helpButtonLabel: "Eu quero ajudar",
   partnerButtonLabel: "Quero ser parceiro",
   monthlyGivingPopupEnabled: false,
-  monthlyGivingPopupTitle: "Seja um Parceiro Mensal",
+  monthlyGivingPopupTitle: "Seja um Sócio Doador",
   monthlyGivingPopupDescription: "Escolha um valor e contribua todo mês com quem mais precisa. Você decide o valor e o número de parcelas.",
   monthlyGivingPopupButtonLabel: "Quero contribuir todo mês",
   monthlyGivingPopupCampaignId: null as number | null,
@@ -1621,20 +1621,20 @@ export default function AdminDashboard() {
                       <div className="mt-4 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>
-                            <h4 className="text-sm font-bold text-[#243128]">Parceiros mensais</h4>
+                            <h4 className="text-sm font-bold text-[#243128]">Sócios doadores</h4>
                             <p className="text-xs text-[#66736a]">Compromissos de contribuição mensal enviados pelo formulário público.</p>
                           </div>
                           <div className="flex items-center gap-2">
                             {pledges.length > 0 && <Badge variant="secondary">{pledges.length}</Badge>}
                             <Button type="button" size="sm" variant="outline" onClick={() => togglePledgesExpanded(campaign.id)}>
-                              {isExpanded ? "Ocultar" : "Ver parceiros mensais"}
+                              {isExpanded ? "Ocultar" : "Ver sócios doadores"}
                             </Button>
                           </div>
                         </div>
                         {pledges.length > 0 && (
                           <div className="mt-3 grid gap-3 sm:grid-cols-3">
                             <div className="rounded-lg bg-white px-3.5 py-2.5">
-                              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9488]">Parceiros ativos</p>
+                              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9488]">Sócios ativos</p>
                               <p className="text-lg font-bold text-[#243128]">{activePledges.length}</p>
                             </div>
                             <div className="rounded-lg bg-white px-3.5 py-2.5">
@@ -1700,7 +1700,7 @@ export default function AdminDashboard() {
                               ))}
                             </div>
                           ) : (
-                            <p className="mt-4 text-sm text-[#66736a]">Nenhum parceiro mensal cadastrado nesta campanha ainda.</p>
+                            <p className="mt-4 text-sm text-[#66736a]">Nenhum sócio doador cadastrado nesta campanha ainda.</p>
                           )
                         )}
                       </div>
@@ -1771,11 +1771,11 @@ export default function AdminDashboard() {
                         checked={siteContentForm.monthlyGivingPopupEnabled}
                         onCheckedChange={(checked) => setSiteContentForm({ ...siteContentForm, monthlyGivingPopupEnabled: checked === true })}
                       />
-                      <label htmlFor="monthly-popup-enabled" className="text-sm font-bold text-[#243128]">Pop-up de parceiro mensal</label>
+                      <label htmlFor="monthly-popup-enabled" className="text-sm font-bold text-[#243128]">Pop-up de sócio doador</label>
                     </div>
                     <p className="mt-1 text-xs text-[#66736a]">Aparece uma vez por visita, convidando a pessoa a contribuir todo mês numa campanha específica.</p>
                     <div className="mt-3 space-y-3">
-                      <Field label="Título do pop-up (o nome do parceiro mensal)">
+                      <Field label="Título do pop-up (o nome do sócio doador)">
                         <Input value={siteContentForm.monthlyGivingPopupTitle} onChange={(event) => setSiteContentForm({ ...siteContentForm, monthlyGivingPopupTitle: event.target.value })} placeholder="Ex: Seja um Mantenedor do Bem" />
                       </Field>
                       <Field label="Descrição do pop-up">
