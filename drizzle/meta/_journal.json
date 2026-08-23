@@ -211,6 +211,13 @@
       "when": 1786280000000,
       "tag": "0028_add_monthly_pledges",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1786290000000,
+      "tag": "0029_add_monthly_giving_popup",
+      "breakpoints": true
     }
   ]
 }

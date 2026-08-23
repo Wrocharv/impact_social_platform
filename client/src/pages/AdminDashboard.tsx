@@ -38,6 +38,11 @@ const DEFAULT_SITE_SETTINGS_FORM = {
   step3Description: "Consulte fotos, registros e documentos publicados em cada etapa da campanha.",
   helpButtonLabel: "Eu quero ajudar",
   partnerButtonLabel: "Quero ser parceiro",
+  monthlyGivingPopupEnabled: false,
+  monthlyGivingPopupTitle: "Seja um Parceiro Mensal",
+  monthlyGivingPopupDescription: "Escolha um valor e contribua todo mês com quem mais precisa. Você decide o valor e o número de parcelas.",
+  monthlyGivingPopupButtonLabel: "Quero contribuir todo mês",
+  monthlyGivingPopupCampaignId: null as number | null,
 };
 
 const EMPTY_PARTNER_FORM = {
@@ -214,6 +219,11 @@ export default function AdminDashboard() {
         step3Description: data.step3Description ?? DEFAULT_SITE_SETTINGS_FORM.step3Description,
         helpButtonLabel: data.helpButtonLabel ?? DEFAULT_SITE_SETTINGS_FORM.helpButtonLabel,
         partnerButtonLabel: data.partnerButtonLabel ?? DEFAULT_SITE_SETTINGS_FORM.partnerButtonLabel,
+        monthlyGivingPopupEnabled: data.monthlyGivingPopupEnabled ?? DEFAULT_SITE_SETTINGS_FORM.monthlyGivingPopupEnabled,
+        monthlyGivingPopupTitle: data.monthlyGivingPopupTitle ?? DEFAULT_SITE_SETTINGS_FORM.monthlyGivingPopupTitle,
+        monthlyGivingPopupDescription: data.monthlyGivingPopupDescription ?? DEFAULT_SITE_SETTINGS_FORM.monthlyGivingPopupDescription,
+        monthlyGivingPopupButtonLabel: data.monthlyGivingPopupButtonLabel ?? DEFAULT_SITE_SETTINGS_FORM.monthlyGivingPopupButtonLabel,
+        monthlyGivingPopupCampaignId: data.monthlyGivingPopupCampaignId ?? DEFAULT_SITE_SETTINGS_FORM.monthlyGivingPopupCampaignId,
       });
       setSiteContentLoaded(true);
     }
@@ -1732,6 +1742,43 @@ export default function AdminDashboard() {
                       <p className="mt-1 text-[11px] text-[#889284]">Até 200MB.</p>
                     </div>
                   </Field>
+                  <div className="rounded-lg border border-[#e1e6df] bg-white p-4">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="monthly-popup-enabled"
+                        checked={siteContentForm.monthlyGivingPopupEnabled}
+                        onCheckedChange={(checked) => setSiteContentForm({ ...siteContentForm, monthlyGivingPopupEnabled: checked === true })}
+                      />
+                      <label htmlFor="monthly-popup-enabled" className="text-sm font-bold text-[#243128]">Pop-up de parceiro mensal</label>
+                    </div>
+                    <p className="mt-1 text-xs text-[#66736a]">Aparece uma vez por visita, convidando a pessoa a contribuir todo mês numa campanha específica.</p>
+                    <div className="mt-3 space-y-3">
+                      <Field label="Título do pop-up (o nome do parceiro mensal)">
+                        <Input value={siteContentForm.monthlyGivingPopupTitle} onChange={(event) => setSiteContentForm({ ...siteContentForm, monthlyGivingPopupTitle: event.target.value })} placeholder="Ex: Seja um Mantenedor do Bem" />
+                      </Field>
+                      <Field label="Descrição do pop-up">
+                        <Textarea value={siteContentForm.monthlyGivingPopupDescription} onChange={(event) => setSiteContentForm({ ...siteContentForm, monthlyGivingPopupDescription: event.target.value })} rows={2} />
+                      </Field>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Texto do botão">
+                          <Input value={siteContentForm.monthlyGivingPopupButtonLabel} onChange={(event) => setSiteContentForm({ ...siteContentForm, monthlyGivingPopupButtonLabel: event.target.value })} />
+                        </Field>
+                        <Field label="Campanha do pop-up">
+                          <Select
+                            value={siteContentForm.monthlyGivingPopupCampaignId ? String(siteContentForm.monthlyGivingPopupCampaignId) : ""}
+                            onValueChange={(value) => setSiteContentForm({ ...siteContentForm, monthlyGivingPopupCampaignId: value ? Number(value) : null })}
+                          >
+                            <SelectTrigger><SelectValue placeholder="Selecione a campanha" /></SelectTrigger>
+                            <SelectContent>
+                              {(campaignsQuery.data ?? []).map((campaign) => (
+                                <SelectItem key={`monthly-popup-${campaign.id}`} value={String(campaign.id)}>{campaign.title}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                      </div>
+                    </div>
+                  </div>
                   <div className="flex justify-end"><Button type="submit" disabled={updateSiteSettings.isPending}>{updateSiteSettings.isPending ? "Salvando..." : "Salvar conteúdo"}</Button></div>
                 </form>
               </div>

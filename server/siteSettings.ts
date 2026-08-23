@@ -20,6 +20,11 @@ const DEFAULTS = {
   step3Description: "Consulte fotos, registros e documentos publicados em cada etapa da campanha.",
   helpButtonLabel: "Eu quero ajudar",
   partnerButtonLabel: "Quero ser parceiro",
+  monthlyGivingPopupEnabled: false,
+  monthlyGivingPopupTitle: "Seja um Parceiro Mensal",
+  monthlyGivingPopupDescription: "Escolha um valor e contribua todo mês com quem mais precisa. Você decide o valor e o número de parcelas.",
+  monthlyGivingPopupButtonLabel: "Quero contribuir todo mês",
+  monthlyGivingPopupCampaignId: null as number | null,
 } as const;
 
 const updateSchema = z.object({
@@ -37,6 +42,11 @@ const updateSchema = z.object({
   step3Description: z.string().trim().max(2000).optional(),
   helpButtonLabel: z.string().trim().min(1).max(100).optional(),
   partnerButtonLabel: z.string().trim().min(1).max(100).optional(),
+  monthlyGivingPopupEnabled: z.boolean().optional(),
+  monthlyGivingPopupTitle: z.string().trim().max(150).optional(),
+  monthlyGivingPopupDescription: z.string().trim().max(500).optional(),
+  monthlyGivingPopupButtonLabel: z.string().trim().max(100).optional(),
+  monthlyGivingPopupCampaignId: z.number().int().positive().nullable().optional(),
 });
 
 export const siteSettingsRouter = router({

@@ -317,6 +317,11 @@ export const siteSettings = mysqlTable("siteSettings", {
   step3Description: text("step3Description"),
   helpButtonLabel: varchar("helpButtonLabel", { length: 100 }).notNull().default("Eu quero ajudar"),
   partnerButtonLabel: varchar("partnerButtonLabel", { length: 100 }).notNull().default("Quero ser parceiro"),
+  monthlyGivingPopupEnabled: boolean("monthlyGivingPopupEnabled").default(false).notNull(),
+  monthlyGivingPopupTitle: varchar("monthlyGivingPopupTitle", { length: 150 }).default("Seja um Parceiro Mensal"),
+  monthlyGivingPopupDescription: text("monthlyGivingPopupDescription"),
+  monthlyGivingPopupButtonLabel: varchar("monthlyGivingPopupButtonLabel", { length: 100 }).default("Quero contribuir todo mês"),
+  monthlyGivingPopupCampaignId: int("monthlyGivingPopupCampaignId"),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 

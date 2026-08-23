@@ -1,8 +1,9 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
+import MonthlyGivingPopup from "./components/MonthlyGivingPopup";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import CampaignDetail from "./pages/CampaignDetail";
@@ -66,6 +67,9 @@ function Router() {
 // - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
 
 function App() {
+  const [location] = useLocation();
+  const isAdminRoute = location.startsWith("/admin");
+
   return (
     <ErrorBoundary>
       <ThemeProvider
@@ -75,6 +79,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Router />
+          {!isAdminRoute && <MonthlyGivingPopup />}
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
