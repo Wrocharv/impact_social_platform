@@ -4,6 +4,7 @@ import { z } from "zod";
 import { monthlyPledges } from "../drizzle/schema";
 import { publicProcedure, router, sectionProcedure } from "./_core/trpc";
 import { getDb } from "./db";
+import { resolvePublicCampaignId } from "./campaigns";
 
 const createPledgeSchema = z.object({
   campaignId: z.number().int().positive(),
@@ -31,9 +32,10 @@ export const monthlyPledgesRouter = router({
       }
 
       const installmentAmountCents = Math.round(input.totalAmountCents / input.installments);
+      const realCampaignId = await resolvePublicCampaignId(db, input.campaignId);
 
       await db.insert(monthlyPledges).values({
-        campaignId: input.campaignId,
+        campaignId: realCampaignId,
         fullName: input.fullName,
         cpf: input.cpf,
         email: input.email || null,

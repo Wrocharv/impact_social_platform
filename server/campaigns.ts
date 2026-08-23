@@ -1017,7 +1017,7 @@ async function requireCampaign(
   }
 }
 
-async function ensureCanonicalRecantoCampaign(
+export async function ensureCanonicalRecantoCampaign(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
 ) {
   const [existing] = await db
@@ -1068,6 +1068,33 @@ async function ensureCanonicalRecantoCampaign(
   );
 
   return campaignId;
+}
+
+/**
+ * Algumas campanhas legadas (Recanto de Paz, Legendário) têm um ID "público"
+ * diferente do ID real na tabela `campaigns` (histórico de compatibilidade).
+ * Outras funcionalidades que recebem um campaignId vindo do público (ex.:
+ * parceiro mensal) precisam resolver pro ID real antes de salvar, senão o
+ * registro fica "órfão" e não aparece pro admin, que sempre vê o ID real.
+ */
+export async function resolvePublicCampaignId(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  publicId: number,
+): Promise<number> {
+  if (publicId === 1 || publicId === DEMO_CAMPAIGN.id) {
+    return ensureCanonicalRecantoCampaign(db);
+  }
+
+  if (publicId === LEGENDARIO_PUBLIC_ID) {
+    const [existing] = await db
+      .select({ id: campaigns.id })
+      .from(campaigns)
+      .where(eq(campaigns.title, LEGENDARIO_PUBLIC_TITLE))
+      .limit(1);
+    if (existing) return existing.id;
+  }
+
+  return publicId;
 }
 
 async function loadCampaignNeedsWithLegacyFallback(
