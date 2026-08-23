@@ -1,5 +1,6 @@
 import AnimatedProgressBar from "@/components/AnimatedProgressBar";
 import CampaignComments from "@/components/CampaignComments";
+import MonthlyGivingPopup from "@/components/MonthlyGivingPopup";
 import PublicHeader from "@/components/PublicHeader";
 import SocialShare from "@/components/SocialShare";
 import { Card } from "@/components/ui/card";
@@ -198,6 +199,7 @@ export default function CampaignDetail() {
   return (
     <div className="min-h-screen bg-[#f8faf7]">
       <PublicHeader />
+      <MonthlyGivingPopup currentCampaignId={campaign.id} />
       <div className="border-b border-[#e2e7e0] bg-white">
         <div className="container max-w-7xl px-4 py-4">
           <Link href="/campaigns" className="inline-flex items-center gap-2 text-sm font-semibold text-[#4f6550] hover:text-[#228B22]">

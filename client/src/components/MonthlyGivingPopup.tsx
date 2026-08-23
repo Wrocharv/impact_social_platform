@@ -8,13 +8,15 @@ import { trpc } from "@/lib/trpc";
 const SESSION_KEY = "parceria-do-bem:monthly-giving-popup-shown";
 const SHOW_DELAY_MS = 4000;
 
-export default function MonthlyGivingPopup() {
+export default function MonthlyGivingPopup({ currentCampaignId }: { currentCampaignId: number }) {
   const [open, setOpen] = useState(false);
   const siteSettingsQuery = trpc.siteSettings.get.useQuery();
   const settings = siteSettingsQuery.data;
+  // Só mostra na página da campanha configurada no admin — não no site inteiro.
+  const matchesCurrentCampaign = settings?.monthlyGivingPopupCampaignId === currentCampaignId;
 
   useEffect(() => {
-    if (!settings?.monthlyGivingPopupEnabled || !settings.monthlyGivingPopupCampaignId) return;
+    if (!settings?.monthlyGivingPopupEnabled || !matchesCurrentCampaign) return;
     if (sessionStorage.getItem(SESSION_KEY)) return;
 
     const timer = setTimeout(() => {
@@ -23,9 +25,9 @@ export default function MonthlyGivingPopup() {
     }, SHOW_DELAY_MS);
 
     return () => clearTimeout(timer);
-  }, [settings?.monthlyGivingPopupEnabled, settings?.monthlyGivingPopupCampaignId]);
+  }, [settings?.monthlyGivingPopupEnabled, matchesCurrentCampaign]);
 
-  if (!settings?.monthlyGivingPopupEnabled || !settings.monthlyGivingPopupCampaignId) return null;
+  if (!settings?.monthlyGivingPopupEnabled || !matchesCurrentCampaign) return null;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
