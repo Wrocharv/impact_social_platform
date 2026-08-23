@@ -1614,6 +1614,9 @@ export default function AdminDashboard() {
                   {(() => {
                     const pledges = (monthlyPledgesQuery.data ?? []).filter((pledge) => pledge.campaignId === campaign.id);
                     const isExpanded = expandedPledgesCampaignIds.has(campaign.id);
+                    const activePledges = pledges.filter((pledge) => pledge.status === "active");
+                    const committedMonthlyCents = activePledges.reduce((sum, pledge) => sum + pledge.installmentAmountCents, 0);
+                    const collectedTotalCents = pledges.reduce((sum, pledge) => sum + pledge.installmentsPaid * pledge.installmentAmountCents, 0);
                     return (
                       <div className="mt-4 rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1628,6 +1631,22 @@ export default function AdminDashboard() {
                             </Button>
                           </div>
                         </div>
+                        {pledges.length > 0 && (
+                          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                            <div className="rounded-lg bg-white px-3.5 py-2.5">
+                              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9488]">Parceiros ativos</p>
+                              <p className="text-lg font-bold text-[#243128]">{activePledges.length}</p>
+                            </div>
+                            <div className="rounded-lg bg-white px-3.5 py-2.5">
+                              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9488]">Comprometido por mês</p>
+                              <p className="text-lg font-bold text-[#228B22]">{formatCurrency(committedMonthlyCents)}</p>
+                            </div>
+                            <div className="rounded-lg bg-white px-3.5 py-2.5">
+                              <p className="text-xs font-medium uppercase tracking-wide text-[#8a9488]">Já arrecadado</p>
+                              <p className="text-lg font-bold text-[#243128]">{formatCurrency(collectedTotalCents)}</p>
+                            </div>
+                          </div>
+                        )}
                         {isExpanded && (
                           pledges.length > 0 ? (
                             <div className="mt-4 space-y-3">
