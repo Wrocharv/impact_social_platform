@@ -13,14 +13,29 @@ import { toast } from "sonner";
 
 const ADMIN_WHATSAPP_NUMBER = "5564999058919";
 const INSTALLMENT_OPTIONS = [5, 10, 12, 20];
+const SUGGESTED_AMOUNTS = [100, 200, 300];
 
 const formatCurrency = (cents: number) =>
   (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 function parseCurrencyToCents(value: string): number | null {
-  const digitsOnly = value.replace(/\D/g, "");
-  if (!digitsOnly) return null;
-  return Number.parseInt(digitsOnly, 10);
+  const cleaned = value.trim().replace(/[^\d,.-]/g, "");
+  if (!cleaned) return null;
+
+  const decimalIndex = Math.max(cleaned.lastIndexOf(","), cleaned.lastIndexOf("."));
+  let integerPart: string;
+  let decimalPart = "00";
+
+  if (decimalIndex !== -1 && cleaned.length - decimalIndex - 1 <= 2) {
+    integerPart = cleaned.slice(0, decimalIndex).replace(/[.,]/g, "");
+    decimalPart = cleaned.slice(decimalIndex + 1).padEnd(2, "0").slice(0, 2);
+  } else {
+    integerPart = cleaned.replace(/[.,]/g, "");
+  }
+
+  if (!integerPart) return null;
+  const cents = Number.parseInt(integerPart, 10) * 100 + Number.parseInt(decimalPart, 10);
+  return Number.isFinite(cents) ? cents : null;
 }
 
 const EMPTY_FORM = {
@@ -38,6 +53,7 @@ export default function MonthlyPledgePage() {
   const [, params] = useRoute("/parceiro-mensal/:campaignId");
   const campaignId = Number(params?.campaignId);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [showCustomAmount, setShowCustomAmount] = useState(false);
   const [submitted, setSubmitted] = useState<{ installmentAmountCents: number } | null>(null);
 
   const campaignQuery = trpc.campaigns.getById.useQuery({ id: campaignId }, { enabled: Number.isInteger(campaignId) && campaignId > 0 });
@@ -158,22 +174,53 @@ export default function MonthlyPledgePage() {
                 </div>
               </div>
 
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div>
-                  <Label className="mb-2 block">Valor total do compromisso *</Label>
-                  <Input value={form.totalAmount} onChange={(event) => setForm((current) => ({ ...current, totalAmount: event.target.value }))} required placeholder="R$ 10.000,00" inputMode="numeric" />
+              <div>
+                <Label className="mb-2 block">Valor total do compromisso *</Label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {SUGGESTED_AMOUNTS.map((amount) => {
+                    const isSelected = !showCustomAmount && parseCurrencyToCents(form.totalAmount) === amount * 100;
+                    return (
+                      <button
+                        key={amount}
+                        type="button"
+                        onClick={() => { setShowCustomAmount(false); setForm((current) => ({ ...current, totalAmount: String(amount) })); }}
+                        className={`min-h-11 rounded-md border px-3 text-sm font-semibold transition ${isSelected ? "border-[#228B22] bg-[#228B22] text-white" : "border-[#dce5d8] bg-white text-[#4f6550] hover:border-[#228B22]"}`}
+                      >
+                        {formatCurrency(amount * 100)}
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => { setShowCustomAmount(true); setForm((current) => ({ ...current, totalAmount: "" })); }}
+                    className={`min-h-11 rounded-md border px-3 text-sm font-semibold transition ${showCustomAmount ? "border-[#228B22] bg-[#228B22] text-white" : "border-[#dce5d8] bg-white text-[#4f6550] hover:border-[#228B22]"}`}
+                  >
+                    Outro valor
+                  </button>
                 </div>
-                <div>
-                  <Label className="mb-2 block">Em quantas vezes *</Label>
-                  <Select value={String(form.installments)} onValueChange={(value) => setForm((current) => ({ ...current, installments: Number(value) }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {INSTALLMENT_OPTIONS.map((option) => (
-                        <SelectItem key={option} value={String(option)}>{option}x</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {showCustomAmount && (
+                  <Input
+                    className="mt-3"
+                    value={form.totalAmount}
+                    onChange={(event) => setForm((current) => ({ ...current, totalAmount: event.target.value }))}
+                    required
+                    placeholder="R$ 150,00"
+                    inputMode="numeric"
+                    autoFocus
+                  />
+                )}
+              </div>
+
+              <div>
+                <Label className="mb-2 block">Em quantas vezes *</Label>
+                <Select value={String(form.installments)} onValueChange={(value) => setForm((current) => ({ ...current, installments: Number(value) }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {INSTALLMENT_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={String(option)}>{option}x</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {(() => {
