@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
-import { AlertCircle, Building2, CheckCircle2, ChevronDown, Edit2, ExternalLink, FileText, Handshake, Layout, Megaphone, PackagePlus, Plus, ShieldCheck, Trash2, Users, XCircle } from "lucide-react";
+import { AlertCircle, Building2, CheckCircle2, ChevronDown, Edit2, ExternalLink, FileText, Handshake, Layout, Megaphone, PackagePlus, Plus, QrCode, ShieldCheck, Trash2, Users, XCircle } from "lucide-react";
 import AdminManagementSection from "@/components/admin/AdminManagementSection";
 import CampaignAccountabilityDialog from "@/components/admin/CampaignAccountabilityDialog";
+import CampaignQrCodeDialog from "@/components/admin/CampaignQrCodeDialog";
 import DashboardLayout from "@/components/DashboardLayout";
 import AdminLogin from "@/pages/AdminLogin";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -175,6 +176,7 @@ export default function AdminDashboard() {
   const [editingCampaignId, setEditingCampaignId] = useState<number | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<{ id: number; title: string } | null>(null);
   const [accountabilityCampaign, setAccountabilityCampaign] = useState<{ id: number; title: string } | null>(null);
+  const [qrCodeCampaign, setQrCodeCampaign] = useState<{ id: number; title: string } | null>(null);
   const [isPartnerOpen, setIsPartnerOpen] = useState(false);
   const [editingPartnerId, setEditingPartnerId] = useState<number | null>(null);
   const [campaignToDelete, setCampaignToDelete] = useState<{ id: number; title: string } | null>(null);
@@ -1498,6 +1500,7 @@ export default function AdminDashboard() {
                           <Button variant="outline" size="sm" className="gap-1.5">Mais ações <ChevronDown className="h-3.5 w-3.5" /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuItem onClick={() => setQrCodeCampaign({ id: campaign.id, title: campaign.title })}><QrCode className="mr-2 h-4 w-4" /> QR Code</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openCampaignUpdate(campaign)}><Megaphone className="mr-2 h-4 w-4" /> Publicar evolução</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openCampaignNeed(campaign)}><PackagePlus className="mr-2 h-4 w-4" /> Novo item</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => { setManagingNeedsCampaign({ id: campaign.id, title: campaign.title }); setIsManageNeedsOpen(true); }}><Edit2 className="mr-2 h-4 w-4" /> Gerenciar itens para doar</DropdownMenuItem>
@@ -2664,6 +2667,12 @@ export default function AdminDashboard() {
           campaign={accountabilityCampaign}
           open={Boolean(accountabilityCampaign)}
           onOpenChange={(open) => !open && setAccountabilityCampaign(null)}
+        />
+
+        <CampaignQrCodeDialog
+          campaignId={qrCodeCampaign?.id ?? null}
+          campaignTitle={qrCodeCampaign?.title ?? ""}
+          onClose={() => setQrCodeCampaign(null)}
         />
 
         <AlertDialog open={Boolean(campaignToDelete)} onOpenChange={(open) => !open && setCampaignToDelete(null)}>
