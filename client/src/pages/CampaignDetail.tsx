@@ -7,6 +7,7 @@ import SocialShare from "@/components/SocialShare";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { isSameCampaignForMonthlyGiving } from "@/lib/campaignAliases";
 import { trpc } from "@/lib/trpc";
 import { AlertCircle, CalendarClock, CalendarDays, ChevronLeft, Download, Heart, MessageCircle, ShieldCheck, Users } from "lucide-react";
 import { Link, useRoute } from "wouter";
@@ -199,7 +200,8 @@ export default function CampaignDetail() {
   const hasHeroImage = Boolean(displayHeroImage);
   const monthlyGivingSettings = siteSettingsQuery.data;
   const showMonthlyGivingBanner = Boolean(
-    monthlyGivingSettings?.monthlyGivingPopupEnabled && monthlyGivingSettings?.monthlyGivingPopupCampaignId === campaign.id,
+    monthlyGivingSettings?.monthlyGivingPopupEnabled
+      && isSameCampaignForMonthlyGiving(monthlyGivingSettings?.monthlyGivingPopupCampaignId, campaign.id),
   );
 
   return (

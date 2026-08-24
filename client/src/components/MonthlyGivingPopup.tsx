@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { isSameCampaignForMonthlyGiving } from "@/lib/campaignAliases";
 import { trpc } from "@/lib/trpc";
 
 const SESSION_KEY = "parceria-do-bem:monthly-giving-popup-shown";
@@ -14,7 +15,7 @@ export default function MonthlyGivingPopup({ currentCampaignId }: { currentCampa
   const siteSettingsQuery = trpc.siteSettings.get.useQuery();
   const settings = siteSettingsQuery.data;
   // Só mostra na página da campanha configurada no admin — não no site inteiro.
-  const matchesCurrentCampaign = settings?.monthlyGivingPopupCampaignId === currentCampaignId;
+  const matchesCurrentCampaign = isSameCampaignForMonthlyGiving(settings?.monthlyGivingPopupCampaignId, currentCampaignId);
 
   useEffect(() => {
     if (!settings?.monthlyGivingPopupEnabled || !matchesCurrentCampaign) return;
