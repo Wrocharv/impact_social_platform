@@ -37,7 +37,10 @@ type CampaignDetailView = {
   contributorsCount: number;
   imageUrl: string;
   galleryImages: string[];
-  manualContent: {
+  // Opcional de propósito: a campanha devolvida quando o banco está fora não traz este
+  // bloco. Declarar como obrigatório fazia a página estourar com tela de erro em vez de
+  // simplesmente abrir sem o conteúdo manual.
+  manualContent?: {
     title: string;
     subtitle: string;
     description: string;
@@ -189,7 +192,15 @@ export default function CampaignDetail() {
     "/render-quarto.jpg",
   ];
 
-  const manualCampaignContent = campaign.manualContent;
+  const manualCampaignContent = campaign.manualContent ?? {
+    title: "",
+    subtitle: "",
+    description: "",
+    longDescription: "",
+    heroImageUrl: "",
+    galleryImageUrls: [],
+    videoUrls: [],
+  };
   const displayTitle = manualCampaignContent.title || campaign.title;
   const displaySubtitle = manualCampaignContent.subtitle || campaign.description;
   const displayDescription = manualCampaignContent.description || campaign.longDescription || "A obra já começou e a equipe está organizando as etapas iniciais para transformar a ideia em realidade. Acompanhe a evolução, as necessidades e as contribuições que já estão ajudando o projeto a avançar.";

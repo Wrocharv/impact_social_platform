@@ -913,7 +913,9 @@ export default function ContributionWizardPage() {
                 <div className="mb-6 rounded-lg border border-[#d7c18a] bg-gradient-to-r from-[#fff9e7] via-[#fff4d6] to-[#ffeab5] p-4 text-sm text-[#5b3a00]">
                   <p className="font-extrabold uppercase tracking-[0.08em] text-[#8a5b00]">DOADOR VIP · APARTAMENTO COMPLETO</p>
                   <p className="mt-1 font-semibold">Você está na jornada de doação do apartamento completo.</p>
-                  <p className="mt-1">Valor de referência: R$ 120.000,00 (ajustável).</p>
+                  {/* Vem do valor cadastrado na campanha — escrito na mão, ficava mentindo
+                      toda vez que o admin mudava o valor. */}
+                  <p className="mt-1">Valor de referência: {formatCurrency(vipApartmentAmountCents)} (ajustável).</p>
                   <p className="mt-1">Configuração prevista: 5 camas box de solteiro, com adaptação para 1 cama de casal em encontros de casais.</p>
                   <p className="mt-1 font-medium">Material de linha para maior conforto. As fotos e o video ficam nesta jornada VIP, antes do pagamento.</p>
                 </div>
@@ -1337,8 +1339,8 @@ export default function ContributionWizardPage() {
                           <div className="mt-3 rounded-md border border-[#e3c98a] bg-white/60 p-3">
                             <p className="font-semibold">Breve comentário sobre o apartamento</p>
                             <p className="mt-1">
-                              O valor de um apartamento completo fica em torno de R$ 120.000,00,
-                              com previsão de 5 camas box de solteiro.
+                              O valor de um apartamento completo fica em torno de{" "}
+                              {formatCurrency(vipApartmentAmountCents)}, com previsão de 5 camas box de solteiro.
                             </p>
                             <p className="mt-1">
                               Em encontros de casais, o apto pode ser adaptado para 1 cama de casal,

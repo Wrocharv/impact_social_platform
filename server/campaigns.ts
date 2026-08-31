@@ -1884,10 +1884,16 @@ export const campaignsRouter = router({
       );
 
       const canonicalizedCampaign = withCanonicalRecantoCover(campaign);
+      // O que o admin cadastrou vem primeiro. A copia de emergencia so entra quando o
+      // banco nao tem valor nenhum — antes era o contrario, e o arquivo do disco
+      // sobrescrevia em silencio o valor que a pessoa acabara de salvar na tela.
+      const campaignVipAmountCents = Number(canonicalizedCampaign.vipApartmentAmountCents);
       const effectiveVipApartmentAmountCents =
-        typeof matchingFallbackCampaign?.vipApartmentAmountCents === "number"
-          ? matchingFallbackCampaign.vipApartmentAmountCents
-          : canonicalizedCampaign.vipApartmentAmountCents;
+        Number.isFinite(campaignVipAmountCents) && campaignVipAmountCents > 0
+          ? campaignVipAmountCents
+          : typeof matchingFallbackCampaign?.vipApartmentAmountCents === "number"
+            ? matchingFallbackCampaign.vipApartmentAmountCents
+            : canonicalizedCampaign.vipApartmentAmountCents;
       const materialProgressByNeed = new Map<number, { offeredQuantity: number; offeredValueCents: number }>();
 
       materialContributions.forEach((row) => {
