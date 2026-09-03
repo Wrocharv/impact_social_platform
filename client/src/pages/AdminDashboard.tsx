@@ -2122,7 +2122,25 @@ export default function AdminDashboard() {
                         {application.segment && <p className="mt-1 text-sm text-[#66736a]">Ramo: {application.segment}</p>}
                         {application.contactName && <p className="mt-1 text-sm text-[#66736a]">Responsável: {application.contactName}</p>}
                         <p className="mt-1 text-sm text-[#66736a]">Telefone: {application.phone}{application.email ? ` · ${application.email}` : ""}</p>
+                        {/* A proposta, que e o que decide a aprovacao: o que coloca, quanto
+                            vale e por quanto tempo. Sem isso a aprovacao era no escuro. */}
+                        {(application.contributionKinds || application.monthlyValueCents || application.durationMonths) && (
+                          <p className="mt-2 text-sm font-semibold text-[#243128]">
+                            {[
+                              application.monthlyValueCents
+                                ? `R$ ${(application.monthlyValueCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}/mês`
+                                : null,
+                              application.durationMonths ? `por ${application.durationMonths} meses` : null,
+                              application.contributionKinds ? `em ${application.contributionKinds}` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        )}
                         {application.offer && <p className="mt-2 text-sm text-[#66736a]">"{application.offer}"</p>}
+                        {application.motivation && (
+                          <p className="mt-2 text-sm italic text-[#66736a]">Motivação: "{application.motivation}"</p>
+                        )}
                       </div>
                       <div className="flex shrink-0 gap-2">
                         <Button

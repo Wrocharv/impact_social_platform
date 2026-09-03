@@ -13,6 +13,10 @@ const applySchema = z.object({
   phone: z.string().trim().min(8, "Informe um telefone válido").max(30),
   email: z.string().trim().max(320).optional(),
   offer: z.string().trim().max(2_000).optional(),
+  contributionKinds: z.array(z.string().trim().max(40)).max(8).optional(),
+  monthlyValueCents: z.number().int().min(0).max(100_000_00).optional(),
+  durationMonths: z.number().int().min(1).max(60).optional(),
+  motivation: z.string().trim().max(2_000).optional(),
 });
 
 export const partnerApplicationsRouter = router({
@@ -31,6 +35,12 @@ export const partnerApplicationsRouter = router({
       await db.insert(partnerApplications).values({
         type: input.type,
         companyName: input.companyName,
+        // Guardado como texto simples separado por virgula: sao poucas opcoes fixas e
+        // ninguem vai consultar por elas — JSON aqui so complicaria a leitura no admin.
+        contributionKinds: input.contributionKinds?.length ? input.contributionKinds.join(", ") : null,
+        monthlyValueCents: input.monthlyValueCents ?? null,
+        durationMonths: input.durationMonths ?? null,
+        motivation: input.motivation || null,
         segment: input.segment || null,
         contactName: input.contactName || null,
         phone: input.phone,

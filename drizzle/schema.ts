@@ -360,6 +360,15 @@ export const partnerApplications = mysqlTable("partnerApplications", {
   phone: varchar("phone", { length: 30 }).notNull(),
   email: varchar("email", { length: 320 }),
   offer: text("offer"),
+  // A proposta em si. Antes so existia o `offer` livre, e o que chegava era boa vontade
+  // ("quero ajudar!") em vez de proposta — porque a pagina nao dizia o que era ser parceiro
+  // nem o que se esperava em troca. Estes campos existem para a pessoa dizer o QUE coloca,
+  // QUANTO vale e POR QUANTO TEMPO.
+  contributionKinds: varchar("contributionKinds", { length: 255 }),
+  monthlyValueCents: int("monthlyValueCents"),
+  durationMonths: int("durationMonths"),
+  // Por que a causa move a pessoa. Vira a base do depoimento que a empresa grava depois.
+  motivation: text("motivation"),
   status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
