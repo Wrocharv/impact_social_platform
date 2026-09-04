@@ -64,7 +64,20 @@ export function serveStatic(app: Express) {
   // um novo build — e, com o disco persistente do Render montado ali, sobrevive a deploys.
   const uploadsPath = path.resolve(process.cwd(), "client", "public", "uploads");
   fs.mkdirSync(uploadsPath, { recursive: true });
-  app.use("/uploads", express.static(uploadsPath));
+  app.use(
+    "/uploads",
+    express.static(uploadsPath, {
+      setHeaders: (res, filePath) => {
+        // Vídeo gravado no iPhone chega como .mov, e o Express anuncia "video/quicktime" —
+        // que Chrome, Firefox e Edge se recusam a tocar. Só que o conteúdo é H.264/AAC, o
+        // mesmo do MP4: o que atrapalha é a etiqueta, não o vídeo. Anunciar como mp4 faz os
+        // arquivos que já estão no ar voltarem a funcionar, sem ninguém reenviar nada.
+        if (/\.mov$/i.test(filePath)) {
+          res.setHeader("Content-Type", "video/mp4");
+        }
+      },
+    }),
+  );
 
   app.use(express.static(distPath));
 
