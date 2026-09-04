@@ -928,6 +928,15 @@ const createCampaignUpdateSchema = z.object({
   videoUrls: mediaUrlsSchema,
 });
 
+const editCampaignUpdateSchema = z.object({
+  updateId: z.number().int().positive(),
+  title: z.string().min(5),
+  description: z.string().min(20),
+  phase: z.enum(["before", "during", "after"]),
+  imageUrls: mediaUrlsSchema,
+  videoUrls: mediaUrlsSchema,
+});
+
 const createCampaignNeedSchema = z.object({
   campaignId: z.number().int().positive(),
   type: z.enum(["material", "labor", "equipment", "other"]),
@@ -2281,6 +2290,34 @@ export const campaignsRouter = router({
           notInArray(campaignUpdates.title, [VIP_MEDIA_CONFIG_TITLE, VIP_CONTRIBUTION_CONFIG_TITLE]),
         ))
         .orderBy(desc(campaignUpdates.createdAt));
+    }),
+
+  // Editar uma atualizacao ja publicada. So existia criar e excluir, entao trocar um
+  // video ou corrigir um texto obrigava a apagar tudo e refazer — perdendo a data da
+  // publicacao e obrigando a reenviar arquivo que ja estava no servidor.
+  editUpdate: sectionProcedure("campaigns")
+    .input(editCampaignUpdateSchema)
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      try {
+        await db
+          .update(campaignUpdates)
+          .set({
+            title: input.title,
+            description: input.description,
+            phase: input.phase,
+            // Lista vazia grava null: e assim que se remove a ultima foto ou o ultimo
+            // video, em vez de deixar um "[]" que parece conteudo.
+            imageUrls: input.imageUrls.length > 0 ? JSON.stringify(input.imageUrls) : null,
+            videoUrls: input.videoUrls.length > 0 ? JSON.stringify(input.videoUrls) : null,
+          })
+          .where(eq(campaignUpdates.id, input.updateId));
+      } catch (error) {
+        console.error("[campaigns.editUpdate] Falha ao editar atualização:", error);
+        throw new Error(describeErrorWithCause(error));
+      }
+      return { success: true, message: "Atualização salva!" };
     }),
 
   deleteUpdate: sectionProcedure("campaigns")

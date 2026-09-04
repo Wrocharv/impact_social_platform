@@ -172,6 +172,7 @@ export default function AdminDashboard() {
   const [isCampaignUpdateOpen, setIsCampaignUpdateOpen] = useState(false);
   const [isCampaignNeedOpen, setIsCampaignNeedOpen] = useState(false);
   const [isManageNeedsOpen, setIsManageNeedsOpen] = useState(false);
+  const [managingUpdatesCampaign, setManagingUpdatesCampaign] = useState<{ id: number; title: string } | null>(null);
   const [managingNeedsCampaign, setManagingNeedsCampaign] = useState<{ id: number; title: string } | null>(null);
   const [editingCampaignId, setEditingCampaignId] = useState<number | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<{ id: number; title: string } | null>(null);
@@ -195,6 +196,8 @@ export default function AdminDashboard() {
   const [campaignModelType, setCampaignModelType] = useState<CampaignModelType>("custom");
   const [campaignEditForm, setCampaignEditForm] = useState(EMPTY_CAMPAIGN_EDIT_FORM);
   const [campaignUpdateForm, setCampaignUpdateForm] = useState(EMPTY_UPDATE_FORM);
+  // Quando preenchido, o diálogo está editando uma atualização existente em vez de criar.
+  const [editingUpdateId, setEditingUpdateId] = useState<number | null>(null);
   const [campaignNeedForm, setCampaignNeedForm] = useState(EMPTY_NEED_FORM);
   const [partnerForm, setPartnerForm] = useState(EMPTY_PARTNER_FORM);
   const [cashValidationNotes, setCashValidationNotes] = useState<Record<number, string>>({});
@@ -367,6 +370,23 @@ export default function AdminDashboard() {
     },
     onError: (error) => toast.error(error.message || "Erro ao atualizar campanha"),
   });
+  const deleteCampaignUpdate = trpc.campaigns.deleteUpdate.useMutation({
+    onSuccess: () => {
+      toast.success("Evolução removida.");
+      utils.campaigns.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível remover."),
+  });
+
+  const editCampaignUpdate = trpc.campaigns.editUpdate.useMutation({
+    onSuccess: () => {
+      toast.success("Atualização salva!");
+      utils.campaigns.invalidate();
+      closeCampaignUpdateDialog();
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível salvar."),
+  });
+
   const publishCampaignUpdate = trpc.campaigns.createUpdate.useMutation({
     onSuccess: async () => {
       toast.success("Atualização publicada com sucesso!");
@@ -594,6 +614,25 @@ export default function AdminDashboard() {
     setIsCampaignUpdateOpen(false);
     setSelectedCampaign(null);
     setCampaignUpdateForm(EMPTY_UPDATE_FORM);
+    setEditingUpdateId(null);
+  }
+
+  // Abre o mesmo diálogo já preenchido, para corrigir texto ou trocar/acrescentar mídia
+  // sem apagar e refazer a publicação.
+  function openCampaignUpdateForEdit(
+    campaign: { id: number; title: string },
+    update: { id: number; title: string; description: string; phase: "before" | "during" | "after"; images?: string[]; videos?: string[] },
+  ) {
+    setSelectedCampaign({ id: campaign.id, title: campaign.title });
+    setEditingUpdateId(update.id);
+    setCampaignUpdateForm({
+      title: update.title,
+      description: update.description,
+      phase: update.phase,
+      imageUrls: (update.images ?? []).join("\n"),
+      videoUrls: (update.videos ?? []).join("\n"),
+    });
+    setIsCampaignUpdateOpen(true);
   }
 
   function openCampaignNeed(campaign: NonNullable<typeof campaignsQuery.data>[number]) {
@@ -772,6 +811,17 @@ export default function AdminDashboard() {
   function handlePublishCampaignUpdate(event: React.FormEvent) {
     event.preventDefault();
     if (!selectedCampaign) return;
+    if (editingUpdateId) {
+      editCampaignUpdate.mutate({
+        updateId: editingUpdateId,
+        title: campaignUpdateForm.title,
+        description: campaignUpdateForm.description,
+        phase: campaignUpdateForm.phase,
+        imageUrls: parseMediaUrlsInput(campaignUpdateForm.imageUrls),
+        videoUrls: parseMediaUrlsInput(campaignUpdateForm.videoUrls),
+      });
+      return;
+    }
     publishCampaignUpdate.mutate({
       campaignId: selectedCampaign.id,
       title: campaignUpdateForm.title,
@@ -1502,6 +1552,7 @@ export default function AdminDashboard() {
                         <DropdownMenuContent align="end" className="w-56">
                           <DropdownMenuItem onClick={() => setQrCodeCampaign({ id: campaign.id, title: campaign.title })}><QrCode className="mr-2 h-4 w-4" /> QR Code</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openCampaignUpdate(campaign)}><Megaphone className="mr-2 h-4 w-4" /> Publicar evolução</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setManagingUpdatesCampaign({ id: campaign.id, title: campaign.title })}><Edit2 className="mr-2 h-4 w-4" /> Gerenciar evoluções</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openCampaignNeed(campaign)}><PackagePlus className="mr-2 h-4 w-4" /> Novo item</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => { setManagingNeedsCampaign({ id: campaign.id, title: campaign.title }); setIsManageNeedsOpen(true); }}><Edit2 className="mr-2 h-4 w-4" /> Gerenciar itens para doar</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setAccountabilityCampaign({ id: campaign.id, title: campaign.title })}><FileText className="mr-2 h-4 w-4" /> Prestação de contas</DropdownMenuItem>
@@ -2748,6 +2799,13 @@ export default function AdminDashboard() {
           </AlertDialogContent>
         </AlertDialog>
 
+        <ManageUpdatesDialog
+          campaign={managingUpdatesCampaign}
+          onOpenChange={(open) => { if (!open) setManagingUpdatesCampaign(null); }}
+          onEdit={(update) => { if (managingUpdatesCampaign) { openCampaignUpdateForEdit(managingUpdatesCampaign, update); setManagingUpdatesCampaign(null); } }}
+          onDelete={(updateId) => deleteCampaignUpdate.mutate({ updateId })}
+        />
+
         <ManageNeedsDialog
           campaign={managingNeedsCampaign}
           open={isManageNeedsOpen}
@@ -3455,4 +3513,107 @@ function fileToBase64(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error ?? new Error("Falha ao ler arquivo."));
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * Lista as evoluções já publicadas de uma campanha, para editar ou remover.
+ *
+ * Antes só existia publicar: corrigir um texto ou trocar um vídeo obrigava a apagar e
+ * refazer — e nem havia como apagar pela tela, porque as evoluções não eram listadas em
+ * lugar nenhum do painel.
+ */
+function ManageUpdatesDialog({
+  campaign,
+  onOpenChange,
+  onEdit,
+  onDelete,
+}: {
+  campaign: { id: number; title: string } | null;
+  onOpenChange: (open: boolean) => void;
+  onEdit: (update: { id: number; title: string; description: string; phase: "before" | "during" | "after"; images?: string[]; videos?: string[] }) => void;
+  onDelete: (updateId: number) => void;
+}) {
+  const updatesQuery = trpc.campaigns.getUpdates.useQuery(
+    { campaignId: campaign?.id ?? 0 },
+    { enabled: Boolean(campaign?.id) },
+  );
+
+  const parse = (raw: unknown): string[] => {
+    if (typeof raw !== "string" || !raw.trim()) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+    } catch {
+      return [];
+    }
+  };
+
+  return (
+    <Dialog open={Boolean(campaign)} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Evoluções publicadas</DialogTitle>
+          <p className="text-sm text-[#66736a]">{campaign?.title}</p>
+        </DialogHeader>
+
+        {updatesQuery.isLoading ? (
+          <p className="py-8 text-center text-sm text-[#66736a]">Carregando...</p>
+        ) : !updatesQuery.data?.length ? (
+          <p className="py-8 text-center text-sm text-[#66736a]">Nenhuma evolução publicada ainda.</p>
+        ) : (
+          <div className="space-y-3">
+            {updatesQuery.data.map((update) => {
+              const images = parse(update.imageUrls);
+              const videos = parse(update.videoUrls);
+              return (
+                <div key={update.id} className="rounded-lg border border-[#dce5d8] p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-[#243128]">{update.title}</p>
+                      <p className="mt-1 text-sm text-[#66736a]">
+                        {new Date(update.createdAt).toLocaleDateString("pt-BR")} ·{" "}
+                        {images.length} {images.length === 1 ? "foto" : "fotos"} ·{" "}
+                        {videos.length} {videos.length === 1 ? "vídeo" : "vídeos"}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          onEdit({
+                            id: update.id,
+                            title: update.title,
+                            description: update.description,
+                            phase: update.phase,
+                            images,
+                            videos,
+                          })
+                        }
+                      >
+                        <Edit2 className="mr-1 h-4 w-4" /> Editar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-700 hover:text-red-800"
+                        onClick={() => {
+                          if (window.confirm(`Remover a evolução "${update.title}"?\n\nOs arquivos enviados continuam no servidor.`)) {
+                            onDelete(update.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="mr-1 h-4 w-4" /> Excluir
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-sm text-[#66736a]">{update.description}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 }
