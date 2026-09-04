@@ -252,7 +252,17 @@ function withFallbackRecantoContentIfEmpty<T extends {
 }>(campaign: T): T {
   if (!isCanonicalRecantoCampaign({ id: 0, title: campaign.title })) return campaign;
 
+  // O nome da função diz "se estiver vazio", mas ela substituía sempre — e o resultado era
+  // que tudo editado nessa campanha ficava invisível: foto, descrição, galeria e as
+  // atualizações da obra. Alguém publicava a evolução do radier e o site continuava
+  // mostrando "Fundação iniciada" escrito no código.
+  //
+  // Agora cada pedaço só cai para o conteúdo de exemplo quando o real não existe, que é o
+  // único caso para o qual essa rede foi feita.
   const hasNeeds = Array.isArray(campaign.needs) && campaign.needs.length > 0;
+  const hasUpdates = Array.isArray(campaign.updates) && campaign.updates.length > 0;
+  const hasGallery = Array.isArray(campaign.galleryImages) && campaign.galleryImages.length > 0;
+
   const canonicalUpdates = DEMO_CAMPAIGN.updates.map((update) => ({
     ...update,
     images: [...update.images],
@@ -261,12 +271,12 @@ function withFallbackRecantoContentIfEmpty<T extends {
 
   return {
     ...campaign,
-    imageUrl: DEMO_CAMPAIGN.imageUrl,
-    longDescription: DEMO_CAMPAIGN.longDescription,
-    category: DEMO_CAMPAIGN.category,
-    updates: canonicalUpdates,
+    imageUrl: campaign.imageUrl || DEMO_CAMPAIGN.imageUrl,
+    longDescription: campaign.longDescription || DEMO_CAMPAIGN.longDescription,
+    category: campaign.category || DEMO_CAMPAIGN.category,
+    updates: hasUpdates ? campaign.updates : canonicalUpdates,
     needs: hasNeeds ? campaign.needs : [],
-    galleryImages: [...DEMO_CAMPAIGN.galleryImages],
+    galleryImages: hasGallery ? campaign.galleryImages : [...DEMO_CAMPAIGN.galleryImages],
   };
 }
 
@@ -381,16 +391,24 @@ function getMappedFallbackCampaigns(input?: { status?: "active" | "completed"; q
     });
 }
 
+/**
+ * Rede de proteção para a campanha do Recanto: se a linha real vier sem meta — banco fora
+ * do ar, registro pela metade — mostra a cópia do arquivo em vez de uma campanha quebrada.
+ *
+ * Antes ela trocava a linha inteira sempre, e isso escondia o que estava no banco: a meta
+ * corrigida à mão, o valor arrecadado e as atualizações da obra. O arquivo virava a verdade
+ * e ninguém entendia por que editar não mudava nada.
+ */
 function forceCriticalPublicCampaignsFromFallback<
-  T extends { id: number },
+  T extends { id: number; goal?: number },
 >(rows: T[], fallbackRows: T[]): T[] {
-  // Keep only the Recanto campaign pinned to fallback.
-  // Legendario should prefer DB rows when available to preserve managed needs.
   const criticalIds = new Set([100001]);
   const fallbackById = new Map(fallbackRows.map((row) => [row.id, row]));
 
   return rows.map((row) => {
     if (!criticalIds.has(row.id)) return row;
+    const temMetaReal = typeof row.goal === "number" && row.goal > 0;
+    if (temMetaReal) return row;
     return fallbackById.get(row.id) ?? row;
   });
 }
