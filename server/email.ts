@@ -106,6 +106,71 @@ export function buildContributionApprovedEmail(
   };
 }
 
+type DonorAccessCodeEmailInput = {
+  to: string;
+  donorName?: string | null;
+  code: string;
+  expiresInMinutes: number;
+};
+
+/**
+ * Código de acesso à área do doador. Não pedimos senha nem cadastro: a pessoa
+ * só comprova que é ela no momento em que quer ver o próprio histórico, porque
+ * é ali que aparecem os valores — que em nenhuma outra tela são públicos.
+ */
+export function buildDonorAccessCodeEmail(
+  input: DonorAccessCodeEmailInput,
+): TransactionalEmail {
+  const greeting = input.donorName?.trim()
+    ? `Olá, ${input.donorName.trim()}!`
+    : "Olá!";
+  const safeGreeting = escapeHtml(greeting);
+  const safeCode = escapeHtml(input.code);
+  const safeMinutes = escapeHtml(String(input.expiresInMinutes));
+
+  return {
+    to: input.to,
+    subject: `Seu código para ver suas doações: ${input.code}`,
+    html: `
+      <!doctype html>
+      <html lang="pt-BR">
+        <body style="margin:0;background:#f5f7f3;color:#26332a;font-family:Arial,sans-serif;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 16px;background:#f5f7f3;">
+            <tr>
+              <td align="center">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border:1px solid #dfe7dc;border-radius:16px;overflow:hidden;">
+                  <tr><td style="height:8px;background:#228b22;"></td></tr>
+                  <tr>
+                    <td style="padding:32px;">
+                      <p style="margin:0 0 20px;font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:#228b22;font-weight:700;">Parceiros do Bem</p>
+                      <h1 style="margin:0 0 16px;font-size:28px;line-height:1.2;color:#173f20;">Seu código de acesso</h1>
+                      <p style="margin:0 0 16px;font-size:16px;line-height:1.6;">${safeGreeting}</p>
+                      <p style="margin:0 0 24px;font-size:16px;line-height:1.6;">Use o código abaixo para ver o histórico das suas doações. Ele vale por ${safeMinutes} minutos.</p>
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 24px;background:#f6faf4;border-radius:12px;">
+                        <tr><td align="center" style="padding:24px;color:#228b22;font-size:38px;font-weight:700;letter-spacing:.22em;">${safeCode}</td></tr>
+                      </table>
+                      <p style="margin:0;font-size:14px;line-height:1.6;color:#66736a;">Se não foi você que pediu, pode ignorar esta mensagem: sem o código ninguém vê suas doações.</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+      </html>
+    `.trim(),
+    text: [
+      greeting,
+      "",
+      `Seu código para ver o histórico das suas doações: ${input.code}`,
+      `O código vale por ${input.expiresInMinutes} minutos.`,
+      "",
+      "Se não foi você que pediu, pode ignorar esta mensagem.",
+      "Parceiros do Bem",
+    ].join("\n"),
+  };
+}
+
 export function createResendEmailSender(
   options: ResendSenderOptions = {},
 ): EmailSender {

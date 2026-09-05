@@ -311,6 +311,25 @@ export default function CampaignDetail() {
             />
           </Card>
 
+          {/* DOADORES DESTA CAMPANHA — so os nomes; valores nunca aparecem aqui. */}
+          <Card className="p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-[#2d2d2d]">Doadores desta campanha</h2>
+                <p className="mt-1 text-sm text-[#6d6d6d]">
+                  Quem já contribuiu com <span className="font-semibold">{campaign.title}</span>.
+                  Mostramos os nomes de quem autorizou — nunca os valores.
+                </p>
+              </div>
+              <Link
+                href={`/donors?campanha=${campaign.id}`}
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border border-[#228B22] px-5 font-semibold text-[#228B22] transition hover:bg-[#228B22] hover:text-white active:scale-[0.97]"
+              >
+                Ver a lista
+              </Link>
+            </div>
+          </Card>
+
           {/* SOBRE O PROJETO */}
           <div>
             <Card className="mb-8 p-7 md:p-9">

@@ -22,6 +22,7 @@ import CampaignsPage from "./pages/CampaignsPage";
 import AccountabilityIndexPage from "./pages/AccountabilityIndexPage";
 import PaymentReturnPage from "./pages/PaymentReturnPage";
 import DonorsPage from "./pages/DonorsPage";
+import MyDonationsPage from "./pages/MyDonationsPage";
 import PartnerSpotlightPage from "./pages/PartnerSpotlightPage";
 import PartnerApplicationPage from "./pages/PartnerApplicationPage";
 import MonthlyPledgePage from "./pages/MonthlyPledgePage";
@@ -37,6 +38,7 @@ function Router() {
       <Route path={"/quero-ser-parceiro"} component={PartnerApplicationPage} />
       <Route path={"/parceiro-mensal/:campaignId"} component={MonthlyPledgePage} />
       <Route path={"/donors"} component={DonorsPage} />
+      <Route path={"/minhas-doacoes"} component={MyDonationsPage} />
       <Route path={"/contribute/help/:id"} component={ContributionChoicePage} />
       <Route path={"/contribute/vip/:id"} component={ContributionVipPage} />
       <Route path={"/contribute/wizard/:id"} component={ContributionWizardPage} />

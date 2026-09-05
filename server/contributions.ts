@@ -20,6 +20,15 @@ import {
   listFallbackRecentMaterialValidations,
   reviewFallbackMaterialContribution,
 } from "./materialValidationFallback";
+import {
+  DONOR_CODE_TTL_MINUTES,
+  canSendCode,
+  consumeAccessCode,
+  generateAccessCode,
+  maskEmail,
+  storeAccessCode,
+} from "./donorAccessCodes";
+import { buildDonorAccessCodeEmail, sendTransactionalEmail } from "./email";
 import { whatsappService } from "./whatsapp.service";
 
 const CASH_AUDIT_DETAILS = ["cash_validated_in_person", "cash_validation_rejected"] as const;
@@ -42,6 +51,119 @@ function normalizeCpf(value?: string | null) {
   if (!value) return undefined;
   const digits = value.replace(/\D/g, "");
   return digits.length > 0 ? digits : undefined;
+}
+
+const donorIdentitySchema = z.object({
+  donorCpf: z.string().trim().max(14).optional(),
+  donorWhatsapp: z.string().trim().max(20).optional(),
+});
+
+type DonorIdentity = { key: string; cpf?: string; whatsapp?: string };
+
+/**
+ * Aceita CPF (11 dígitos) ou WhatsApp (10+ dígitos). A chave identifica a
+ * pessoa no cofre de códigos — quem pediu por CPF tem que confirmar por CPF.
+ */
+function resolveDonorIdentity(input: {
+  donorCpf?: string | null;
+  donorWhatsapp?: string | null;
+}): DonorIdentity | null {
+  const cpf = normalizeCpf(input.donorCpf);
+  const whatsapp = normalizeWhatsapp(input.donorWhatsapp);
+
+  if (cpf && cpf.length === 11) {
+    return { key: `cpf:${cpf}`, cpf };
+  }
+  if (whatsapp && whatsapp.length >= 10) {
+    return { key: `whatsapp:${whatsapp}`, whatsapp };
+  }
+  return null;
+}
+
+type DonorHistoryRow = {
+  id: number;
+  type: "financial" | "material" | "volunteer";
+  amount: number | null;
+  description: string | null;
+  status: string | null;
+  campaignTitle: string | null;
+  donorName: string | null;
+  donorEmail: string | null;
+  createdAt: Date;
+};
+
+/**
+ * Todas as contribuições de uma pessoa, valores inclusive. Quem chama é
+ * responsável por já ter confirmado a identidade — nunca exponha isso direto.
+ *
+ * A comparação é por dígitos porque é assim que o formulário grava (ver
+ * `donorInfoSchema`, que normaliza CPF e WhatsApp antes de salvar).
+ */
+async function loadDonorHistory(identity: DonorIdentity): Promise<DonorHistoryRow[]> {
+  const db = await getDb();
+
+  if (!db) {
+    const rows = [
+      ...listFallbackCashContributions().map((row) => ({
+        id: row.id,
+        type: "financial" as const,
+        amount: row.amount,
+        description: null,
+        status: row.status as string,
+        campaignTitle: null,
+        donorName: row.donorName,
+        donorEmail: row.donorEmail,
+        donorCpf: row.donorCpf,
+        donorWhatsapp: row.donorWhatsapp,
+        createdAt: row.createdAt,
+      })),
+      ...listFallbackMaterialContributions().map((row) => ({
+        id: row.id,
+        type: "material" as const,
+        amount: row.estimatedAmount,
+        description: row.description,
+        status: row.status as string,
+        campaignTitle: null,
+        donorName: row.donorName,
+        donorEmail: row.donorEmail,
+        donorCpf: row.donorCpf,
+        donorWhatsapp: row.donorWhatsapp,
+        createdAt: row.createdAt,
+      })),
+    ];
+
+    return rows
+      .filter((row) => {
+        if (identity.cpf) return normalizeCpf(row.donorCpf) === identity.cpf;
+        return normalizeWhatsapp(row.donorWhatsapp) === identity.whatsapp;
+      })
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .map(({ donorCpf: _cpf, donorWhatsapp: _whatsapp, ...row }) => row);
+  }
+
+  const identityCondition = identity.cpf
+    ? eq(contributions.donorCpf, identity.cpf)
+    : eq(contributions.donorWhatsapp, identity.whatsapp!);
+
+  const rows = await db
+    .select({
+      id: contributions.id,
+      type: contributions.type,
+      amount: contributions.amount,
+      description: contributions.description,
+      status: contributions.status,
+      campaignTitle: campaigns.title,
+      donorName: contributions.donorName,
+      donorEmail: contributions.donorEmail,
+      createdAt: contributions.createdAt,
+    })
+    .from(contributions)
+    .leftJoin(campaigns, eq(campaigns.id, contributions.campaignId))
+    .where(identityCondition)
+    .orderBy(desc(contributions.createdAt))
+    .limit(200);
+
+  return rows;
 }
 
 function donorLookupKey(input: {
@@ -955,6 +1077,11 @@ export const contributionsRouter = router({
       .where(eq(contributions.userId, ctx.user.id));
   }),
 
+  // Mural público de doadores: nome sim, valor nunca. Muita gente fica
+  // constrangida de ver quanto deu exposto ao lado do nome, e o receio de
+  // "dar pouco" trava a doação. Quem quiser conferir o proprio historico
+  // vê pela área do doador, não aqui. Por isso `amount` nem sai do banco:
+  // se não for selecionado, não trafega e não aparece nem no inspecionar.
   getPublicDonors: publicProcedure.query(async () => {
     const db = await getDb();
     if (!db) {
@@ -967,8 +1094,8 @@ export const contributionsRouter = router({
         donorName: contributions.donorName,
         donorCity: contributions.donorCity,
         type: contributions.type,
-        amount: contributions.amount,
         description: contributions.description,
+        campaignId: contributions.campaignId,
         campaignTitle: campaigns.title,
         createdAt: contributions.createdAt,
       })
@@ -983,6 +1110,115 @@ export const contributionsRouter = router({
       .orderBy(desc(contributions.createdAt))
       .limit(100);
   }),
+
+  /**
+   * Área do doador — passo 1: pedir o código.
+   *
+   * A pessoa se identifica por CPF ou WhatsApp e mandamos um código de 6
+   * dígitos pro e-mail que ela deixou na doação. Só isso: nada de senha nem de
+   * cadastro. O código existe porque é aqui, e só aqui, que os valores
+   * aparecem — no mural público nunca aparecem.
+   *
+   * A resposta é deliberadamente vaga quando não dá pra enviar (pessoa não
+   * encontrada ou doação sem e-mail): confirmar "esse CPF doou" pra qualquer um
+   * que digitasse um CPF entregaria de graça a informação que estamos
+   * protegendo.
+   */
+  requestDonorAccessCode: publicProcedure
+    .input(donorIdentitySchema)
+    .mutation(async ({ input }) => {
+      const identity = resolveDonorIdentity(input);
+      if (!identity) {
+        return { status: "unavailable" as const };
+      }
+
+      if (!canSendCode(identity.key)) {
+        return { status: "throttled" as const };
+      }
+
+      const history = await loadDonorHistory(identity);
+      const contact = history.find((row) => row.donorEmail?.trim());
+      const email = contact?.donorEmail?.trim();
+
+      if (!email) {
+        return { status: "unavailable" as const };
+      }
+
+      const code = generateAccessCode();
+      storeAccessCode(identity.key, code, email);
+
+      const message = buildDonorAccessCodeEmail({
+        to: email,
+        donorName: contact?.donorName ?? null,
+        code,
+        expiresInMinutes: DONOR_CODE_TTL_MINUTES,
+      });
+
+      try {
+        await sendTransactionalEmail(message, `donor-code:${identity.key}:${code}`);
+      } catch (error) {
+        // Em desenvolvimento o Resend costuma não estar configurado. Mostrar o
+        // código no log deixa o fluxo testável sem abrir uma brecha em produção.
+        if (process.env.NODE_ENV !== "production") {
+          console.info(`[DonorArea] Código de acesso para ${email}: ${code}`);
+          return { status: "sent" as const, emailHint: maskEmail(email) };
+        }
+        console.error("[DonorArea] Falha ao enviar código de acesso", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Não conseguimos enviar o código agora. Tente de novo em alguns minutos.",
+        });
+      }
+
+      return { status: "sent" as const, emailHint: maskEmail(email) };
+    }),
+
+  /**
+   * Área do doador — passo 2: com o código certo, devolvemos o histórico
+   * completo da pessoa, valores inclusive. É o único lugar do site onde o
+   * quanto aparece, e só pra quem provou ser dona dele.
+   */
+  getMyDonations: publicProcedure
+    .input(donorIdentitySchema.and(z.object({ code: z.string().trim().length(6) })))
+    .mutation(async ({ input }) => {
+      const identity = resolveDonorIdentity(input);
+      if (!identity) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Informe seu CPF ou WhatsApp." });
+      }
+
+      const check = consumeAccessCode(identity.key, input.code);
+      if (!check.ok) {
+        const messages = {
+          not_found: "Esse código não vale mais. Peça um novo.",
+          expired: "Esse código expirou. Peça um novo.",
+          too_many_attempts: "Erramos o código vezes demais. Peça um novo por segurança.",
+          mismatch: "Código incorreto. Confira o e-mail e tente de novo.",
+        } as const;
+        throw new TRPCError({ code: "UNAUTHORIZED", message: messages[check.reason] });
+      }
+
+      const history = await loadDonorHistory(identity);
+      const donations = history.map((row) => ({
+        id: row.id,
+        type: row.type,
+        amount: row.amount,
+        description: row.description,
+        status: row.status,
+        campaignTitle: row.campaignTitle,
+        createdAt: row.createdAt.toISOString(),
+      }));
+
+      const countedStatuses = ["approved", "completed"];
+      const totalDonatedCents = donations
+        .filter((row) => row.type === "financial" && countedStatuses.includes(row.status ?? ""))
+        .reduce((sum, row) => sum + (row.amount ?? 0), 0);
+
+      return {
+        donorName: history.find((row) => row.donorName?.trim())?.donorName ?? null,
+        donations,
+        totalDonatedCents,
+      };
+    }),
 
   // Lista completa (qualquer status) pra o admin conseguir auditar e remover
   // contribuições de teste/erradas — getPublicDonors só mostra as aprovadas.
