@@ -396,8 +396,30 @@ export const monthlyPledges = mysqlTable("monthlyPledges", {
   installmentsPaid: int("installmentsPaid").default(0).notNull(),
   reminderDay: int("reminderDay").default(5).notNull(),
   status: mysqlEnum("status", ["active", "paused", "completed", "cancelled"]).default("active").notNull(),
+  // Ultima vez que alguem tocou em "Lembrar" no painel — pra saber quem ja foi avisado no mes.
+  lastReminderAt: timestamp("lastReminderAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 export type MonthlyPledge = typeof monthlyPledges.$inferSelect;
 export type InsertMonthlyPledge = typeof monthlyPledges.$inferInsert;
+
+/**
+ * Cada pagamento recebido de um socio doador. E daqui que sai "em dia" ou "atrasado": as
+ * parcelas pagas sao o total recebido dividido pelo valor da parcela, entao um pagamento de
+ * duas parcelas de uma vez, ou um valor diferente, entra certo. `installmentsPaid` no
+ * compromisso vira so um resumo recalculado a partir desta tabela.
+ */
+export const monthlyPledgePayments = mysqlTable("monthlyPledgePayments", {
+  id: int("id").autoincrement().primaryKey(),
+  pledgeId: int("pledgeId").notNull(),
+  amountCents: int("amountCents").notNull(),
+  // Dia em que o dinheiro entrou (AAAA-MM-DD), informado por quem registra — nao a hora do clique.
+  paidOn: varchar("paidOn", { length: 10 }).notNull(),
+  method: mysqlEnum("method", ["pix", "dinheiro", "transferencia", "cartao", "outro"]).default("pix").notNull(),
+  note: varchar("note", { length: 255 }),
+  recordedBy: varchar("recordedBy", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type MonthlyPledgePayment = typeof monthlyPledgePayments.$inferSelect;

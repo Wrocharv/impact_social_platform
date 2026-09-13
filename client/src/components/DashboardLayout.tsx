@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
-import { Building2, CheckCircle2, FileText, Handshake, Home, Layout, LayoutDashboard, LogOut, PanelLeft, ShieldCheck, Users } from "lucide-react";
+import { Building2, CheckCircle2, FileText, Handshake, HeartHandshake, Home, Layout, LayoutDashboard, LogOut, PanelLeft, ShieldCheck, Users } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import AdminLogin from "@/pages/AdminLogin";
@@ -31,27 +31,31 @@ import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 
 type AdminSectionKey = "campaigns" | "content" | "validations" | "partners" | "community" | "comments";
 
-const SECTION_META: Record<AdminSectionKey, { label: string; icon: typeof Building2 }> = {
+// Itens do menu. "socios" usa a permissao de campanhas (ver canSeeSection).
+type NavKey = AdminSectionKey | "socios";
+
+const SECTION_META: Record<NavKey, { label: string; icon: typeof Building2 }> = {
   campaigns: { label: "Campanhas", icon: Building2 },
   content: { label: "Conteúdo do site", icon: Layout },
   validations: { label: "Validações", icon: CheckCircle2 },
   partners: { label: "Parceiros", icon: Handshake },
   community: { label: "Comunidade", icon: Users },
   comments: { label: "Depoimentos", icon: FileText },
+  socios: { label: "Sócios doadores", icon: HeartHandshake },
 };
 
-const NAV_GROUPS: { label: string; keys: AdminSectionKey[] }[] = [
+const NAV_GROUPS: { label: string; keys: NavKey[] }[] = [
   { label: "Site", keys: ["content"] },
   { label: "Campanhas", keys: ["campaigns"] },
-  { label: "Financeiro", keys: ["validations"] },
+  { label: "Financeiro", keys: ["validations", "socios"] },
   { label: "Relacionamento", keys: ["partners", "community", "comments"] },
 ];
 
 type AdminSessionLike = { role: "owner" | "full" | "partial"; allowedSections: string[] } | null | undefined;
 
-function canSeeSection(admin: AdminSessionLike, section: AdminSectionKey) {
+function canSeeSection(admin: AdminSessionLike, section: NavKey) {
   if (!admin) return false;
-  return admin.role === "owner" || admin.role === "full" || admin.allowedSections.includes(section);
+  return admin.role === "owner" || admin.role === "full" || admin.allowedSections.includes(section === "socios" ? "campaigns" : section);
 }
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -118,7 +122,7 @@ function DashboardLayoutContent({
   const logout = () => logoutMutation.mutate();
   const [, setLocation] = useLocation();
   const search = useSearch();
-  const activeTab = (new URLSearchParams(search).get("tab") as AdminSectionKey | "administrators" | "overview" | null) ?? "overview";
+  const activeTab = (new URLSearchParams(search).get("tab") as NavKey | "administrators" | "overview" | null) ?? "overview";
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
@@ -135,7 +139,7 @@ function DashboardLayoutContent({
       ? "Visão geral"
       : activeTab === "administrators"
         ? "Administradores"
-        : (activeTab in SECTION_META ? SECTION_META[activeTab as AdminSectionKey].label : "Gestão");
+        : (activeTab in SECTION_META ? SECTION_META[activeTab as NavKey].label : "Gestão");
 
   useEffect(() => {
     if (isCollapsed) {

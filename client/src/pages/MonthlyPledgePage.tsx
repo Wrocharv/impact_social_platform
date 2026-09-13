@@ -13,6 +13,7 @@ import { toast } from "sonner";
 
 const ADMIN_WHATSAPP_NUMBER = "5564999058919";
 const INSTALLMENT_OPTIONS = [5, 10, 12, 20];
+const DUE_DAYS = [5, 10, 15, 20, 25];
 const SUGGESTED_AMOUNTS = [100, 200, 300];
 
 const formatCurrency = (cents: number) =>
@@ -46,6 +47,7 @@ const EMPTY_FORM = {
   city: "",
   totalAmount: "",
   installments: 10,
+  reminderDay: 5,
   consent: false,
 };
 
@@ -70,6 +72,7 @@ export default function MonthlyPledgePage({ campaignIdFixo }: { campaignIdFixo?:
         form.email && `E-mail: ${form.email}`,
         form.city && `Cidade: ${form.city}`,
         `Valor total: ${formatCurrency(totalAmountCents)} em ${form.installments}x de ${formatCurrency(result.installmentAmountCents)}`,
+        `Vencimento: todo dia ${form.reminderDay}, a partir do mês que vem`,
         `Autorizo ser lembrado(a) todo mês sobre essa contribuição.`,
       ].filter(Boolean).join("\n");
 
@@ -105,6 +108,7 @@ export default function MonthlyPledgePage({ campaignIdFixo }: { campaignIdFixo?:
       city: form.city.trim() || undefined,
       totalAmountCents,
       installments: form.installments,
+      reminderDay: form.reminderDay,
     });
   }
 
@@ -224,13 +228,30 @@ export default function MonthlyPledgePage({ campaignIdFixo }: { campaignIdFixo?:
                 </Select>
               </div>
 
+              <div>
+                <Label className="mb-2 block">Melhor dia para pagar *</Label>
+                <div className="grid grid-cols-5 gap-2">
+                  {DUE_DAYS.map((dia) => (
+                    <button
+                      key={dia}
+                      type="button"
+                      onClick={() => setForm((current) => ({ ...current, reminderDay: dia }))}
+                      className={`min-h-11 rounded-md border text-sm font-semibold transition ${form.reminderDay === dia ? "border-[#228B22] bg-[#228B22] text-white" : "border-[#dce5d8] bg-white text-[#4f6550] hover:border-[#228B22]"}`}
+                    >
+                      Dia {dia}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-[#656565]">A primeira parcela vence no mês que vem. Te lembramos perto dessa data.</p>
+              </div>
+
               {(() => {
                 const totalAmountCents = parseCurrencyToCents(form.totalAmount);
                 if (!totalAmountCents) return null;
                 const installmentAmountCents = Math.round(totalAmountCents / form.installments);
                 return (
                   <p className="rounded-lg bg-[#f1f6ef] px-4 py-3 text-sm text-[#4f6550]">
-                    Isso dá <strong>{form.installments}x de {formatCurrency(installmentAmountCents)}</strong> por mês.
+                    Isso dá <strong>{form.installments}x de {formatCurrency(installmentAmountCents)}</strong> por mês, todo dia {form.reminderDay}.
                   </p>
                 );
               })()}

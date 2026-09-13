@@ -4,6 +4,7 @@ import { AlertCircle, Building2, CheckCircle2, ChevronDown, Edit2, ExternalLink,
 import AdminManagementSection from "@/components/admin/AdminManagementSection";
 import CampaignAccountabilityDialog from "@/components/admin/CampaignAccountabilityDialog";
 import CampaignQrCodeDialog from "@/components/admin/CampaignQrCodeDialog";
+import MonthlyPledgesSection from "@/components/admin/MonthlyPledgesSection";
 import DashboardLayout from "@/components/DashboardLayout";
 import AdminLogin from "@/pages/AdminLogin";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -144,7 +145,8 @@ const EMPTY_NEED_FORM = {
   priority: "medium" as "high" | "medium" | "low",
 };
 
-type AdminTab = "overview" | "campaigns" | "content" | "validations" | "partners" | "community" | "comments" | "administrators";
+// "socios" nao e uma permissao propria: quem cuida de campanhas cuida dos socios doadores.
+type AdminTab = "overview" | "campaigns" | "socios" | "content" | "validations" | "partners" | "community" | "comments" | "administrators";
 
 export default function AdminDashboard() {
   const adminMeQuery = trpc.adminAuth.me.useQuery();
@@ -153,7 +155,7 @@ export default function AdminDashboard() {
   const adminSession = adminMeQuery.data;
   const isOwner = adminSession?.role === "owner";
   const canSeeSection = (section: Exclude<AdminTab, "administrators">) =>
-    section === "overview" || !adminSession || adminSession.role === "owner" || adminSession.role === "full" || adminSession.allowedSections.includes(section);
+    section === "overview" || !adminSession || adminSession.role === "owner" || adminSession.role === "full" || adminSession.allowedSections.includes(section === "socios" ? "campaigns" : section);
   const isLocalhost = window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1");
   const search = useSearch();
   const [, setLocation] = useLocation();
@@ -1760,6 +1762,10 @@ export default function AdminDashboard() {
                 </Card>
               )) : <EmptyCard icon={Building2} title="Nenhuma campanha cadastrada" description="Crie a primeira campanha para iniciar a operação." action={<Button onClick={() => setIsCreateCampaignOpen(true)}>Criar campanha</Button>} />}
             </div>
+          </TabsContent>
+
+          <TabsContent value="socios" className="space-y-6">
+            <MonthlyPledgesSection />
           </TabsContent>
 
           <TabsContent value="content" className="space-y-6">
