@@ -49,9 +49,10 @@ const EMPTY_FORM = {
   consent: false,
 };
 
-export default function MonthlyPledgePage() {
+// `campaignIdFixo` vem do endereco curto (/socio-doador), que nao tem o id na URL.
+export default function MonthlyPledgePage({ campaignIdFixo }: { campaignIdFixo?: number } = {}) {
   const [, params] = useRoute("/parceiro-mensal/:campaignId");
-  const campaignId = Number(params?.campaignId);
+  const campaignId = campaignIdFixo ?? Number(params?.campaignId);
   const [form, setForm] = useState(EMPTY_FORM);
   const [showCustomAmount, setShowCustomAmount] = useState(false);
   const [submitted, setSubmitted] = useState<{ installmentAmountCents: number } | null>(null);

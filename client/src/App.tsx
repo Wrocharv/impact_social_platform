@@ -36,7 +36,10 @@ function Router() {
       <Route path={"/campaign/:id"} component={CampaignDetail} />
       <Route path={"/partner/:id"} component={PartnerSpotlightPage} />
       <Route path={"/quero-ser-parceiro"} component={PartnerApplicationPage} />
-      <Route path={"/parceiro-mensal/:campaignId"} component={MonthlyPledgePage} />
+      {/* Endereco curto do QR code de divulgacao: cai direto no cadastro de socio doador da
+          construcao do hotel, sem passar pela pagina da campanha. */}
+      <Route path={"/socio-doador"}>{() => <MonthlyPledgePage campaignIdFixo={100001} />}</Route>
+      <Route path={"/parceiro-mensal/:campaignId"}>{() => <MonthlyPledgePage />}</Route>
       <Route path={"/donors"} component={DonorsPage} />
       <Route path={"/minhas-doacoes"} component={MyDonationsPage} />
       <Route path={"/contribute/help/:id"} component={ContributionChoicePage} />
