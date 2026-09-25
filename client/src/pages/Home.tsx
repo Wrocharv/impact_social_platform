@@ -147,8 +147,9 @@ type PublishedCampaign = {
 };
 
 export default function Home() {
-  const featuredInput = useMemo(() => ({ status: "active" as const, limit: 3 }), []);
-  const completedInput = useMemo(() => ({ status: "completed" as const, limit: 3 }), []);
+  // A home mostra as campanhas ativas de verdade — ficava em 3, e a quarta sumia da pagina.
+  const featuredInput = useMemo(() => ({ status: "active" as const, limit: 12 }), []);
+  const completedInput = useMemo(() => ({ status: "completed" as const, limit: 6 }), []);
   const campaignsQuery = trpc.campaigns.listPublished.useQuery(featuredInput);
   const completedQuery = trpc.campaigns.listPublished.useQuery(completedInput);
   const statsQuery = trpc.campaigns.getPublicStats.useQuery();
@@ -293,7 +294,7 @@ export default function Home() {
             <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-[#228B22]">Campanhas e obras</p>
             <h2 className="text-4xl font-bold text-[#2d2d2d] md:text-5xl">Apoie campanhas que transformam vidas, do planejamento à realização</h2>
             <Link href="/campaigns" className="mt-4 font-semibold text-[#228B22] hover:underline">
-              Ver todas as campanhas
+              {campaigns.length > 0 ? `Ver todas as campanhas (${campaigns.length})` : "Ver todas as campanhas"}
             </Link>
           </div>
 
@@ -321,9 +322,21 @@ export default function Home() {
           )}
 
           {campaigns.length > 0 && (
-            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {campaigns.map((campaign) => <CampaignCard key={campaign.id} campaign={campaign} />)}
-            </div>
+            <>
+              <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+                {campaigns.map((campaign) => <CampaignCard key={campaign.id} campaign={campaign} />)}
+              </div>
+              {campaigns.length >= 12 && (
+                <div className="mt-8 flex justify-center">
+                  <Link
+                    href="/campaigns"
+                    className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#228B22] px-7 font-semibold text-[#228B22] hover:bg-[#228B22]/5"
+                  >
+                    Ver todas as campanhas
+                  </Link>
+                </div>
+              )}
+            </>
           )}
         </div>
       </section>
