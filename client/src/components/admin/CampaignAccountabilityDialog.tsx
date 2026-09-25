@@ -67,6 +67,10 @@ export default function CampaignAccountabilityDialog({
   const [expenseForm, setExpenseForm] = useState(EMPTY_EXPENSE);
   const [documentForm, setDocumentForm] = useState(EMPTY_DOCUMENT);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
+  // Quando um destes tem id, o formulario esta corrigindo um lancamento em vez de criar outro.
+  const [editingExpenseId, setEditingExpenseId] = useState<number | null>(null);
+  const [editingDocumentId, setEditingDocumentId] = useState<number | null>(null);
+  const [aba, setAba] = useState("expense");
 
   async function invalidateReport() {
     if (!campaign) return;
@@ -84,6 +88,46 @@ export default function CampaignAccountabilityDialog({
       await invalidateReport();
     },
     onError: (error) => toast.error(error.message || "Não foi possível registrar a despesa."),
+  });
+
+  const updateExpense = trpc.accountability.updateExpense.useMutation({
+    onSuccess: async () => {
+      toast.success("Despesa corrigida.");
+      setExpenseForm(EMPTY_EXPENSE);
+      setEditingExpenseId(null);
+      await invalidateReport();
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível corrigir a despesa."),
+  });
+
+  const deleteExpense = trpc.accountability.deleteExpense.useMutation({
+    onSuccess: async () => {
+      toast.success("Despesa excluída.");
+      setExpenseForm(EMPTY_EXPENSE);
+      setEditingExpenseId(null);
+      await invalidateReport();
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível excluir a despesa."),
+  });
+
+  const updateDocument = trpc.accountability.updateDocument.useMutation({
+    onSuccess: async () => {
+      toast.success("Documento corrigido.");
+      setDocumentForm(EMPTY_DOCUMENT);
+      setEditingDocumentId(null);
+      await invalidateReport();
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível corrigir o documento."),
+  });
+
+  const deleteDocument = trpc.accountability.deleteDocument.useMutation({
+    onSuccess: async () => {
+      toast.success("Documento retirado do ar.");
+      setDocumentForm(EMPTY_DOCUMENT);
+      setEditingDocumentId(null);
+      await invalidateReport();
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível excluir o documento."),
   });
 
   const uploadDocument = trpc.accountability.uploadDocument.useMutation({
@@ -112,7 +156,7 @@ export default function CampaignAccountabilityDialog({
 
     const unitPriceCents = expenseForm.unitPrice ? parseCurrencyInput(expenseForm.unitPrice) : 0;
 
-    createExpense.mutate({
+    const dados = {
       campaignId: campaign.id,
       category: expenseForm.category,
       title: expenseForm.title,
@@ -122,7 +166,39 @@ export default function CampaignAccountabilityDialog({
       amount,
       expenseDate,
       documentId: expenseForm.documentId === "none" ? undefined : Number(expenseForm.documentId),
+    };
+
+    if (editingExpenseId) updateExpense.mutate({ id: editingExpenseId, ...dados });
+    else createExpense.mutate(dados);
+  }
+
+  /** Abre a despesa escolhida no formulário de cima, já preenchida, pra corrigir. */
+  function editarDespesa(expense: { id: number; category: string; title: string; description?: string | null; quantity?: string | null; unitPriceCents?: number | null; amount: number; expenseDate: string | Date; documentId?: number | null }) {
+    setEditingExpenseId(expense.id);
+    setExpenseForm({
+      category: expense.category as typeof EMPTY_EXPENSE.category,
+      title: expense.title,
+      description: expense.description ?? "",
+      quantity: expense.quantity ?? "",
+      unitPrice: expense.unitPriceCents ? (expense.unitPriceCents / 100).toFixed(2).replace(".", ",") : "",
+      amount: (expense.amount / 100).toFixed(2).replace(".", ","),
+      expenseDate: new Date(expense.expenseDate).toISOString().slice(0, 10),
+      documentId: expense.documentId ? String(expense.documentId) : "none",
     });
+    setAba("expense");
+  }
+
+  /** Idem para o comprovante: o arquivo continua o mesmo, mudam só os dados. */
+  function editarDocumento(document: { id: number; type: string; title: string; description?: string | null; amount?: number | null }) {
+    setEditingDocumentId(document.id);
+    setDocumentForm({
+      type: document.type as typeof EMPTY_DOCUMENT.type,
+      title: document.title,
+      description: document.description ?? "",
+      amount: document.amount ? (document.amount / 100).toFixed(2).replace(".", ",") : "",
+    });
+    setDocumentFile(null);
+    setAba("document");
   }
 
   function handleQuantityOrPriceChange(field: "quantity" | "unitPrice", value: string) {
@@ -137,7 +213,27 @@ export default function CampaignAccountabilityDialog({
 
   async function handleUploadDocument(event: React.FormEvent) {
     event.preventDefault();
-    if (!campaign || !documentFile) {
+    if (!campaign) return;
+
+    // Corrigindo um documento ja publicado: nao se manda arquivo de novo.
+    if (editingDocumentId) {
+      const valor = documentForm.amount ? parseCurrencyInput(documentForm.amount) : undefined;
+      if (documentForm.amount && !valor) {
+        toast.error("Informe um valor associado válido.");
+        return;
+      }
+      updateDocument.mutate({
+        id: editingDocumentId,
+        campaignId: campaign.id,
+        type: documentForm.type,
+        title: documentForm.title,
+        description: documentForm.description || undefined,
+        amount: valor,
+      });
+      return;
+    }
+
+    if (!documentFile) {
       toast.error("Selecione um documento PDF, JPEG ou PNG.");
       return;
     }
@@ -205,14 +301,19 @@ export default function CampaignAccountabilityDialog({
           </p>
         )}
 
-        <Tabs defaultValue="expense" className="mt-2">
+        <Tabs value={aba} onValueChange={setAba} className="mt-2">
           <TabsList className="grid h-auto w-full grid-cols-2 bg-[#edf3eb] p-1">
-            <TabsTrigger value="expense" className="min-h-11 gap-2"><ReceiptText className="h-4 w-4" /> Registrar despesa</TabsTrigger>
-            <TabsTrigger value="document" className="min-h-11 gap-2"><FileCheck2 className="h-4 w-4" /> Publicar documento</TabsTrigger>
+            <TabsTrigger value="expense" className="min-h-11 gap-2"><ReceiptText className="h-4 w-4" /> {editingExpenseId ? "Corrigir despesa" : "Registrar despesa"}</TabsTrigger>
+            <TabsTrigger value="document" className="min-h-11 gap-2"><FileCheck2 className="h-4 w-4" /> {editingDocumentId ? "Corrigir documento" : "Publicar documento"}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="expense" className="mt-5">
             <form onSubmit={handleCreateExpense} className="space-y-4">
+              {editingExpenseId && (
+                <p className="rounded-lg bg-[#fff6e5] p-3 text-sm text-[#8a5a00]">
+                  Você está corrigindo uma despesa já lançada. Altere o que estiver errado e salve — ou cancele para voltar a registrar uma nova.
+                </p>
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Categoria *"><Select value={expenseForm.category} onValueChange={(category: typeof expenseForm.category) => setExpenseForm({ ...expenseForm, category })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(CATEGORY_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field>
                 <Field label="Título *"><Input value={expenseForm.title} onChange={(event) => setExpenseForm({ ...expenseForm, title: event.target.value })} required minLength={2} /></Field>
@@ -228,7 +329,18 @@ export default function CampaignAccountabilityDialog({
                 <Field label="Comprovante publicado"><Select value={expenseForm.documentId} onValueChange={(documentId) => setExpenseForm({ ...expenseForm, documentId })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Sem comprovante vinculado</SelectItem>{reportQuery.data?.documents.map((document) => <SelectItem key={document.id} value={String(document.id)}>{document.title}</SelectItem>)}</SelectContent></Select></Field>
               </div>
               <Field label="Descrição (discriminação)"><Textarea value={expenseForm.description} onChange={(event) => setExpenseForm({ ...expenseForm, description: event.target.value })} rows={3} maxLength={2000} /></Field>
-              <div className="flex justify-end"><Button type="submit" disabled={createExpense.isPending}>{createExpense.isPending ? "Registrando..." : "Registrar despesa"}</Button></div>
+              <div className="flex justify-end gap-2">
+                {editingExpenseId && (
+                  <Button type="button" variant="outline" onClick={() => { setEditingExpenseId(null); setExpenseForm(EMPTY_EXPENSE); }}>
+                    Cancelar correção
+                  </Button>
+                )}
+                <Button type="submit" disabled={createExpense.isPending || updateExpense.isPending}>
+                  {editingExpenseId
+                    ? (updateExpense.isPending ? "Salvando..." : "Salvar correção")
+                    : (createExpense.isPending ? "Registrando..." : "Registrar despesa")}
+                </Button>
+              </div>
             </form>
           </TabsContent>
 
@@ -240,16 +352,104 @@ export default function CampaignAccountabilityDialog({
               </div>
               <Field label="Título *"><Input value={documentForm.title} onChange={(event) => setDocumentForm({ ...documentForm, title: event.target.value })} required minLength={2} /></Field>
               <Field label="Descrição"><Textarea value={documentForm.description} onChange={(event) => setDocumentForm({ ...documentForm, description: event.target.value })} rows={3} maxLength={2000} /></Field>
-              <Field label="Arquivo *"><Input type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)} required /><span className="block text-xs font-normal text-[#758078]">PDF, JPEG ou PNG, até 5 MB. O conteúdo será validado no servidor.</span></Field>
-              <div className="flex justify-end"><Button type="submit" disabled={uploadDocument.isPending}>{uploadDocument.isPending ? "Enviando..." : "Publicar documento"}</Button></div>
+              {editingDocumentId ? (
+                <p className="rounded-lg bg-[#fff6e5] p-3 text-sm text-[#8a5a00]">
+                  Corrigindo um documento já publicado. O arquivo continua o mesmo — para trocar o arquivo, exclua este e publique outro.
+                </p>
+              ) : (
+                <Field label="Arquivo *"><Input type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)} required /><span className="block text-xs font-normal text-[#758078]">PDF, JPEG ou PNG, até 5 MB. O conteúdo será validado no servidor.</span></Field>
+              )}
+              <div className="flex justify-end gap-2">
+                {editingDocumentId && (
+                  <Button type="button" variant="outline" onClick={() => { setEditingDocumentId(null); setDocumentForm(EMPTY_DOCUMENT); }}>
+                    Cancelar correção
+                  </Button>
+                )}
+                <Button type="submit" disabled={uploadDocument.isPending || updateDocument.isPending}>
+                  {editingDocumentId
+                    ? (updateDocument.isPending ? "Salvando..." : "Salvar correção")
+                    : (uploadDocument.isPending ? "Enviando..." : "Publicar documento")}
+                </Button>
+              </div>
             </form>
           </TabsContent>
         </Tabs>
 
         {(reportQuery.data?.expenses.length ?? 0) > 0 && (
           <section className="border-t pt-5">
-            <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-[#228B22]" /><h3 className="font-bold text-[#243128]">Últimas despesas registradas</h3></div>
-            <div className="mt-3 space-y-2">{reportQuery.data?.expenses.slice(0, 5).map((expense) => <div key={expense.id} className="flex items-center justify-between gap-4 rounded-lg bg-[#f5f8f3] p-3 text-sm"><div><p className="font-semibold text-[#243128]">{expense.title}</p><p className="text-[#66736a]">{CATEGORY_LABELS[expense.category] ?? expense.category} · {new Date(expense.expenseDate).toLocaleDateString("pt-BR")}{expense.quantity ? ` · ${expense.quantity}` : ""}{expense.unitPriceCents ? ` × ${formatCurrency(expense.unitPriceCents)}` : ""}</p></div><strong>{formatCurrency(expense.amount)}</strong></div>)}</div>
+            <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-[#228B22]" /><h3 className="font-bold text-[#243128]">Despesas registradas</h3></div>
+            <p className="mt-1 text-sm text-[#66736a]">Toque em <strong>Corrigir</strong> para mudar o que ficou errado, ou em <strong>Excluir</strong> para apagar o lançamento.</p>
+            <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+              {reportQuery.data?.expenses.map((expense) => (
+                <div key={expense.id} className={`flex flex-wrap items-center justify-between gap-3 rounded-lg p-3 text-sm ${editingExpenseId === expense.id ? "bg-[#fff6e5] ring-1 ring-[#e0b465]" : "bg-[#f5f8f3]"}`}>
+                  <div className="min-w-[12rem] flex-1">
+                    <p className="font-semibold text-[#243128]">{expense.title}</p>
+                    <p className="text-[#66736a]">
+                      {CATEGORY_LABELS[expense.category] ?? expense.category} · {new Date(expense.expenseDate).toLocaleDateString("pt-BR")}
+                      {expense.quantity ? ` · ${expense.quantity}` : ""}
+                      {expense.unitPriceCents ? ` × ${formatCurrency(expense.unitPriceCents)}` : ""}
+                    </p>
+                  </div>
+                  <strong className="whitespace-nowrap">{formatCurrency(expense.amount)}</strong>
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={() => editarDespesa(expense)}>Corrigir</Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-red-300 text-red-700 hover:bg-red-50"
+                      disabled={deleteExpense.isPending}
+                      onClick={() => {
+                        if (!campaign) return;
+                        if (!window.confirm(`Excluir a despesa "${expense.title}" de ${formatCurrency(expense.amount)}? Isso não pode ser desfeito.`)) return;
+                        deleteExpense.mutate({ id: expense.id, campaignId: campaign.id });
+                      }}
+                    >
+                      Excluir
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {(reportQuery.data?.documents.length ?? 0) > 0 && (
+          <section className="border-t pt-5">
+            <div className="flex items-center gap-2"><FileCheck2 className="h-5 w-5 text-[#228B22]" /><h3 className="font-bold text-[#243128]">Documentos publicados</h3></div>
+            <p className="mt-1 text-sm text-[#66736a]">Excluir tira o comprovante do ar; as despesas ligadas a ele ficam sem comprovante.</p>
+            <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+              {reportQuery.data?.documents.map((document) => (
+                <div key={document.id} className={`flex flex-wrap items-center justify-between gap-3 rounded-lg p-3 text-sm ${editingDocumentId === document.id ? "bg-[#fff6e5] ring-1 ring-[#e0b465]" : "bg-[#f5f8f3]"}`}>
+                  <div className="min-w-[12rem] flex-1">
+                    <p className="font-semibold text-[#243128]">{document.title}</p>
+                    <p className="text-[#66736a]">
+                      {DOCUMENT_LABELS[document.type] ?? document.type}
+                      {document.amount ? ` · ${formatCurrency(document.amount)}` : ""}
+                      {document.uploadedAt ? ` · ${new Date(document.uploadedAt).toLocaleDateString("pt-BR")}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <a href={document.documentUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border border-[#cfdac9] px-3 text-xs font-semibold text-[#243128]">Abrir</a>
+                    <Button type="button" size="sm" variant="outline" onClick={() => editarDocumento(document)}>Corrigir</Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-red-300 text-red-700 hover:bg-red-50"
+                      disabled={deleteDocument.isPending}
+                      onClick={() => {
+                        if (!campaign) return;
+                        if (!window.confirm(`Excluir o documento "${document.title}"? Ele sai da página pública e isso não pode ser desfeito.`)) return;
+                        deleteDocument.mutate({ id: document.id, campaignId: campaign.id });
+                      }}
+                    >
+                      Excluir
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
         )}
 

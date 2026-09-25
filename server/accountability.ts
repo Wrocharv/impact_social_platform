@@ -127,6 +127,28 @@ async function requireCampaign(db: Awaited<ReturnType<typeof requireDatabase>>, 
   return campaign;
 }
 
+/** Garante que a despesa existe e e mesmo desta campanha, antes de mexer nela. */
+async function requireExpense(db: Awaited<ReturnType<typeof requireDatabase>>, id: number, campaignId: number) {
+  const rows = await db
+    .select({ id: campaignExpenses.id })
+    .from(campaignExpenses)
+    .where(and(eq(campaignExpenses.id, id), eq(campaignExpenses.campaignId, campaignId)))
+    .limit(1);
+  if (!rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Despesa não encontrada nesta campanha." });
+  return rows[0];
+}
+
+/** Idem para o comprovante publicado. */
+async function requireDocument(db: Awaited<ReturnType<typeof requireDatabase>>, id: number, campaignId: number) {
+  const rows = await db
+    .select({ id: transparencyDocuments.id })
+    .from(transparencyDocuments)
+    .where(and(eq(transparencyDocuments.id, id), eq(transparencyDocuments.campaignId, campaignId)))
+    .limit(1);
+  if (!rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Comprovante não encontrado nesta campanha." });
+  return rows[0];
+}
+
 async function loadReport(campaignId: number, publicOnly: boolean) {
   const db = await requireDatabase();
   const campaign = await requireCampaign(db, campaignId, publicOnly);
@@ -292,6 +314,110 @@ export const accountabilityRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: describeErrorWithCause(error) });
       }
 
+      return { success: true as const };
+    }),
+
+  /** Corrige uma despesa ja lancada: tudo pode mudar, menos a campanha. */
+  updateExpense: sectionProcedure("campaigns")
+    .input(z.object({
+      id: z.number().int().positive(),
+      campaignId: z.number().int().positive(),
+      category: expenseCategorySchema,
+      title: z.string().trim().min(2).max(255),
+      description: z.string().trim().max(2000).optional(),
+      quantity: z.string().trim().max(100).optional(),
+      unitPriceCents: z.number().int().positive().max(2_000_000_000).optional(),
+      amount: z.number().int().positive().max(2_000_000_000),
+      expenseDate: z.number().int().positive(),
+      documentId: z.number().int().positive().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const expenseDate = new Date(input.expenseDate);
+      if (Number.isNaN(expenseDate.getTime()) || expenseDate.getTime() > Date.now() + 86_400_000) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Data da despesa inválida." });
+      }
+
+      const db = await requireDatabase();
+      await requireCampaign(db, input.campaignId);
+      await requireExpense(db, input.id, input.campaignId);
+
+      if (input.documentId) {
+        const documentRows = await db
+          .select({ id: transparencyDocuments.id })
+          .from(transparencyDocuments)
+          .where(and(
+            eq(transparencyDocuments.id, input.documentId),
+            eq(transparencyDocuments.campaignId, input.campaignId),
+          ))
+          .limit(1);
+        if (!documentRows[0]) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Comprovante não pertence à campanha." });
+        }
+      }
+
+      await db
+        .update(campaignExpenses)
+        .set({
+          category: input.category,
+          title: input.title.trim(),
+          description: input.description?.trim() || null,
+          quantity: input.quantity?.trim() || null,
+          unitPriceCents: input.unitPriceCents ?? null,
+          amount: input.amount,
+          expenseDate,
+          documentId: input.documentId ?? null,
+        })
+        .where(eq(campaignExpenses.id, input.id));
+
+      return { success: true as const };
+    }),
+
+  /** Apaga uma despesa lancada por engano. O total da campanha se refaz sozinho. */
+  deleteExpense: sectionProcedure("campaigns")
+    .input(z.object({ id: z.number().int().positive(), campaignId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const db = await requireDatabase();
+      await requireExpense(db, input.id, input.campaignId);
+      await db.delete(campaignExpenses).where(eq(campaignExpenses.id, input.id));
+      return { success: true as const };
+    }),
+
+  /** Corrige os dados de um comprovante ja publicado (o arquivo em si continua o mesmo). */
+  updateDocument: sectionProcedure("campaigns")
+    .input(z.object({
+      id: z.number().int().positive(),
+      campaignId: z.number().int().positive(),
+      type: documentTypeSchema,
+      title: z.string().trim().min(2).max(255),
+      description: z.string().trim().max(2000).optional(),
+      amount: z.number().int().positive().max(2_000_000_000).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await requireDatabase();
+      await requireDocument(db, input.id, input.campaignId);
+      await db
+        .update(transparencyDocuments)
+        .set({
+          type: input.type,
+          title: input.title.trim(),
+          description: input.description?.trim() || null,
+          amount: input.amount ?? null,
+        })
+        .where(eq(transparencyDocuments.id, input.id));
+      return { success: true as const };
+    }),
+
+  /** Tira um comprovante do ar. As despesas que apontavam pra ele ficam sem comprovante. */
+  deleteDocument: sectionProcedure("campaigns")
+    .input(z.object({ id: z.number().int().positive(), campaignId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const db = await requireDatabase();
+      await requireDocument(db, input.id, input.campaignId);
+      await db
+        .update(campaignExpenses)
+        .set({ documentId: null })
+        .where(and(eq(campaignExpenses.documentId, input.id), eq(campaignExpenses.campaignId, input.campaignId)));
+      await db.delete(transparencyDocuments).where(eq(transparencyDocuments.id, input.id));
       return { success: true as const };
     }),
 });
