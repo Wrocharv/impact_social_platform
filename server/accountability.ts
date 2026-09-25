@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   campaignExpenses,
@@ -157,12 +157,16 @@ async function loadReport(campaignId: number, publicOnly: boolean) {
     db
       .select()
       .from(campaignExpenses)
-      .where(eq(campaignExpenses.campaignId, campaignId))
+      .where(publicOnly
+        ? and(eq(campaignExpenses.campaignId, campaignId), isNotNull(campaignExpenses.publishedAt))
+        : eq(campaignExpenses.campaignId, campaignId))
       .orderBy(desc(campaignExpenses.expenseDate)),
     db
       .select()
       .from(transparencyDocuments)
-      .where(eq(transparencyDocuments.campaignId, campaignId))
+      .where(publicOnly
+        ? and(eq(transparencyDocuments.campaignId, campaignId), isNotNull(transparencyDocuments.publishedAt))
+        : eq(transparencyDocuments.campaignId, campaignId))
       .orderBy(desc(transparencyDocuments.uploadedAt)),
     db
       .select({ type: contributions.type, amount: contributions.amount, estimatedAmount: contributions.estimatedAmount })
@@ -380,6 +384,50 @@ export const accountabilityRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: describeErrorWithCause(error) });
       }
 
+      return { success: true as const };
+    }),
+
+  /** Poe no ar (ou tira do ar) uma despesa ja conferida. Rascunho fica so no painel. */
+  setExpensePublished: sectionProcedure("campaigns")
+    .input(z.object({ id: z.number().int().positive(), campaignId: z.number().int().positive(), published: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const db = await requireDatabase();
+      await requireExpense(db, input.id, input.campaignId);
+      await db
+        .update(campaignExpenses)
+        .set({ publishedAt: input.published ? new Date() : null })
+        .where(eq(campaignExpenses.id, input.id));
+      return { success: true as const };
+    }),
+
+  /** Idem para o comprovante. */
+  setDocumentPublished: sectionProcedure("campaigns")
+    .input(z.object({ id: z.number().int().positive(), campaignId: z.number().int().positive(), published: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const db = await requireDatabase();
+      await requireDocument(db, input.id, input.campaignId);
+      await db
+        .update(transparencyDocuments)
+        .set({ publishedAt: input.published ? new Date() : null })
+        .where(eq(transparencyDocuments.id, input.id));
+      return { success: true as const };
+    }),
+
+  /** Depois de conferir tudo: poe no ar de uma vez o que ainda estava em rascunho. */
+  publishPending: sectionProcedure("campaigns")
+    .input(z.object({ campaignId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const db = await requireDatabase();
+      await requireCampaign(db, input.campaignId);
+      const agora = new Date();
+      await db
+        .update(campaignExpenses)
+        .set({ publishedAt: agora })
+        .where(and(eq(campaignExpenses.campaignId, input.campaignId), sql`${campaignExpenses.publishedAt} is null`));
+      await db
+        .update(transparencyDocuments)
+        .set({ publishedAt: agora })
+        .where(and(eq(transparencyDocuments.campaignId, input.campaignId), sql`${transparencyDocuments.publishedAt} is null`));
       return { success: true as const };
     }),
 

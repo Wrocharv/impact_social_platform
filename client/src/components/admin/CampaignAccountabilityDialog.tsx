@@ -132,6 +132,30 @@ export default function CampaignAccountabilityDialog({
     onError: (error) => toast.error(error.message || "Não foi possível excluir o documento."),
   });
 
+  const setExpensePublished = trpc.accountability.setExpensePublished.useMutation({
+    onSuccess: async (_data, variables) => {
+      toast.success(variables.published ? "Despesa publicada na página da campanha." : "Despesa voltou para rascunho.");
+      await invalidateReport();
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível mudar a publicação."),
+  });
+
+  const setDocumentPublished = trpc.accountability.setDocumentPublished.useMutation({
+    onSuccess: async (_data, variables) => {
+      toast.success(variables.published ? "Documento publicado na página da campanha." : "Documento voltou para rascunho.");
+      await invalidateReport();
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível mudar a publicação."),
+  });
+
+  const publishPending = trpc.accountability.publishPending.useMutation({
+    onSuccess: async () => {
+      toast.success("Tudo o que estava em rascunho foi publicado.");
+      await invalidateReport();
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível publicar."),
+  });
+
   const uploadDocument = trpc.accountability.uploadDocument.useMutation({
     onSuccess: async () => {
       toast.success("Documento publicado com sucesso.");
@@ -273,6 +297,10 @@ export default function CampaignAccountabilityDialog({
     }
   }
 
+  const rascunhos =
+    (reportQuery.data?.expenses.filter((expense) => !expense.publishedAt).length ?? 0) +
+    (reportQuery.data?.documents.filter((document) => !document.publishedAt).length ?? 0);
+
   /** Baixa o extrato em planilha (abre no Excel e no Google Planilhas). */
   function baixarPlanilha() {
     const dados = statementQuery.data;
@@ -282,20 +310,20 @@ export default function CampaignAccountabilityDialog({
     const escapar = (texto: string) => `"${String(texto ?? "").replace(/"/g, '""')}"`;
 
     const linhas = [
-      ["Tipo", "Data", "Descrição", "Quem / Categoria", "Forma", "Valor (R$)"].join(";"),
+      ["Tipo", "Data", "Descrição", "Quem / Categoria", "Forma", "Situação", "Valor (R$)"].join(";"),
       ...(dados.initialRaisedEntry > 0
-        ? [["ENTRADA", "", escapar("Arrecadação inicial registrada na campanha"), "", "", valor(dados.initialRaisedEntry)].join(";")]
+        ? [["ENTRADA", "", escapar("Arrecadação inicial registrada na campanha"), "", "", "No ar", valor(dados.initialRaisedEntry)].join(";")]
         : []),
       ...dados.entries.map((entrada) =>
-        ["ENTRADA", dia(entrada.date), escapar(entrada.description || (entrada.type === "material" ? "Doação de material" : "Contribuição financeira")), escapar(entrada.name), escapar(entrada.method || ""), valor(entrada.amount)].join(";"),
+        ["ENTRADA", dia(entrada.date), escapar(entrada.description || (entrada.type === "material" ? "Doação de material" : "Contribuição financeira")), escapar(entrada.name), escapar(entrada.method || ""), "No ar", valor(entrada.amount)].join(";"),
       ),
       ...dados.expenses.map((despesa) =>
-        ["DESPESA", dia(despesa.expenseDate), escapar(despesa.title), escapar(CATEGORY_LABELS[despesa.category] ?? despesa.category), escapar(despesa.quantity || ""), valor(despesa.amount)].join(";"),
+        ["DESPESA", dia(despesa.expenseDate), escapar(despesa.title), escapar(CATEGORY_LABELS[despesa.category] ?? despesa.category), escapar(despesa.quantity || ""), despesa.publishedAt ? "No ar" : "Rascunho", valor(despesa.amount)].join(";"),
       ),
       "",
-      ["TOTAL ENTRADAS", "", "", "", "", valor(dados.totalEntries)].join(";"),
-      ["TOTAL DESPESAS", "", "", "", "", valor(dados.totalSpent)].join(";"),
-      ["SALDO", "", "", "", "", valor(dados.balance)].join(";"),
+      ["TOTAL ENTRADAS", "", "", "", "", "", valor(dados.totalEntries)].join(";"),
+      ["TOTAL DESPESAS", "", "", "", "", "", valor(dados.totalSpent)].join(";"),
+      ["SALDO", "", "", "", "", "", valor(dados.balance)].join(";"),
     ].join("\n");
 
     // O BOM faz o Excel abrir os acentos certos.
@@ -361,6 +389,9 @@ export default function CampaignAccountabilityDialog({
                 <Field label="Valor total (R$) *"><Input inputMode="decimal" value={expenseForm.amount} onChange={(event) => setExpenseForm({ ...expenseForm, amount: event.target.value })} required placeholder="0,00" /></Field>
               </div>
               <p className="text-xs text-[#758078]">Preenchendo quantidade e preço unitário, o valor total é calculado sozinho (dá pra ajustar depois).</p>
+              {!editingExpenseId && (
+                <p className="text-xs text-[#758078]">A despesa entra como <strong>rascunho</strong>: aparece só aqui no painel até você conferir e publicar.</p>
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Data *"><Input type="date" max={new Date().toISOString().slice(0, 10)} value={expenseForm.expenseDate} onChange={(event) => setExpenseForm({ ...expenseForm, expenseDate: event.target.value })} required /></Field>
                 <Field label="Comprovante publicado"><Select value={expenseForm.documentId} onValueChange={(documentId) => setExpenseForm({ ...expenseForm, documentId })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Sem comprovante vinculado</SelectItem>{reportQuery.data?.documents.map((document) => <SelectItem key={document.id} value={String(document.id)}>{document.title}</SelectItem>)}</SelectContent></Select></Field>
@@ -394,7 +425,7 @@ export default function CampaignAccountabilityDialog({
                   Corrigindo um documento já publicado. O arquivo continua o mesmo — para trocar o arquivo, exclua este e publique outro.
                 </p>
               ) : (
-                <Field label="Arquivo *"><Input type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)} required /><span className="block text-xs font-normal text-[#758078]">PDF, JPEG ou PNG, até 5 MB. O conteúdo será validado no servidor.</span></Field>
+                <Field label="Arquivo *"><Input type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)} required /><span className="block text-xs font-normal text-[#758078]">PDF, JPEG ou PNG, até 5 MB. Entra como rascunho: só vai para a página pública depois que você publicar.</span></Field>
               )}
               <div className="flex justify-end gap-2">
                 {editingDocumentId && (
@@ -423,6 +454,29 @@ export default function CampaignAccountabilityDialog({
                   <Button type="button" variant="outline" className="gap-2" onClick={baixarPlanilha}>
                     <Download className="h-4 w-4" /> Baixar planilha
                   </Button>
+                </div>
+
+                <div className={`rounded-lg p-4 text-sm ${rascunhos > 0 ? "bg-[#fff6e5] text-[#8a5a00]" : "bg-[#f0f7ee] text-[#33613a]"}`}>
+                  {rascunhos > 0 ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p>
+                        <strong>{rascunhos}</strong> lançamento(s) em rascunho — aparecem só aqui. Confira a lista abaixo e publique quando estiver certo.
+                      </p>
+                      <Button
+                        type="button"
+                        disabled={publishPending.isPending}
+                        onClick={() => {
+                          if (!campaign) return;
+                          if (!window.confirm(`Publicar ${rascunhos} lançamento(s) na página da campanha?`)) return;
+                          publishPending.mutate({ campaignId: campaign.id });
+                        }}
+                      >
+                        {publishPending.isPending ? "Publicando..." : "Publicar tudo"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p>Tudo conferido está publicado na página da campanha.</p>
+                  )}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
@@ -471,7 +525,7 @@ export default function CampaignAccountabilityDialog({
                   <div className="mt-2 max-h-80 overflow-y-auto rounded-lg border border-[#e2eade]">
                     <table className="w-full border-collapse text-left text-sm">
                       <thead className="sticky top-0 bg-[#f5f8f3] text-xs uppercase tracking-wide text-[#66736a]">
-                        <tr><th className="p-2">Data</th><th className="p-2">Descrição</th><th className="p-2">Categoria</th><th className="p-2 text-right">Valor</th></tr>
+                        <tr><th className="p-2">Data</th><th className="p-2">Descrição</th><th className="p-2">Categoria</th><th className="p-2">Situação</th><th className="p-2 text-right">Valor</th></tr>
                       </thead>
                       <tbody>
                         {statementQuery.data?.expenses.map((despesa) => (
@@ -479,11 +533,12 @@ export default function CampaignAccountabilityDialog({
                             <td className="p-2 whitespace-nowrap text-[#66736a]">{new Date(despesa.expenseDate).toLocaleDateString("pt-BR")}</td>
                             <td className="p-2">{despesa.title}</td>
                             <td className="p-2 text-[#66736a]">{CATEGORY_LABELS[despesa.category] ?? despesa.category}</td>
+                            <td className="p-2"><Selo publicado={Boolean(despesa.publishedAt)} /></td>
                             <td className="p-2 text-right font-semibold">{formatCurrency(despesa.amount)}</td>
                           </tr>
                         ))}
                         {!statementQuery.data?.expenses.length && (
-                          <tr><td className="p-3 text-[#66736a]" colSpan={4}>Nenhuma despesa lançada ainda.</td></tr>
+                          <tr><td className="p-3 text-[#66736a]" colSpan={5}>Nenhuma despesa lançada ainda.</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -510,7 +565,17 @@ export default function CampaignAccountabilityDialog({
                     </p>
                   </div>
                   <strong className="whitespace-nowrap">{formatCurrency(expense.amount)}</strong>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Selo publicado={Boolean(expense.publishedAt)} />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={expense.publishedAt ? "outline" : "default"}
+                      disabled={setExpensePublished.isPending}
+                      onClick={() => campaign && setExpensePublished.mutate({ id: expense.id, campaignId: campaign.id, published: !expense.publishedAt })}
+                    >
+                      {expense.publishedAt ? "Tirar do ar" : "Publicar"}
+                    </Button>
                     <Button type="button" size="sm" variant="outline" onClick={() => editarDespesa(expense)}>Corrigir</Button>
                     <Button
                       type="button"
@@ -548,8 +613,18 @@ export default function CampaignAccountabilityDialog({
                       {document.uploadedAt ? ` · ${new Date(document.uploadedAt).toLocaleDateString("pt-BR")}` : ""}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Selo publicado={Boolean(document.publishedAt)} />
                     <a href={document.documentUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border border-[#cfdac9] px-3 text-xs font-semibold text-[#243128]">Abrir</a>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={document.publishedAt ? "outline" : "default"}
+                      disabled={setDocumentPublished.isPending}
+                      onClick={() => campaign && setDocumentPublished.mutate({ id: document.id, campaignId: campaign.id, published: !document.publishedAt })}
+                    >
+                      {document.publishedAt ? "Tirar do ar" : "Publicar"}
+                    </Button>
                     <Button type="button" size="sm" variant="outline" onClick={() => editarDocumento(document)}>Corrigir</Button>
                     <Button
                       type="button"
@@ -605,6 +680,15 @@ export default function CampaignAccountabilityDialog({
         </section>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Mostra, em uma palavra, se aquele lancamento ja esta na pagina publica. */
+function Selo({ publicado }: { publicado: boolean }) {
+  return (
+    <span className={`rounded-full px-2 py-1 text-xs font-semibold ${publicado ? "bg-[#daf4df] text-[#1a6b1a]" : "bg-[#fdf0d5] text-[#8a5a00]"}`}>
+      {publicado ? "No ar" : "Rascunho"}
+    </span>
   );
 }
 

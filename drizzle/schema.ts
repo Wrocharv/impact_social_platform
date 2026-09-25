@@ -261,6 +261,8 @@ export const transparencyDocuments = mysqlTable("transparencyDocuments", {
   amount: int("amount"), // Valor em centavos (opcional)
   createdBy: int("createdBy"),
   uploadedAt: timestamp("uploadedAt").defaultNow().notNull(),
+  /** Enquanto for null, o comprovante fica so no painel: rascunho, fora da pagina publica. */
+  publishedAt: timestamp("publishedAt"),
 });
 
 export type TransparencyDocument = typeof transparencyDocuments.$inferSelect;
@@ -291,6 +293,8 @@ export const campaignExpenses = mysqlTable("campaignExpenses", {
   expenseDate: timestamp("expenseDate").notNull(),
   documentId: int("documentId"),
   createdBy: int("createdBy").notNull(),
+  /** Enquanto for null, a despesa fica so no painel: rascunho, fora da pagina publica. */
+  publishedAt: timestamp("publishedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
