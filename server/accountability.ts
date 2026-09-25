@@ -6,6 +6,7 @@ import {
   contributions,
   campaigns,
   transparencyDocuments,
+  users,
   type CampaignExpense,
 } from "../drizzle/schema";
 import { publicProcedure, router, sectionProcedure } from "./_core/trpc";
@@ -205,6 +206,71 @@ export const accountabilityRouter = router({
   getPublicReport: publicProcedure
     .input(z.object({ campaignId: z.number().int().positive() }))
     .query(({ input }) => loadReport(input.campaignId, true)),
+
+  /**
+   * Extrato de conferencia: cada entrada confirmada e cada despesa, uma a uma, com o saldo.
+   * So para o administrador — a pagina publica continua mostrando nome sem valor.
+   */
+  getStatement: sectionProcedure("campaigns")
+    .input(z.object({ campaignId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const db = await requireDatabase();
+      const campaign = await requireCampaign(db, input.campaignId);
+
+      const [linhas, despesas] = await Promise.all([
+        db
+          .select({
+            id: contributions.id,
+            type: contributions.type,
+            amount: contributions.amount,
+            estimatedAmount: contributions.estimatedAmount,
+            description: contributions.description,
+            donorName: contributions.donorName,
+            userName: users.name,
+            paymentMethod: contributions.paymentMethod,
+            status: contributions.status,
+            paidAt: contributions.paidAt,
+            createdAt: contributions.createdAt,
+          })
+          .from(contributions)
+          .leftJoin(users, eq(users.id, contributions.userId))
+          .where(and(
+            eq(contributions.campaignId, input.campaignId),
+            inArray(contributions.type, ["financial", "material"]),
+            inArray(contributions.status, CONFIRMED_FINANCIAL_STATUSES),
+          ))
+          .orderBy(desc(contributions.createdAt)),
+        db
+          .select()
+          .from(campaignExpenses)
+          .where(eq(campaignExpenses.campaignId, input.campaignId))
+          .orderBy(desc(campaignExpenses.expenseDate)),
+      ]);
+
+      const entries = linhas.map((linha) => ({
+        id: linha.id,
+        date: linha.paidAt ?? linha.createdAt,
+        name: linha.donorName || linha.userName || "Não identificado",
+        type: linha.type,
+        method: linha.paymentMethod,
+        description: linha.description,
+        amount: Math.max(0, (linha.type === "material" ? linha.estimatedAmount : linha.amount) ?? 0),
+      }));
+
+      const initialRaisedEntry = Math.max(0, campaign.raised ?? 0);
+      const totalEntries = initialRaisedEntry + entries.reduce((soma, entrada) => soma + entrada.amount, 0);
+      const totalSpent = despesas.reduce((soma, despesa) => soma + Math.max(0, despesa.amount ?? 0), 0);
+
+      return {
+        campaign: { id: campaign.id, title: campaign.title },
+        entries,
+        expenses: despesas,
+        initialRaisedEntry,
+        totalEntries,
+        totalSpent,
+        balance: totalEntries - totalSpent,
+      };
+    }),
 
   getAdminReport: sectionProcedure("campaigns")
     .input(z.object({ campaignId: z.number().int().positive() }))

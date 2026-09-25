@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
-import { FileCheck2, ReceiptText, ShieldCheck } from "lucide-react";
+import { Download, FileCheck2, ReceiptText, ScrollText, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -64,6 +64,7 @@ export default function CampaignAccountabilityDialog({
     { campaignId: campaign?.id ?? 1, limit: 10 },
     { enabled: open && Boolean(campaign) },
   );
+  const statementQuery = trpc.accountability.getStatement.useQuery(input, { enabled: open && Boolean(campaign) });
   const [expenseForm, setExpenseForm] = useState(EMPTY_EXPENSE);
   const [documentForm, setDocumentForm] = useState(EMPTY_DOCUMENT);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
@@ -78,6 +79,7 @@ export default function CampaignAccountabilityDialog({
       utils.accountability.getAdminReport.invalidate({ campaignId: campaign.id }),
       utils.accountability.getPublicReport.invalidate({ campaignId: campaign.id }),
       utils.campaigns.getById.invalidate({ id: campaign.id }),
+      utils.accountability.getStatement.invalidate({ campaignId: campaign.id }),
     ]);
   }
 
@@ -271,6 +273,40 @@ export default function CampaignAccountabilityDialog({
     }
   }
 
+  /** Baixa o extrato em planilha (abre no Excel e no Google Planilhas). */
+  function baixarPlanilha() {
+    const dados = statementQuery.data;
+    if (!dados) return;
+    const valor = (centavos: number) => (centavos / 100).toFixed(2).replace(".", ",");
+    const dia = (data: string | Date) => new Date(data).toLocaleDateString("pt-BR");
+    const escapar = (texto: string) => `"${String(texto ?? "").replace(/"/g, '""')}"`;
+
+    const linhas = [
+      ["Tipo", "Data", "Descrição", "Quem / Categoria", "Forma", "Valor (R$)"].join(";"),
+      ...(dados.initialRaisedEntry > 0
+        ? [["ENTRADA", "", escapar("Arrecadação inicial registrada na campanha"), "", "", valor(dados.initialRaisedEntry)].join(";")]
+        : []),
+      ...dados.entries.map((entrada) =>
+        ["ENTRADA", dia(entrada.date), escapar(entrada.description || (entrada.type === "material" ? "Doação de material" : "Contribuição financeira")), escapar(entrada.name), escapar(entrada.method || ""), valor(entrada.amount)].join(";"),
+      ),
+      ...dados.expenses.map((despesa) =>
+        ["DESPESA", dia(despesa.expenseDate), escapar(despesa.title), escapar(CATEGORY_LABELS[despesa.category] ?? despesa.category), escapar(despesa.quantity || ""), valor(despesa.amount)].join(";"),
+      ),
+      "",
+      ["TOTAL ENTRADAS", "", "", "", "", valor(dados.totalEntries)].join(";"),
+      ["TOTAL DESPESAS", "", "", "", "", valor(dados.totalSpent)].join(";"),
+      ["SALDO", "", "", "", "", valor(dados.balance)].join(";"),
+    ].join("\n");
+
+    // O BOM faz o Excel abrir os acentos certos.
+    const blob = new Blob([`\ufeff${linhas}`], { type: "text/csv;charset=utf-8" });
+    const a = window.document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `prestacao-de-contas-${campaign?.id ?? ""}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
@@ -302,9 +338,10 @@ export default function CampaignAccountabilityDialog({
         )}
 
         <Tabs value={aba} onValueChange={setAba} className="mt-2">
-          <TabsList className="grid h-auto w-full grid-cols-2 bg-[#edf3eb] p-1">
+          <TabsList className="grid h-auto w-full grid-cols-3 bg-[#edf3eb] p-1">
             <TabsTrigger value="expense" className="min-h-11 gap-2"><ReceiptText className="h-4 w-4" /> {editingExpenseId ? "Corrigir despesa" : "Registrar despesa"}</TabsTrigger>
             <TabsTrigger value="document" className="min-h-11 gap-2"><FileCheck2 className="h-4 w-4" /> {editingDocumentId ? "Corrigir documento" : "Publicar documento"}</TabsTrigger>
+            <TabsTrigger value="statement" className="min-h-11 gap-2"><ScrollText className="h-4 w-4" /> Conferência</TabsTrigger>
           </TabsList>
 
           <TabsContent value="expense" className="mt-5">
@@ -372,6 +409,88 @@ export default function CampaignAccountabilityDialog({
                 </Button>
               </div>
             </form>
+          </TabsContent>
+
+          <TabsContent value="statement" className="mt-5">
+            {statementQuery.isLoading ? (
+              <Card className="p-6 text-center text-[#66736a]">Montando o extrato...</Card>
+            ) : statementQuery.isError ? (
+              <Card className="border-red-200 bg-red-50 p-6 text-center text-red-700">Não foi possível montar o extrato.</Card>
+            ) : (
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-[#66736a]">Tudo o que entrou e tudo o que saiu, lançamento por lançamento, para conferir com o extrato do banco.</p>
+                  <Button type="button" variant="outline" className="gap-2" onClick={baixarPlanilha}>
+                    <Download className="h-4 w-4" /> Baixar planilha
+                  </Button>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Summary label="Total de entradas" value={formatCurrency(statementQuery.data?.totalEntries ?? 0)} />
+                  <Summary label="Total de despesas" value={formatCurrency(statementQuery.data?.totalSpent ?? 0)} />
+                  <Summary label="Saldo" value={formatCurrency(statementQuery.data?.balance ?? 0)} />
+                </div>
+
+                <section>
+                  <h3 className="font-bold text-[#243128]">Entradas ({(statementQuery.data?.entries.length ?? 0) + ((statementQuery.data?.initialRaisedEntry ?? 0) > 0 ? 1 : 0)})</h3>
+                  <div className="mt-2 max-h-80 overflow-y-auto rounded-lg border border-[#e2eade]">
+                    <table className="w-full border-collapse text-left text-sm">
+                      <thead className="sticky top-0 bg-[#f5f8f3] text-xs uppercase tracking-wide text-[#66736a]">
+                        <tr><th className="p-2">Data</th><th className="p-2">Quem</th><th className="p-2">Forma</th><th className="p-2 text-right">Valor</th></tr>
+                      </thead>
+                      <tbody>
+                        {(statementQuery.data?.initialRaisedEntry ?? 0) > 0 && (
+                          <tr className="border-t border-[#e2eade]">
+                            <td className="p-2 text-[#66736a]">—</td>
+                            <td className="p-2">Arrecadação inicial da campanha</td>
+                            <td className="p-2 text-[#66736a]">registrada no cadastro</td>
+                            <td className="p-2 text-right font-semibold">{formatCurrency(statementQuery.data?.initialRaisedEntry ?? 0)}</td>
+                          </tr>
+                        )}
+                        {statementQuery.data?.entries.map((entrada) => (
+                          <tr key={`entrada-${entrada.id}`} className="border-t border-[#e2eade]">
+                            <td className="p-2 whitespace-nowrap text-[#66736a]">{new Date(entrada.date).toLocaleDateString("pt-BR")}</td>
+                            <td className="p-2">
+                              {entrada.name}
+                              {entrada.type === "material" && <span className="ml-1 text-xs text-[#66736a]">(material{entrada.description ? `: ${entrada.description}` : ""})</span>}
+                            </td>
+                            <td className="p-2 text-[#66736a]">{entrada.method || "—"}</td>
+                            <td className="p-2 text-right font-semibold">{formatCurrency(entrada.amount)}</td>
+                          </tr>
+                        ))}
+                        {!statementQuery.data?.entries.length && (statementQuery.data?.initialRaisedEntry ?? 0) === 0 && (
+                          <tr><td className="p-3 text-[#66736a]" colSpan={4}>Nenhuma entrada confirmada nesta campanha.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section>
+                  <h3 className="font-bold text-[#243128]">Despesas ({statementQuery.data?.expenses.length ?? 0})</h3>
+                  <div className="mt-2 max-h-80 overflow-y-auto rounded-lg border border-[#e2eade]">
+                    <table className="w-full border-collapse text-left text-sm">
+                      <thead className="sticky top-0 bg-[#f5f8f3] text-xs uppercase tracking-wide text-[#66736a]">
+                        <tr><th className="p-2">Data</th><th className="p-2">Descrição</th><th className="p-2">Categoria</th><th className="p-2 text-right">Valor</th></tr>
+                      </thead>
+                      <tbody>
+                        {statementQuery.data?.expenses.map((despesa) => (
+                          <tr key={`despesa-${despesa.id}`} className="border-t border-[#e2eade]">
+                            <td className="p-2 whitespace-nowrap text-[#66736a]">{new Date(despesa.expenseDate).toLocaleDateString("pt-BR")}</td>
+                            <td className="p-2">{despesa.title}</td>
+                            <td className="p-2 text-[#66736a]">{CATEGORY_LABELS[despesa.category] ?? despesa.category}</td>
+                            <td className="p-2 text-right font-semibold">{formatCurrency(despesa.amount)}</td>
+                          </tr>
+                        ))}
+                        {!statementQuery.data?.expenses.length && (
+                          <tr><td className="p-3 text-[#66736a]" colSpan={4}>Nenhuma despesa lançada ainda.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
 
