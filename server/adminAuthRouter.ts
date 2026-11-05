@@ -158,6 +158,8 @@ export const adminAuthRouter = router({
         allowedSections: input.role === "partial" ? input.allowedSections ?? [] : input.role ? [] : undefined,
         password: input.password,
       });
+      // Senha nova: quem estava bloqueado por errar a antiga ja pode entrar.
+      if (input.password) clearFailures(target.email.trim().toLowerCase());
       return { success: true as const };
     }),
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertCircle, Plus, Shield, ShieldCheck, Trash2, UserCog } from "lucide-react";
+import { AlertCircle, Copy, KeyRound, MessageCircle, Plus, Shield, ShieldCheck, Trash2, UserCog } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -38,6 +38,29 @@ type FormState = {
   allowedSections: SectionKey[];
 };
 
+// Senha facil de ditar e digitar no celular: sem letras parecidas (l/1, O/0) e tudo minusculo,
+// porque o teclado do celular costuma por a primeira letra em maiuscula sozinho.
+function gerarSenha() {
+  const letras = "abcdefghjkmnpqrstuvwxyz";
+  const numeros = "23456789";
+  const pega = (chars: string, n: number) =>
+    Array.from(crypto.getRandomValues(new Uint32Array(n)), (v) => chars[v % chars.length]).join("");
+  return `${pega(letras, 4)}${pega(numeros, 4)}`;
+}
+
+type Enviar = { nome: string; email: string; senha: string };
+
+function textoAcesso(e: Enviar) {
+  const primeiro = e.nome.trim().split(/\s+/)[0];
+  return (
+    `Olá${primeiro ? `, ${primeiro}` : ""}! Seu acesso ao painel do Parceria do Bem:\n\n` +
+    `Endereço: ${window.location.origin}/admin\n` +
+    `E-mail: ${e.email}\n` +
+    `Senha: ${e.senha}\n\n` +
+    `Digite a senha exatamente assim, tudo em letras minúsculas.`
+  );
+}
+
 const EMPTY_FORM: FormState = { id: null, email: "", password: "", name: "", role: "full", allowedSections: [] };
 
 export default function AdminManagementSection({ currentAdminId }: { currentAdminId: number }) {
@@ -45,6 +68,8 @@ export default function AdminManagementSection({ currentAdminId }: { currentAdmi
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
+  // Depois de salvar uma senha, a janela mostra o que mandar pra pessoa (em vez de fechar).
+  const [enviar, setEnviar] = useState<Enviar | null>(null);
 
   const listQuery = trpc.adminAuth.list.useQuery();
 
@@ -53,7 +78,7 @@ export default function AdminManagementSection({ currentAdminId }: { currentAdmi
   const createMutation = trpc.adminAuth.create.useMutation({
     onSuccess: () => {
       toast.success("Administrador criado!");
-      setIsOpen(false);
+      setEnviar({ nome: form.name, email: form.email.trim().toLowerCase(), senha: form.password });
       invalidate();
     },
     onError: (err) => setError(err.message),
@@ -62,7 +87,8 @@ export default function AdminManagementSection({ currentAdminId }: { currentAdmi
   const updateMutation = trpc.adminAuth.update.useMutation({
     onSuccess: () => {
       toast.success("Administrador atualizado!");
-      setIsOpen(false);
+      if (form.password) setEnviar({ nome: form.name, email: form.email, senha: form.password });
+      else setIsOpen(false);
       invalidate();
     },
     onError: (err) => setError(err.message),
@@ -77,7 +103,8 @@ export default function AdminManagementSection({ currentAdminId }: { currentAdmi
   });
 
   function openCreate() {
-    setForm(EMPTY_FORM);
+    setEnviar(null);
+    setForm({ ...EMPTY_FORM, password: gerarSenha() });
     setError(null);
     setIsOpen(true);
   }
@@ -92,6 +119,7 @@ export default function AdminManagementSection({ currentAdminId }: { currentAdmi
       allowedSections: admin.allowedSections as SectionKey[],
     });
     setError(null);
+    setEnviar(null);
     setIsOpen(true);
   }
 
@@ -222,6 +250,39 @@ export default function AdminManagementSection({ currentAdminId }: { currentAdmi
             <DialogTitle>{form.id ? "Editar administrador" : "Novo administrador"}</DialogTitle>
           </DialogHeader>
 
+          {enviar ? (
+            <div className="space-y-4">
+              <p className="text-sm text-[#243128]">
+                Pronto! Agora mande o acesso para {enviar.nome || enviar.email}. Se ela estava bloqueada por errar a senha, já está liberada.
+              </p>
+              <div className="rounded-lg border border-[#e1e6df] bg-[#f8fbf6] p-3 text-sm">
+                <p className="text-[#66736a]">E-mail</p>
+                <p className="font-semibold text-[#243128]">{enviar.email}</p>
+                <p className="mt-2 text-[#66736a]">Senha</p>
+                <p className="font-mono text-lg font-bold tracking-wider text-[#243128]">{enviar.senha}</p>
+              </div>
+              <Button
+                type="button"
+                className="w-full gap-2 bg-[#25D366] text-white hover:bg-[#1ebe5b]"
+                onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(textoAcesso(enviar))}`, "_blank")}
+              >
+                <MessageCircle className="h-4 w-4" /> Enviar pelo WhatsApp
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() =>
+                  void navigator.clipboard?.writeText(textoAcesso(enviar)).then(() => toast.success("Mensagem copiada."))
+                }
+              >
+                <Copy className="h-4 w-4" /> Copiar mensagem
+              </Button>
+              <Button type="button" variant="ghost" className="w-full" onClick={() => setIsOpen(false)}>
+                Fechar
+              </Button>
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-[#243128]">E-mail</label>
@@ -246,13 +307,28 @@ export default function AdminManagementSection({ currentAdminId }: { currentAdmi
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-[#243128]">{form.id ? "Nova senha (opcional)" : "Senha"}</label>
-              <Input
-                type="password"
-                required={!form.id}
-                value={form.password}
-                onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
-                placeholder={form.id ? "Deixe em branco para manter a atual" : "Pelo menos 6 caracteres"}
-              />
+              {/* Senha a mostra: quem cria e quem manda pra pessoa, entao precisa ver o que mandou. */}
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  required={!form.id}
+                  value={form.password}
+                  onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
+                  placeholder={form.id ? "Deixe em branco para manter a atual" : "Pelo menos 6 caracteres"}
+                  className="font-mono"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="shrink-0 gap-1.5"
+                  onClick={() => setForm((prev) => ({ ...prev, password: gerarSenha() }))}
+                >
+                  <KeyRound className="h-4 w-4" /> Gerar senha
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-1.5">
@@ -295,6 +371,7 @@ export default function AdminManagementSection({ currentAdminId }: { currentAdmi
               {isSaving ? "Salvando..." : form.id ? "Salvar alterações" : "Criar administrador"}
             </Button>
           </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>
