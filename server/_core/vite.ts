@@ -6,6 +6,34 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 
+// O WhatsApp le a pagina sem rodar o React: a previa do link so aparece se as etiquetas ja vierem no HTML.
+const PREVIA_SOCIO_DOADOR = {
+  titulo: "Você viveu o Maanaim? Ajude a construir o Hotel Recanto de Paz",
+  descricao: "Seja um Sócio Doador com R$ 100 por mês ou o valor que puder. Você escolhe as parcelas e o dia de pagar.",
+  url: "https://www.parceriadobem.com.br/socio-doador",
+  imagem: "https://www.parceriadobem.com.br/socio-doador-previa.jpg",
+};
+
+export function comPreviaSocioDoador(html: string): string {
+  const { titulo, descricao, url, imagem } = PREVIA_SOCIO_DOADOR;
+  const etiquetas = [
+    `<meta name="description" content="${descricao}" />`,
+    `<meta property="og:type" content="website" />`,
+    `<meta property="og:site_name" content="Parceria do Bem" />`,
+    `<meta property="og:title" content="${titulo}" />`,
+    `<meta property="og:description" content="${descricao}" />`,
+    `<meta property="og:url" content="${url}" />`,
+    `<meta property="og:image" content="${imagem}" />`,
+    `<meta property="og:image:type" content="image/jpeg" />`,
+    `<meta property="og:image:width" content="1200" />`,
+    `<meta property="og:image:height" content="630" />`,
+    `<meta name="twitter:card" content="summary_large_image" />`,
+  ].join("\n    ");
+  return html
+    .replace(/<title>[^<]*<\/title>/, () => `<title>${titulo}</title>`)
+    .replace("</head>", () => `    ${etiquetas}\n  </head>`);
+}
+
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
@@ -80,6 +108,11 @@ export function serveStatic(app: Express) {
   );
 
   app.use(express.static(distPath));
+
+  app.get("/socio-doador", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.type("html").send(comPreviaSocioDoador(fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8")));
+  });
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
