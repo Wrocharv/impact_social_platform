@@ -14,7 +14,7 @@ import { toast } from "sonner";
 const ADMIN_WHATSAPP_NUMBER = "5564999058919";
 const INSTALLMENT_OPTIONS = [5, 10, 12, 20];
 const DUE_DAYS = [5, 10, 15, 20, 25];
-const SUGGESTED_AMOUNTS = [100, 200, 300];
+const SUGGESTED_AMOUNTS = [500, 1000, 2000];
 
 const formatCurrency = (cents: number) =>
   (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
