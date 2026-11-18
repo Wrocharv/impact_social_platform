@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { HeartHandshake, MessageCircle, Search } from "lucide-react";
+import { HeartHandshake, MessageCircle, Search, Ticket } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../../server/routers";
 import { trpc } from "@/lib/trpc";
+import { mensagemCarne } from "@/lib/carne";
 
 type Linha = inferRouterOutputs<AppRouter>["monthlyPledges"]["painel"][number];
 type Filtro = "atencao" | "ativos" | "atrasado" | "em_dia" | "concluido" | "inativos";
@@ -62,6 +63,10 @@ function mensagemLembrete(l: Linha) {
   const primeiro = l.fullName.trim().split(/\s+/)[0];
   const s = l.situacao;
   const fim = "Quando fizer, é só responder aqui com o comprovante. Obrigado por fazer parte!";
+  if (!s.entradaPaga) {
+    const resto = s.atrasadas * l.installmentAmountCents;
+    return `Olá, ${primeiro}! Tudo bem? Passando pra lembrar ${l.installments ? "da entrada" : "do pagamento"} do seu compromisso com a campanha "${l.campaignTitle}": ${brl(s.entradaEmAbertoCents)}${resto > 0 ? `, e mais ${brl(resto)} de parcelas vencidas` : ""}. ${fim}`;
+  }
   if (s.categoria === "atrasado") {
     const aberto =
       s.atrasadas === 1
@@ -122,8 +127,8 @@ export default function MonthlyPledgesSection() {
   const mudarStatus = trpc.monthlyPledges.updateStatus.useMutation({ onSuccess: atualizar, onError: erro });
 
   const linhas = painel.data ?? [];
-  const campanhas = useMemo(() => Array.from(new Map(linhas.map((l) => [l.campaignId, l.campaignTitle])).entries()), [linhas]);
-  const daCampanha = linhas.filter((l) => campanha === "todas" || String(l.campaignId) === campanha);
+  const campanhas = useMemo(() => Array.from(new Map(linhas.map((l) => [l.grupoId, l.campaignTitle])).entries()), [linhas]);
+  const daCampanha = linhas.filter((l) => campanha === "todas" || l.grupoId === campanha);
   const deCategoria = (...cats: Linha["situacao"]["categoria"][]) => daCampanha.filter((l) => cats.includes(l.situacao.categoria));
 
   const atrasados = deCategoria("atrasado");
@@ -135,6 +140,11 @@ export default function MonthlyPledgesSection() {
     (soma, l) => soma + l.pagamentos.filter((p) => p.paidOn.startsWith(mes)).reduce((s, p) => s + p.amountCents, 0),
     0,
   );
+
+  // Totais do compromisso (sem os cancelados): o que foi prometido, o que ja entrou e o que falta.
+  const valendo = daCampanha.filter((l) => l.situacao.categoria !== "cancelado");
+  const prometido = valendo.reduce((s, l) => s + l.totalAmountCents, 0);
+  const pago = valendo.reduce((s, l) => s + l.situacao.totalPagoCents, 0);
 
   const termo = busca.trim().toLowerCase();
   const visiveis = daCampanha
@@ -160,10 +170,27 @@ export default function MonthlyPledgesSection() {
     lembrado.mutate({ id: l.id });
   }
 
+  // Carne digital: todas as parcelas com vencimento, o que ja foi pago e o Pix.
+  function mandarCarne(l: Linha) {
+    const texto = mensagemCarne({
+      nome: l.fullName,
+      campanha: l.campaignTitle,
+      parcelaCents: l.installmentAmountCents,
+      vencimentos: l.vencimentos,
+      pagas: l.situacao.parcelasPagas,
+      entradaCents: l.situacao.entradaCents,
+      entradaPaga: l.situacao.entradaPaga,
+      pixKey: l.pixKey,
+      pixName: l.pixName,
+    });
+    window.open(`https://wa.me/${numeroWhatsApp(l.whatsapp)}?text=${encodeURIComponent(texto)}`, "_blank", "noopener,noreferrer");
+  }
+
   function abrirRecebimento(l: Linha) {
     setRecebendo({
       id: l.id,
-      valor: (l.installmentAmountCents / 100).toFixed(2).replace(".", ","),
+      // Entrada em aberto vem primeiro; senao, o valor de uma parcela.
+      valor: ((l.situacao.entradaEmAbertoCents || l.installmentAmountCents) / 100).toFixed(2).replace(".", ","),
       data: hojeBrasil(),
       metodo: "pix",
       obs: "",
@@ -243,6 +270,16 @@ export default function MonthlyPledgesSection() {
         ))}
       </div>
 
+      {/* So nas campanhas rapidas: a tela da construcao continua como estava. */}
+      {campanha.startsWith("q") && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-[#dce5d8] bg-white px-4 py-3 text-sm text-[#4f6550]">
+          <span className="font-semibold text-[#243128]">{campanhas.find(([id]) => id === campanha)?.[1]}</span>
+          <span>Prometido: <strong className="text-[#243128]">{brl(prometido)}</strong></span>
+          <span>Pago: <strong className="text-[#228B22]">{brl(pago)}</strong></span>
+          <span>A pagar: <strong className="text-[#243128]">{brl(Math.max(0, prometido - pago))}</strong></span>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         {([
           ["atencao", "Precisa de atenção"],
@@ -299,7 +336,18 @@ export default function MonthlyPledgesSection() {
                       {l.city ? ` · ${l.city}` : ""}
                     </p>
                     <p className="mt-1 text-sm text-[#66736a]">
-                      {brl(l.installmentAmountCents)} por mês, todo dia {l.reminderDay} · {s.parcelasPagas} de {l.installments} parcelas ·{" "}
+                      {s.entradaCents > 0 && (
+                        <>
+                          {l.installments ? "Entrada" : "À vista"} {brl(s.entradaCents)} {s.entradaPaga ? "(paga) " : "(a pagar) "}
+                          {l.installments ? "+ " : ""}
+                        </>
+                      )}
+                      {l.installments > 0 && (
+                        <>
+                          {brl(l.installmentAmountCents)} por mês, todo dia {l.reminderDay} · {s.parcelasPagas} de {l.installments} parcelas
+                        </>
+                      )}
+                      {" · "}
                       {brl(s.totalPagoCents)} de {brl(l.totalAmountCents)}
                     </p>
                     {s.categoria === "atrasado" && (
@@ -323,6 +371,11 @@ export default function MonthlyPledgesSection() {
                         Recebi
                       </Button>
                     )}
+                    {l.quickCampaignId ? (
+                    <Button type="button" size="sm" variant="outline" onClick={() => mandarCarne(l)} title="Manda pelo WhatsApp todas as parcelas, vencimentos e o Pix">
+                      <Ticket className="mr-1.5 h-4 w-4" /> Carnê
+                    </Button>
+                    ) : null}
                     <Button type="button" size="sm" variant="ghost" onClick={() => alternar(l.id)}>
                       {aberto ? "Fechar" : `Histórico (${l.pagamentos.length})`}
                     </Button>

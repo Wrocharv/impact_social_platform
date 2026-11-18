@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { campaigns, monthlyPledgePayments, monthlyPledges } from "../drizzle/schema";
+import { campaigns, monthlyPledgePayments, monthlyPledges, quickCampaigns } from "../drizzle/schema";
 import { publicProcedure, router, sectionProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { resolvePublicCampaignId } from "./campaigns";
@@ -50,20 +50,37 @@ function vencimento(pledge: Pledge, indice: number) {
   return `${a}-${String(m).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }
 
-/** Em que pe esta o socio hoje: parcelas pagas, vencidas, atrasadas e o que fazer com ele. */
+/**
+ * Em que pe esta o socio hoje. O que entra paga primeiro a entrada (se houver) e depois as
+ * parcelas, na ordem. Sem entrada, a conta e a mesma de sempre.
+ */
 export function situacaoDoSocio(pledge: Pledge, totalPagoCents: number, hoje = dataBrasil(new Date())) {
+  const entrada = Math.max(0, pledge.downPaymentCents ?? 0);
+  const entradaPagaCents = Math.min(totalPagoCents, entrada);
+  const entradaPaga = entradaPagaCents >= entrada;
+  const paraParcelas = Math.max(0, totalPagoCents - entrada);
   const parcela = Math.max(1, pledge.installmentAmountCents);
-  const parcelasPagas = Math.min(pledge.installments, Math.floor(totalPagoCents / parcela));
+  const parcelasPagas = pledge.installments > 0 ? Math.min(pledge.installments, Math.floor(paraParcelas / parcela)) : 0;
   let vencidas = 0;
   while (vencidas < pledge.installments && vencimento(pledge, vencidas) <= hoje) vencidas++;
   const atrasadas = Math.max(0, vencidas - parcelasPagas);
-  const primeiraEmAberto = parcelasPagas < pledge.installments ? vencimento(pledge, parcelasPagas) : null;
+  // A entrada vence no dia do cadastro.
+  const primeiraEmAberto = !entradaPaga
+    ? dataBrasil(pledge.createdAt)
+    : parcelasPagas < pledge.installments
+      ? vencimento(pledge, parcelasPagas)
+      : null;
+  const entradaEmAbertoCents = entrada - entradaPagaCents;
+  // A entrada e "pra agora": da 3 dias de folga antes de contar como atrasada.
+  const entradaVencida = entradaEmAbertoCents > 0 && hoje > somarDias(dataBrasil(pledge.createdAt), 3);
+  const valorAtrasadoCents = (entradaVencida ? entradaEmAbertoCents : 0) + atrasadas * pledge.installmentAmountCents;
+  const quitado = entradaPaga && parcelasPagas >= pledge.installments;
 
   let categoria: SituacaoSocio;
   if (pledge.status === "cancelled") categoria = "cancelado";
-  else if (parcelasPagas >= pledge.installments || pledge.status === "completed") categoria = "concluido";
+  else if (quitado || pledge.status === "completed") categoria = "concluido";
   else if (pledge.status === "paused") categoria = "pausado";
-  else if (atrasadas > 0) categoria = "atrasado";
+  else if (valorAtrasadoCents > 0) categoria = "atrasado";
   // Vence nos proximos 7 dias e nao esta adiantado: e hora de lembrar.
   else if (primeiraEmAberto && primeiraEmAberto <= somarDias(hoje, 7)) categoria = "vence_logo";
   else categoria = "em_dia";
@@ -71,10 +88,13 @@ export function situacaoDoSocio(pledge: Pledge, totalPagoCents: number, hoje = d
   return {
     categoria,
     totalPagoCents,
+    entradaCents: entrada,
+    entradaPaga,
+    entradaEmAbertoCents,
     parcelasPagas,
     vencidas,
     atrasadas,
-    valorAtrasadoCents: atrasadas * pledge.installmentAmountCents,
+    valorAtrasadoCents,
     primeiraEmAberto,
   };
 }
@@ -88,10 +108,12 @@ async function recalcular(db: Db, pledgeId: number) {
     .from(monthlyPledgePayments)
     .where(eq(monthlyPledgePayments.pledgeId, pledgeId));
   const total = pagamentos.reduce((soma, p) => soma + p.amountCents, 0);
-  const installmentsPaid = Math.min(pledge.installments, Math.floor(total / Math.max(1, pledge.installmentAmountCents)));
+  const s = situacaoDoSocio({ ...pledge, status: "active" }, total);
+  const installmentsPaid = s.parcelasPagas;
+  const quitado = s.categoria === "concluido";
   let status = pledge.status;
-  if (installmentsPaid >= pledge.installments && status === "active") status = "completed";
-  if (installmentsPaid < pledge.installments && status === "completed") status = "active";
+  if (quitado && status === "active") status = "completed";
+  if (!quitado && status === "completed") status = "active";
   await db.update(monthlyPledges).set({ installmentsPaid, status }).where(eq(monthlyPledges.id, pledgeId));
 }
 
@@ -164,14 +186,26 @@ export const monthlyPledgesRouter = router({
       .orderBy(desc(monthlyPledgePayments.paidOn), desc(monthlyPledgePayments.id));
     const listaCampanhas = await db.select({ id: campaigns.id, title: campaigns.title }).from(campaigns);
     const tituloDe = new Map(listaCampanhas.map((c) => [c.id, c.title]));
+    const rapidas = await db
+      .select({ id: quickCampaigns.id, title: quickCampaigns.title, subtitle: quickCampaigns.subtitle, pixKey: quickCampaigns.pixKey, pixName: quickCampaigns.pixName })
+      .from(quickCampaigns);
+    const rapidaDe = new Map(rapidas.map((c) => [c.id, c]));
     const hoje = dataBrasil(new Date());
 
     return pledges.map((pledge) => {
       const seus = pagamentos.filter((p) => p.pledgeId === pledge.id);
       const total = seus.reduce((soma, p) => soma + p.amountCents, 0);
+      const rapida = pledge.quickCampaignId ? rapidaDe.get(pledge.quickCampaignId) : undefined;
       return {
         ...pledge,
-        campaignTitle: tituloDe.get(pledge.campaignId) ?? "Campanha",
+        // "q12" = campanha rapida 12; "1" = campanha 1 do site. Chave unica pro filtro do painel.
+        grupoId: pledge.quickCampaignId ? `q${pledge.quickCampaignId}` : String(pledge.campaignId),
+        campaignTitle: rapida
+          ? [rapida.title, rapida.subtitle].filter(Boolean).join(" – ")
+          : tituloDe.get(pledge.campaignId) ?? "Campanha",
+        pixKey: rapida?.pixKey ?? null,
+        pixName: rapida?.pixName ?? null,
+        vencimentos: Array.from({ length: pledge.installments }, (_, i) => vencimento(pledge, i)),
         pagamentos: seus,
         situacao: situacaoDoSocio(pledge, total, hoje),
       };

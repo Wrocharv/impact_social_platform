@@ -5,6 +5,7 @@ import AdminManagementSection from "@/components/admin/AdminManagementSection";
 import CampaignAccountabilityDialog from "@/components/admin/CampaignAccountabilityDialog";
 import CampaignQrCodeDialog from "@/components/admin/CampaignQrCodeDialog";
 import MonthlyPledgesSection from "@/components/admin/MonthlyPledgesSection";
+import QuickCampaignsSection from "@/components/admin/QuickCampaignsSection";
 import DashboardLayout from "@/components/DashboardLayout";
 import AdminLogin from "@/pages/AdminLogin";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -1764,8 +1765,9 @@ export default function AdminDashboard() {
             </div>
           </TabsContent>
 
-          <TabsContent value="socios" className="space-y-6">
+          <TabsContent value="socios" className="space-y-10">
             <MonthlyPledgesSection />
+            <QuickCampaignsSection />
           </TabsContent>
 
           <TabsContent value="content" className="space-y-6">

@@ -26,6 +26,8 @@ import MyDonationsPage from "./pages/MyDonationsPage";
 import PartnerSpotlightPage from "./pages/PartnerSpotlightPage";
 import PartnerApplicationPage from "./pages/PartnerApplicationPage";
 import MonthlyPledgePage from "./pages/MonthlyPledgePage";
+import QuickPledgePage from "./pages/QuickPledgePage";
+import CarnePrintPage from "./pages/CarnePrintPage";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -40,6 +42,9 @@ function Router() {
           construcao do hotel, sem passar pela pagina da campanha. */}
       <Route path={"/socio-doador"}>{() => <MonthlyPledgePage campaignIdFixo={100001} />}</Route>
       <Route path={"/parceiro-mensal/:campaignId"}>{() => <MonthlyPledgePage />}</Route>
+      {/* Carne de campanha rapida: /carne/:id e o cadastro, /qr e o QR grande pra mostrar na igreja. */}
+      <Route path={"/carne/:id/qr"} component={CarnePrintPage} />
+      <Route path={"/carne/:id"} component={QuickPledgePage} />
       <Route path={"/donors"} component={DonorsPage} />
       <Route path={"/minhas-doacoes"} component={MyDonationsPage} />
       <Route path={"/contribute/help/:id"} component={ContributionChoicePage} />

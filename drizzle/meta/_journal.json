@@ -232,6 +232,13 @@
       "when": 1790400000000,
       "tag": "0031_add_accountability_publishing",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1795020000000,
+      "tag": "0032_add_quick_campaigns",
+      "breakpoints": true
     }
   ]
 }

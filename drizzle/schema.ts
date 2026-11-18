@@ -402,8 +402,35 @@ export const monthlyPledges = mysqlTable("monthlyPledges", {
   status: mysqlEnum("status", ["active", "paused", "completed", "cancelled"]).default("active").notNull(),
   // Ultima vez que alguem tocou em "Lembrar" no painel — pra saber quem ja foi avisado no mes.
   lastReminderAt: timestamp("lastReminderAt"),
+  // Compromisso feito por um carne de campanha rapida (ex.: poltronas de uma congregacao).
+  // Nesses casos campaignId fica 0: a campanha rapida nao e uma campanha do site.
+  quickCampaignId: int("quickCampaignId"),
+  // Entrada a vista (0 = sem entrada). O total do compromisso ja inclui a entrada;
+  // as parcelas dividem so o que sobra.
+  downPaymentCents: int("downPaymentCents").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
+
+/**
+ * Campanha rapida ("carne"): arrecadacao pequena e avulsa — poltronas, som, telhado de uma
+ * congregacao. Nao aparece no site; so quem le o QR do carne chega no cadastro.
+ */
+export const quickCampaigns = mysqlTable("quickCampaigns", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 200 }).notNull(),
+  subtitle: varchar("subtitle", { length: 200 }),
+  goalCents: int("goalCents"),
+  suggestedTotalCents: int("suggestedTotalCents"),
+  suggestedInstallments: int("suggestedInstallments"),
+  // Se falso, quem le o QR nao muda o valor nem as parcelas.
+  allowCustomAmount: boolean("allowCustomAmount").default(true).notNull(),
+  pixKey: varchar("pixKey", { length: 140 }),
+  pixName: varchar("pixName", { length: 120 }),
+  status: mysqlEnum("status", ["active", "closed"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type QuickCampaign = typeof quickCampaigns.$inferSelect;
 
 export type MonthlyPledge = typeof monthlyPledges.$inferSelect;
 export type InsertMonthlyPledge = typeof monthlyPledges.$inferInsert;

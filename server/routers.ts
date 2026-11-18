@@ -9,6 +9,7 @@ import { paymentsRouter } from "./payments";
 import { partnersRouter } from "./partners";
 import { partnerApplicationsRouter } from "./partnerApplications";
 import { monthlyPledgesRouter } from "./monthlyPledges";
+import { quickCampaignsRouter } from "./quickCampaigns";
 import { accountabilityRouter } from "./accountability";
 import { whatsappRouter } from "./whatsapp.router";
 import { siteSettingsRouter } from "./siteSettings";
@@ -33,6 +34,7 @@ export const appRouter = router({
   partners: partnersRouter,
   partnerApplications: partnerApplicationsRouter,
   monthlyPledges: monthlyPledgesRouter,
+  quickCampaigns: quickCampaignsRouter,
   accountability: accountabilityRouter,
   whatsapp: whatsappRouter,
   siteSettings: siteSettingsRouter,
